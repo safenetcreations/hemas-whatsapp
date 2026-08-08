@@ -5,9 +5,24 @@ runConfig:
   maxInstances: 10
   concurrency: 80
 
+# Firebase App Hosting serves the governed CLOUD DEMO: the same synthetic
+# SafeNet demonstration, bound read-only-safe to the hemas-whatsapp project.
+# External messaging, real patient data, diagnosis and Analytics stay OFF.
+# Local development is unaffected: `npm run dev` reads .env.local, and the
+# App Hosting emulator reads apphosting.emulator.yaml (gitignored).
 env:
   - variable: NEXT_PUBLIC_APP_STAGE
-    value: demo
+    value: uat
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: hemas-whatsapp
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_USE_FIREBASE_EMULATORS
+    value: "false"
     availability:
       - BUILD
       - RUNTIME
@@ -18,6 +33,56 @@ env:
       - RUNTIME
   - variable: NEXT_PUBLIC_REAL_PATIENT_DATA_ENABLED
     value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_DESCRIPTOR_ENABLED
+    value: "true"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED
+    value: "true"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_ANALYTICS_ENABLED
+    value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_PROJECT_ID
+    value: hemas-whatsapp
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_API_KEY
+    value: AIzaSyDj906GjrkqVvcQAUx8cmBsoPsAG_G4E3c
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_AUTH_DOMAIN
+    value: hemas-whatsapp.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_STORAGE_BUCKET
+    value: hemas-whatsapp.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_MESSAGING_SENDER_ID
+    value: "504137546315"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_APP_ID
+    value: 1:504137546315:web:7c2108b26a0639893b2bce
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_MEASUREMENT_ID
+    value: G-BN46X4FB7W
     availability:
       - BUILD
       - RUNTIME

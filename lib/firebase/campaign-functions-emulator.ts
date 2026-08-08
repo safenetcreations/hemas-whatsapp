@@ -6,6 +6,7 @@ import {
 } from "firebase/functions";
 import { z } from "zod";
 import { getLocalEmulatorAuth } from "./auth-emulator";
+import { currentCloudDemoRuntime } from "./runtime-mode";
 import {
   evaluateLocalAuthPolicy,
   isExpectedSyntheticIdentity,
@@ -402,12 +403,21 @@ declare global {
 }
 
 function getLocalCampaignFunctions(actorUid: string): Functions {
-  const policy = browserPolicy();
-  if (!policy.allowed) {
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
     throw new CampaignFunctionsClientError(
-      `The local Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+      `The Functions endpoint refused unsafe cloud configuration: ${cloudRuntime.reason}.`,
       "unsafe_endpoint",
     );
+  }
+  if (!cloudRuntime.active) {
+    const policy = browserPolicy();
+    if (!policy.allowed) {
+      throw new CampaignFunctionsClientError(
+        `The local Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+        "unsafe_endpoint",
+      );
+    }
   }
   const auth = getLocalEmulatorAuth();
   const user = auth.currentUser;
@@ -424,11 +434,13 @@ function getLocalCampaignFunctions(actorUid: string): Functions {
     auth.app,
     LOCAL_CAMPAIGN_FUNCTIONS_ENDPOINT.region,
   );
-  connectFunctionsEmulator(
-    functions,
-    LOCAL_CAMPAIGN_FUNCTIONS_ENDPOINT.hostname,
-    LOCAL_CAMPAIGN_FUNCTIONS_ENDPOINT.port,
-  );
+  if (!cloudRuntime.active) {
+    connectFunctionsEmulator(
+      functions,
+      LOCAL_CAMPAIGN_FUNCTIONS_ENDPOINT.hostname,
+      LOCAL_CAMPAIGN_FUNCTIONS_ENDPOINT.port,
+    );
+  }
   globalThis.__hemasLocalCampaignFunctions = functions;
   return functions;
 }

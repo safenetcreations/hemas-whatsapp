@@ -11,8 +11,10 @@ import {
   type FirebaseStorage,
 } from "firebase/storage";
 import { evaluateLocalAuthPolicy, syntheticAuthProjectId } from "./auth-policy";
+import { cloudDemoFirebaseConfig, currentCloudDemoRuntime } from "./runtime-mode";
 
 const localServicesAppName = "hemas-connect-local-services";
+const cloudServicesAppName = "hemas-connect-cloud-demo-services";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "demo-api-key",
@@ -47,6 +49,29 @@ export function getFirebaseServices(): FirebaseServices {
   if (typeof window === "undefined") {
     throw new Error("Local Firebase services can only initialize in a browser.");
   }
+
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
+    throw new Error(
+      `Cloud demo Firebase services refused unsafe configuration: ${cloudRuntime.reason}.`,
+    );
+  }
+  if (cloudRuntime.active) {
+    const app =
+      getApps().find((candidate) => candidate.name === cloudServicesAppName) ??
+      initializeApp(cloudDemoFirebaseConfig(cloudRuntime), cloudServicesAppName);
+    const services = {
+      app,
+      auth: getAuth(app),
+      db: getFirestore(app),
+      storage: getStorage(app),
+    };
+    // Deliberately no emulator connection calls: the governed cloud demo
+    // talks only to the approved Hemas cloud project.
+    globalThis.__hemasFirebaseServices = services;
+    return services;
+  }
+
   const policy = evaluateLocalAuthPolicy({
     hostname: window.location.hostname,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,

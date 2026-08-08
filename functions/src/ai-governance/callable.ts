@@ -9,12 +9,14 @@ import {
   type AiGovernanceActor,
   type AiGovernanceEmulatorBoundary,
 } from "./contracts.js";
+import { isCloudDemoEnabled } from "../governed-project.js";
 import { recordSyntheticAiRetrospective } from "./service.js";
 
 function emulatorBoundary(): AiGovernanceEmulatorBoundary {
   return {
     projectId: process.env.GCLOUD_PROJECT ?? "",
     firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
+    cloudDemoEnabled: isCloudDemoEnabled(),
   };
 }
 

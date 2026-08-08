@@ -2,6 +2,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import type { RuntimeConfig } from "../config.js";
 import { deterministicId, sha256Hex } from "../deterministic.js";
 import { FailClosedError, assertSafeTenantId } from "../errors.js";
+import { CLOUD_DEMO_PROJECT_ID } from "../governed-project.js";
 
 /**
  * Server-owned mirror of the frozen browser/domain AI governance contract.
@@ -293,6 +294,8 @@ export interface AiGovernanceActor {
 export interface AiGovernanceEmulatorBoundary {
   readonly projectId: string;
   readonly firestoreEmulatorHost: string | undefined;
+  /** Explicit opt-in for the governed cloud demo project; absent means emulator-only. */
+  readonly cloudDemoEnabled?: boolean;
 }
 
 export type AiRecord = Readonly<Record<string, unknown>>;
@@ -393,14 +396,29 @@ export function assertAiGovernanceRuntimeBoundary(
     config.outboundEnabled ||
     !config.approvalGateRequired ||
     config.diagnosisEnabled ||
-    boundary.projectId !== AI_GOVERNANCE_PROJECT_ID ||
-    !loopbackEmulatorHost(boundary.firestoreEmulatorHost)
+    !isGovernedAiGovernanceBoundary(boundary)
   ) {
     return fail(
       "ai_governance_service_disabled",
-      "AI retrospective evidence is restricted to the synthetic loopback emulator boundary.",
+      "AI retrospective evidence is restricted to the governed synthetic demo boundary.",
     );
   }
+}
+
+function isGovernedAiGovernanceBoundary(
+  boundary: AiGovernanceEmulatorBoundary,
+): boolean {
+  if (
+    boundary.projectId === AI_GOVERNANCE_PROJECT_ID &&
+    loopbackEmulatorHost(boundary.firestoreEmulatorHost)
+  ) {
+    return true;
+  }
+  return (
+    boundary.projectId === CLOUD_DEMO_PROJECT_ID &&
+    boundary.cloudDemoEnabled === true &&
+    boundary.firestoreEmulatorHost === undefined
+  );
 }
 
 export function aiReceiptDocumentId(input: {

@@ -12,6 +12,7 @@ import {
   type FirestoreAuditOutcome,
 } from "./repositories/audit-repository";
 import { getLocalEmulatorAuth } from "./auth-emulator";
+import { currentCloudDemoRuntime } from "./runtime-mode";
 import {
   evaluateLocalAuthPolicy,
   isExpectedSyntheticIdentity,
@@ -310,12 +311,21 @@ declare global {
 }
 
 function getLocalComplianceAuditFunctions(actorUid: string): Functions {
-  const policy = browserPolicy();
-  if (!policy.allowed) {
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
     throw new ComplianceAuditFunctionsClientError(
-      `The local Compliance endpoint refused unsafe configuration: ${policy.reason}.`,
+      `The Compliance endpoint refused unsafe cloud configuration: ${cloudRuntime.reason}.`,
       "unsafe_endpoint",
     );
+  }
+  if (!cloudRuntime.active) {
+    const policy = browserPolicy();
+    if (!policy.allowed) {
+      throw new ComplianceAuditFunctionsClientError(
+        `The local Compliance endpoint refused unsafe configuration: ${policy.reason}.`,
+        "unsafe_endpoint",
+      );
+    }
   }
   const auth = getLocalEmulatorAuth();
   const user = auth.currentUser;
@@ -336,11 +346,13 @@ function getLocalComplianceAuditFunctions(actorUid: string): Functions {
     auth.app,
     LOCAL_COMPLIANCE_AUDIT_FUNCTIONS_ENDPOINT.region,
   );
-  connectFunctionsEmulator(
-    functions,
-    LOCAL_COMPLIANCE_AUDIT_FUNCTIONS_ENDPOINT.hostname,
-    LOCAL_COMPLIANCE_AUDIT_FUNCTIONS_ENDPOINT.port,
-  );
+  if (!cloudRuntime.active) {
+    connectFunctionsEmulator(
+      functions,
+      LOCAL_COMPLIANCE_AUDIT_FUNCTIONS_ENDPOINT.hostname,
+      LOCAL_COMPLIANCE_AUDIT_FUNCTIONS_ENDPOINT.port,
+    );
+  }
   globalThis.__hemasLocalComplianceAuditFunctions = functions;
   return functions;
 }

@@ -16,8 +16,14 @@ import {
   isExpectedSyntheticIdentity,
   syntheticAuthProjectId,
 } from "./auth-policy";
+import {
+  cloudDemoFirebaseConfig,
+  currentCloudDemoRuntime,
+  type CloudDemoRuntimeResult,
+} from "./runtime-mode";
 
 const authAppName = "hemas-connect-local-auth";
+const cloudAuthAppName = "hemas-connect-cloud-demo-auth";
 const authEmulatorUrl = "http://127.0.0.1:9099";
 
 const firebaseConfig = {
@@ -44,6 +50,17 @@ declare global {
   var __hemasLocalEmulatorFirestore: Firestore | undefined;
 }
 
+function currentCloudRuntimeOrThrow(): CloudDemoRuntimeResult {
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
+    throw new LocalAuthBoundaryError(
+      `Cloud demo Firebase Auth refused unsafe configuration: ${cloudRuntime.reason}.`,
+      "configuration",
+    );
+  }
+  return cloudRuntime;
+}
+
 function currentPolicy() {
   if (typeof window === "undefined") {
     throw new LocalAuthBoundaryError(
@@ -63,6 +80,22 @@ function currentPolicy() {
 }
 
 function getLocalEmulatorApp(): FirebaseApp {
+  if (typeof window === "undefined") {
+    throw new LocalAuthBoundaryError(
+      "Local Firebase Auth can only initialize in a browser.",
+      "configuration",
+    );
+  }
+
+  const cloudRuntime = currentCloudRuntimeOrThrow();
+  if (cloudRuntime.active) {
+    const existingCloudApp = getApps().find((app) => app.name === cloudAuthAppName);
+    return (
+      existingCloudApp ??
+      initializeApp(cloudDemoFirebaseConfig(cloudRuntime), cloudAuthAppName)
+    );
+  }
+
   const policy = currentPolicy();
   if (!policy.allowed) {
     throw new LocalAuthBoundaryError(
@@ -83,9 +116,11 @@ export function getLocalEmulatorAuth(): Auth {
 
   const auth = getAuth(app);
 
-  // This is deliberately unconditional after the policy check. The dedicated
-  // Auth app has no code path that can fall through to a cloud Auth endpoint.
-  connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+  if (!currentCloudRuntimeOrThrow().active) {
+    // This is deliberately unconditional after the policy check. The dedicated
+    // Auth app has no code path that can fall through to a cloud Auth endpoint.
+    connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+  }
   globalThis.__hemasLocalEmulatorAuth = auth;
   return auth;
 }
@@ -97,9 +132,11 @@ export function getLocalEmulatorFirestore(): Firestore {
   }
 
   const db = getFirestore(app);
-  // Like Auth, this connection is unconditional after the local policy passes.
-  // The workspace session therefore has no cloud Firestore fallback path.
-  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  if (!currentCloudRuntimeOrThrow().active) {
+    // Like Auth, this connection is unconditional after the local policy passes.
+    // The workspace session therefore has no cloud Firestore fallback path.
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  }
   globalThis.__hemasLocalEmulatorFirestore = db;
   return db;
 }

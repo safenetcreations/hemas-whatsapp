@@ -6,6 +6,7 @@ import {
 } from "firebase/functions";
 import { z } from "zod";
 import { getLocalEmulatorAuth } from "./auth-emulator";
+import { currentCloudDemoRuntime } from "./runtime-mode";
 import {
   evaluateLocalAuthPolicy,
   isExpectedSyntheticIdentity,
@@ -334,12 +335,21 @@ declare global {
 }
 
 function getLocalAppointmentFunctions(actorUid: string): Functions {
-  const policy = browserPolicy();
-  if (!policy.allowed) {
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
     throw new AppointmentFunctionsClientError(
-      `The local Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+      `The Functions endpoint refused unsafe cloud configuration: ${cloudRuntime.reason}.`,
       "unsafe_endpoint",
     );
+  }
+  if (!cloudRuntime.active) {
+    const policy = browserPolicy();
+    if (!policy.allowed) {
+      throw new AppointmentFunctionsClientError(
+        `The local Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+        "unsafe_endpoint",
+      );
+    }
   }
 
   const auth = getLocalEmulatorAuth();
@@ -359,13 +369,15 @@ function getLocalAppointmentFunctions(actorUid: string): Functions {
   }
 
   const functions = getFunctions(auth.app, LOCAL_APPOINTMENT_FUNCTIONS_ENDPOINT.region);
-  // This is deliberately unconditional after both local policy and identity
-  // verification. This dedicated app has no callable path to cloud Functions.
-  connectFunctionsEmulator(
-    functions,
-    LOCAL_APPOINTMENT_FUNCTIONS_ENDPOINT.hostname,
-    LOCAL_APPOINTMENT_FUNCTIONS_ENDPOINT.port,
-  );
+  if (!cloudRuntime.active) {
+    // This is deliberately unconditional after both local policy and identity
+    // verification. This dedicated app has no callable path to cloud Functions.
+    connectFunctionsEmulator(
+      functions,
+      LOCAL_APPOINTMENT_FUNCTIONS_ENDPOINT.hostname,
+      LOCAL_APPOINTMENT_FUNCTIONS_ENDPOINT.port,
+    );
+  }
   globalThis.__hemasLocalAppointmentFunctions = functions;
   return functions;
 }

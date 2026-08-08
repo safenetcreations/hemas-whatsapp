@@ -5,6 +5,7 @@ import {
   tenantAuditPath,
 } from "./audit.js";
 import { FailClosedError } from "./errors.js";
+import { assertGovernedDemoProjectBoundary } from "./governed-project.js";
 
 const DEMO_PROJECT_ID = "demo-hemas-connect";
 
@@ -64,23 +65,26 @@ function parseEmulatorHost(host: string): { hostname: string; port: number } {
   return { hostname: url.hostname, port };
 }
 
-export function assertDemoAuditEmulatorBoundary(input: {
-  readonly projectId: string;
-  readonly firestoreEmulatorHost: string | undefined;
-}): void {
-  if (input.projectId !== DEMO_PROJECT_ID) {
-    throw new FailClosedError(
-      "invalid_audit_project",
-      "Durable demo audit verification is restricted to the emulator-safe demo project.",
-    );
+export function assertDemoAuditEmulatorBoundary(
+  input: {
+    readonly projectId: string;
+    readonly firestoreEmulatorHost: string | undefined;
+  },
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (input.projectId === DEMO_PROJECT_ID) {
+    if (!input.firestoreEmulatorHost) {
+      throw new FailClosedError(
+        "audit_emulator_required",
+        "The Firestore emulator must be explicitly configured for durable demo audit writes.",
+      );
+    }
+    parseEmulatorHost(input.firestoreEmulatorHost);
+    return;
   }
-  if (!input.firestoreEmulatorHost) {
-    throw new FailClosedError(
-      "audit_emulator_required",
-      "The Firestore emulator must be explicitly configured for durable demo audit writes.",
-    );
-  }
-  parseEmulatorHost(input.firestoreEmulatorHost);
+  // The governed cloud demo project is the only non-emulator home; it is
+  // inert unless explicitly enabled and refuses emulator-host leakage.
+  assertGovernedDemoProjectBoundary(input, env);
 }
 
 export function toFirestoreAuditRecord(event: AuditEvent): FirestoreAuditRecord {

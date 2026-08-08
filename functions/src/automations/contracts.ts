@@ -1,6 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import type { RuntimeConfig } from "../config.js";
 import { FailClosedError, assertSafeTenantId } from "../errors.js";
+import { CLOUD_DEMO_PROJECT_ID } from "../governed-project.js";
 
 export const SYNTHETIC_PHASE5_WORKSPACE_ID = "workspace_safenet_demo" as const;
 export const SYNTHETIC_PHASE5_PROJECT_ID = "demo-hemas-connect" as const;
@@ -376,10 +377,19 @@ export function syntheticHmacSha256(value: string): string {
 
 export function assertPhase5DemoRuntimeBoundary(
   config: RuntimeConfig,
-  boundary: { readonly projectId: string; readonly firestoreEmulatorHost: string | undefined },
+  boundary: {
+    readonly projectId: string;
+    readonly firestoreEmulatorHost: string | undefined;
+    /** Explicit opt-in for the governed cloud demo project; absent means emulator-only. */
+    readonly cloudDemoEnabled?: boolean;
+  },
   workspaceId: string,
 ): void {
   assertSafeTenantId(workspaceId);
+  const cloudDemoBoundary =
+    boundary.projectId === CLOUD_DEMO_PROJECT_ID &&
+    boundary.cloudDemoEnabled === true &&
+    boundary.firestoreEmulatorHost === undefined;
   if (
     workspaceId !== SYNTHETIC_PHASE5_WORKSPACE_ID ||
     config.runtimeMode !== "demo" ||
@@ -390,10 +400,17 @@ export function assertPhase5DemoRuntimeBoundary(
     config.outboundEnabled ||
     !config.approvalGateRequired ||
     config.diagnosisEnabled ||
-    boundary.projectId !== SYNTHETIC_PHASE5_PROJECT_ID ||
-    !boundary.firestoreEmulatorHost
+    (!cloudDemoBoundary &&
+      (boundary.projectId !== SYNTHETIC_PHASE5_PROJECT_ID ||
+        !boundary.firestoreEmulatorHost))
   ) {
-    return fail("phase5_service_disabled", "Phase 5 controls are restricted to the synthetic emulator boundary.");
+    return fail("phase5_service_disabled", "Phase 5 controls are restricted to the governed synthetic demo boundary.");
+  }
+  if (cloudDemoBoundary) {
+    return;
+  }
+  if (!boundary.firestoreEmulatorHost) {
+    return fail("phase5_service_disabled", "A loopback Firestore emulator is required.");
   }
   const normalized = boundary.firestoreEmulatorHost.includes("://")
     ? boundary.firestoreEmulatorHost

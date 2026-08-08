@@ -16,6 +16,7 @@
 # Local secrets and environment values
 .env*
 !.env.example
+!.env.hemas-whatsapp
 apphosting.emulator.yaml
 *.local
 *.pem

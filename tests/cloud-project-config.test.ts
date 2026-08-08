@@ -65,8 +65,8 @@ describe("Hemas cloud Firebase descriptor", () => {
     },
   );
 
-  it.each([undefined, "", "true", "TRUE", "0"])(
-    "never permits runtime activation for gate %s",
+  it.each([undefined, "", "TRUE", "0", "yes", " true"])(
+    "refuses runtime activation for non-literal gate %s",
     (runtimeFlag) => {
       expect(
         evaluateHemasCloudFirebaseConfig({
@@ -81,6 +81,40 @@ describe("Hemas cloud Firebase descriptor", () => {
       });
     },
   );
+
+  it("approves the governed cloud demo runtime only for the exact literal true gate", () => {
+    const result = evaluateHemasCloudFirebaseConfig({
+      ...validEnvironment,
+      NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED: "true",
+    });
+    expect(result.status).toBe("runtime-approved");
+    expect(result.runtimeActivationAllowed).toBe(true);
+    expect(result.configurationValid).toBe(true);
+    if (result.status === "runtime-approved") {
+      expect(result.analyticsEnabled).toBe(false);
+      expect(result.apiKey).toBe(
+        validEnvironment.NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_API_KEY,
+      );
+      expect(result.descriptor.projectId).toBe("hemas-whatsapp");
+    }
+  });
+
+  it("still requires every descriptor field to match before approving runtime", () => {
+    expect(
+      evaluateHemasCloudFirebaseConfig({
+        ...validEnvironment,
+        NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED: "true",
+        NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_PROJECT_ID: "some-other-project",
+      }),
+    ).toMatchObject({ status: "invalid", reason: "project_id_mismatch" });
+    expect(
+      evaluateHemasCloudFirebaseConfig({
+        ...validEnvironment,
+        NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED: "true",
+        NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_ANALYTICS_ENABLED: "true",
+      }),
+    ).toMatchObject({ status: "invalid", reason: "analytics_not_permitted" });
+  });
 
   it.each([undefined, "", "true", "TRUE", "0"])(
     "never permits Analytics for gate %s",

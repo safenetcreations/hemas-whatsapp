@@ -5,12 +5,18 @@ import { assertDemoAuditEmulatorBoundary } from "../audit-firestore.js";
 import { ConfigValidationError, loadRuntimeConfig } from "../config.js";
 import { FailClosedError } from "../errors.js";
 import { parseSyntheticAutomationControlInput } from "./contracts.js";
+import { isCloudDemoEnabled } from "../governed-project.js";
 import { controlSyntheticAutomationRun } from "./service.js";
 
-function emulatorBoundary(): { projectId: string; firestoreEmulatorHost: string | undefined } {
+function emulatorBoundary(): {
+  projectId: string;
+  firestoreEmulatorHost: string | undefined;
+  cloudDemoEnabled: boolean;
+} {
   return {
     projectId: process.env.GCLOUD_PROJECT ?? "",
     firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
+    cloudDemoEnabled: isCloudDemoEnabled(),
   };
 }
 

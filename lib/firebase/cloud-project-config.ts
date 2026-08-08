@@ -57,6 +57,20 @@ export type HemasCloudFirebaseConfigResult =
       runtimeActivationAllowed: false;
       analyticsEnabled: false;
       descriptor: typeof HEMAS_CLOUD_FIREBASE_DESCRIPTOR;
+    }>
+  | Readonly<{
+      /**
+       * The governed cloud demo runtime is explicitly approved. This is the
+       * ONLY state that permits initializing a Firebase SDK against the
+       * Hemas cloud project, and it still keeps Analytics, external
+       * messaging and real-patient gates hard-off.
+       */
+      status: "runtime-approved";
+      configurationValid: true;
+      runtimeActivationAllowed: true;
+      analyticsEnabled: false;
+      apiKey: string;
+      descriptor: typeof HEMAS_CLOUD_FIREBASE_DESCRIPTOR;
     }>;
 
 const firebaseWebApiKeyPattern = /^AIza[0-9A-Za-z_-]{35}$/;
@@ -89,7 +103,8 @@ export function evaluateHemasCloudFirebaseConfig(
     };
   }
 
-  if (environment.NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED !== "false") {
+  const runtimeFlag = environment.NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED;
+  if (runtimeFlag !== "false" && runtimeFlag !== "true") {
     return {
       status: "invalid",
       configurationValid: false,
@@ -189,6 +204,17 @@ export function evaluateHemasCloudFirebaseConfig(
       configurationValid: false,
       runtimeActivationAllowed: false,
       reason: "measurement_id_mismatch",
+    };
+  }
+
+  if (runtimeFlag === "true") {
+    return {
+      status: "runtime-approved",
+      configurationValid: true,
+      runtimeActivationAllowed: true,
+      analyticsEnabled: false,
+      apiKey: environment.NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_API_KEY ?? "",
+      descriptor: HEMAS_CLOUD_FIREBASE_DESCRIPTOR,
     };
   }
 

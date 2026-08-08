@@ -14,6 +14,7 @@ import {
   CARE_PATHWAY_SUPPRESSIONS,
 } from "@/lib/domain/automations";
 import { getLocalEmulatorAuth } from "./auth-emulator";
+import { currentCloudDemoRuntime } from "./runtime-mode";
 import {
   evaluateLocalAuthPolicy,
   isExpectedSyntheticIdentity,
@@ -538,12 +539,21 @@ declare global {
 }
 
 function getLocalPhase5Functions(actorUid: string, callableName: string): Functions {
-  const policy = browserPolicy(callableName);
-  if (!policy.allowed) {
+  const cloudRuntime = currentCloudDemoRuntime();
+  if (cloudRuntime.refused) {
     throw new Phase5FunctionsClientError(
-      `The localhost Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+      `The Functions endpoint refused unsafe cloud configuration: ${cloudRuntime.reason}.`,
       "unsafe_endpoint",
     );
+  }
+  if (!cloudRuntime.active) {
+    const policy = browserPolicy(callableName);
+    if (!policy.allowed) {
+      throw new Phase5FunctionsClientError(
+        `The localhost Functions endpoint refused unsafe configuration: ${policy.reason}.`,
+        "unsafe_endpoint",
+      );
+    }
   }
   const auth = getLocalEmulatorAuth();
   const user = auth.currentUser;
@@ -557,11 +567,13 @@ function getLocalPhase5Functions(actorUid: string, callableName: string): Functi
     return globalThis.__hemasLocalPhase5Functions;
   }
   const functions = getFunctions(auth.app, LOCAL_PHASE5_FUNCTIONS_ENDPOINT.region);
-  connectFunctionsEmulator(
-    functions,
-    LOCAL_PHASE5_FUNCTIONS_ENDPOINT.hostname,
-    LOCAL_PHASE5_FUNCTIONS_ENDPOINT.port,
-  );
+  if (!cloudRuntime.active) {
+    connectFunctionsEmulator(
+      functions,
+      LOCAL_PHASE5_FUNCTIONS_ENDPOINT.hostname,
+      LOCAL_PHASE5_FUNCTIONS_ENDPOINT.port,
+    );
+  }
   globalThis.__hemasLocalPhase5Functions = functions;
   return functions;
 }
