@@ -1,0 +1,3139 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed data model (prototype)
+    // ===============================================================
+    //
+    // All operational documents live below workspaces/{workspaceId} and
+    // contain workspaceId. Patient-operational documents additionally carry
+    // denormalized teamId and locationId so Firestore can enforce staff scope.
+    // Empty member teamIds/locationIds mean no patient-record access for every
+    // role except tenant_admin.
+    //
+    // workspaces/{workspaceId}
+    //   id: string (required, equal to workspaceId)
+    //   status: "active" for client access
+    //
+    // workspaces/{workspaceId}/members/{uid} (server-managed authority)
+    //   id, uid, workspaceId: strings (required; id and uid equal document id)
+    //   role: approved role string (required)
+    //   status: "active" for access
+    //   teamIds, locationIds: lists of scoped identifiers (required, max 50)
+    //
+    // Patient-operational collections (contacts, consentRecords,
+    // conversations, messages, internalNotes, appointments and automationRuns)
+    // require workspaceId, teamId and
+    // locationId. Direct client mutation is denied except the explicitly
+    // enumerated synthetic-only tenant-admin contact-preference surface below.
+    // Appointment requests and internal notes are backend-authored through
+    // purpose-bound audited callables; browsers retain scoped metadata reads.
+    //
+    // contacts/{contactId} is the staff-readable minimum contact model:
+    //   id, workspaceId, teamId, locationId: string (required, immutable)
+    //   maskedPhone, displayLabel: bounded masked/synthetic labels (immutable)
+    //   suppression: bounded backend-authored policy state (immutable)
+    //   preferredLanguage: "en" | "si" | "ta" (required, mutable)
+    //   alternateLanguages: unique language list, max 2 (required, mutable)
+    //   tags: unique approved operational-label list, max 6 (required, mutable)
+    //   synthetic: true for this client mutation (required, immutable)
+    //   preferenceRevision: int 0..1,000,000,000 (required, +1 per update)
+    //   updatedAt: timestamp (required, request.time per update)
+    //   no protected identifier or external patient reference is permitted
+    //
+    // contactSecrets/{contactId} stores server-only protected identifiers:
+    //   phoneLookupHmac, encryptedPhoneRef, encryptedDisplayNameRef and
+    //   externalPatientRef. Every direct client read and write is denied.
+    //
+    // templates/{versionId} and flows/{versionId} are singular-language,
+    // synthetic SafeNet-demo catalogue versions. Local lifecycle is separate
+    // from provider submission/approval evidence. Provider IDs are null and
+    // provider state is unverified/not_submitted until a trusted backend sync
+    // supplies evidence. Direct browser writes are denied so clients cannot
+    // forge approval, alter released metadata or transfer demo ownership.
+    //
+    // appointments/{appointmentId} and appointmentEvents/{eventId} expose only
+    // scoped, bounded patient-workflow metadata reads to clients. Every direct
+    // create, update and delete is denied. The audited appointment callable is
+    // the sole mutation boundary and uses Admin SDK transactions, optimistic
+    // revision checks, immutable events, idempotency and durable audit evidence.
+    //
+    // labReports and labReportEvents contain strict staff-safe operational
+    // workflow metadata only. They do not contain a report body, result value,
+    // diagnosis, interpretation, raw attachment, access token, external report
+    // reference, notification fingerprint or protected handoff reference.
+    // labReportSecrets/{labReportId} and labReportEventSecrets/{eventId} hold
+    // those protected references/fingerprints for trusted server use only.
+    // Every direct client read/write of either secret collection is denied;
+    // every client mutation of staff-safe laboratory state is also denied.
+    //
+    // idempotencyKeys/{id} is backend-owned replay evidence. Every direct
+    // client read/write is denied.
+    //
+    // campaigns, audienceSnapshots, campaignEvents and campaignCheckpoints are
+    // strict governed read models for tenant admins, campaign operators,
+    // campaign approvers and analysts. Every mutation is server-only. The
+    // synthetic campaign is simulation-only, stores no recipient/patient list,
+    // and binds approval to its audience, templates, purpose and schedule by a
+    // canonical SHA-256 digest validated by trusted backend code.
+    //
+    // whatsappConnections and integrations expose only the frozen synthetic
+    // demo-v1 staff projections to an active tenant administrator. The single
+    // WhatsApp record and two integration records use exact identities,
+    // literal mock/blocked state, native timestamps and zero external/network
+    // gates. Raw provider identifiers, endpoints, credentials, secret-manager
+    // references and free-form health details are not valid staff fields.
+    // whatsappConnectionSecrets and integrationSecrets remain wholly
+    // Admin-SDK-only, and every direct connection mutation is denied.
+    //
+    // AI/knowledge governance exposes only five fixed staff-safe knowledge
+    // documents, three fixed effective selections, four retrospective run
+    // records and four matching one-shot events in the SafeNet synthetic demo.
+    // Every collection list and direct write is denied. Authorized MFA-backed
+    // staff fetch only fixed paths; a missing fixed path is observable as
+    // missing, while an existing document must satisfy its complete v1 schema
+    // and frozen scenario matrix. Protected content, fixture references and
+    // fingerprints remain in client-denied secret collections. No handoff
+    // document, model/provider call, dispatch or patient-state mutation is
+    // represented by this read surface.
+    //
+    // auditEvents, consentRecords, audienceSnapshots, campaignRecipients,
+    // provider state, usage data and every global collection are server-only
+    // for writes. Audit and consent history are append-only from the Admin SDK.
+    // Admin SDK operations bypass Rules and therefore require separate backend
+    // authorization, schema validation and audit controls.
+    //
+    // Timestamps stored in Firestore are native timestamp values, not date
+    // strings. Every client-writable string/list/map is strictly bounded.
+    // ===============================================================
+
+    // ===============================================================
+    // Common authentication and tenant helpers
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function validId(value) {
+      return value is string && value.size() >= 1 && value.size() <= 128;
+    }
+
+    function validStrictId(value) {
+      return validId(value) &&
+        value.matches('^[A-Za-z0-9][A-Za-z0-9._:-]*$');
+    }
+
+    function validBoundedString(value, minLength, maxLength) {
+      return value is string &&
+        value.size() >= minLength &&
+        value.size() <= maxLength;
+    }
+
+    function memberExists(workspaceId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+    }
+
+    function memberData(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data;
+    }
+
+    function workspaceIsActive(workspaceId) {
+      let workspace = get(
+        /databases/$(database)/documents/workspaces/$(workspaceId)
+      ).data;
+      return exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+        workspace.id == workspaceId &&
+        workspace.status == 'active';
+    }
+
+    function workspaceAllowsSyntheticClientMutations(workspaceId) {
+      let workspace = get(
+        /databases/$(database)/documents/workspaces/$(workspaceId)
+      ).data;
+      return workspace.id == workspaceId &&
+        workspace.status == 'active' &&
+        workspace.mode in ['local', 'demo'] &&
+        workspace.dataClassification == 'synthetic_only';
+    }
+
+    function activeWorkspaceMember(workspaceId) {
+      let member = memberData(workspaceId);
+      return memberExists(workspaceId) &&
+        workspaceIsActive(workspaceId) &&
+        member.id == request.auth.uid &&
+        member.uid == request.auth.uid &&
+        member.workspaceId == workspaceId &&
+        member.status == 'active' &&
+        member.role in [
+          'platform_owner',
+          'tenant_admin',
+          'supervisor',
+          'agent',
+          'campaign_operator',
+          'campaign_approver',
+          'analyst',
+          'privacy_reviewer',
+          'clinical_approver'
+        ] &&
+        member.teamIds is list &&
+        member.teamIds.size() <= 50 &&
+        member.locationIds is list &&
+        member.locationIds.size() <= 50;
+    }
+
+    function hasRole(workspaceId, allowedRoles) {
+      let member = memberData(workspaceId);
+      return activeWorkspaceMember(workspaceId) &&
+        member.role in allowedRoles;
+    }
+
+    function canReadTemplateCatalogue(workspaceId) {
+      return hasRole(workspaceId, [
+        'tenant_admin',
+        'supervisor',
+        'agent',
+        'campaign_operator',
+        'campaign_approver'
+      ]);
+    }
+
+    function isSameWorkspace(data, workspaceId) {
+      return data is map &&
+        data.workspaceId is string &&
+        data.workspaceId == workspaceId;
+    }
+
+    function hasValidPatientScope(data) {
+      return data is map &&
+        data.keys().hasAll(['teamId', 'locationId']) &&
+        validId(data.teamId) &&
+        validId(data.locationId);
+    }
+
+    function canReadScopedPatientData(workspaceId, data) {
+      return activeWorkspaceMember(workspaceId) &&
+        isSameWorkspace(data, workspaceId) &&
+        hasValidPatientScope(data) &&
+        (
+          memberData(workspaceId).role == 'tenant_admin' ||
+          (
+            memberData(workspaceId).role in ['supervisor', 'agent', 'clinical_approver'] &&
+            memberData(workspaceId).teamIds.size() > 0 &&
+            memberData(workspaceId).locationIds.size() > 0 &&
+            data.teamId in memberData(workspaceId).teamIds &&
+            data.locationId in memberData(workspaceId).locationIds
+          )
+        );
+    }
+
+    function isBoundedList() {
+      return request.query.limit <= 100;
+    }
+
+    // Collection paths already fix workspaceId. Tenant admins may list a
+    // bounded tenant collection; operational roles must issue queries whose
+    // exact teamId and locationId constraints prove every result is in scope.
+    function canListScopedPatientData(workspaceId, data) {
+      return activeWorkspaceMember(workspaceId) &&
+        isBoundedList() &&
+        (
+          memberData(workspaceId).role == 'tenant_admin' ||
+          (
+            memberData(workspaceId).role in ['supervisor', 'agent', 'clinical_approver'] &&
+            memberData(workspaceId).teamIds.size() > 0 &&
+            memberData(workspaceId).locationIds.size() > 0 &&
+            data.teamId in memberData(workspaceId).teamIds &&
+            data.locationId in memberData(workspaceId).locationIds
+          )
+        );
+    }
+
+    function canReadConsentData(workspaceId, data) {
+      return isSameWorkspace(data, workspaceId) &&
+        (
+          hasRole(workspaceId, ['tenant_admin', 'privacy_reviewer', 'campaign_approver']) ||
+          canReadScopedPatientData(workspaceId, data)
+        );
+    }
+
+    // Consent history is immutable but still queryable for an authorized
+    // contact view. Privileged governance roles receive a bounded tenant
+    // query; patient-operation roles must prove the exact team/location scope
+    // in the query just like contacts, conversations and messages.
+    function canListConsentData(workspaceId, data) {
+      return activeWorkspaceMember(workspaceId) &&
+        isBoundedList() &&
+        (
+          memberData(workspaceId).role in [
+            'tenant_admin',
+            'privacy_reviewer',
+            'campaign_approver'
+          ] ||
+          (
+            memberData(workspaceId).role in ['supervisor', 'agent', 'clinical_approver'] &&
+            memberData(workspaceId).teamIds.size() > 0 &&
+            memberData(workspaceId).locationIds.size() > 0 &&
+            data.teamId in memberData(workspaceId).teamIds &&
+            data.locationId in memberData(workspaceId).locationIds
+          )
+        );
+    }
+
+    function canReadCampaignData(workspaceId, data) {
+      return isSameWorkspace(data, workspaceId) &&
+        hasRole(workspaceId, [
+          'tenant_admin',
+          'campaign_operator',
+          'campaign_approver',
+          'analyst'
+        ]);
+    }
+
+    function canListCampaignData(workspaceId) {
+      return activeWorkspaceMember(workspaceId) &&
+        isBoundedList() &&
+        memberData(workspaceId).role in [
+          'tenant_admin',
+          'campaign_operator',
+          'campaign_approver',
+          'analyst'
+        ];
+    }
+
+    // ===============================================================
+    // Client-writable domain validators
+    // ===============================================================
+    function validContactLanguages(data) {
+      return data.preferredLanguage in ['en', 'si', 'ta'] &&
+        data.alternateLanguages is list &&
+        data.alternateLanguages.size() <= 2 &&
+        data.alternateLanguages.hasOnly(['en', 'si', 'ta']) &&
+        data.alternateLanguages.toSet().size() == data.alternateLanguages.size() &&
+        !(data.preferredLanguage in data.alternateLanguages);
+    }
+
+    function validContactTags(tags) {
+      return tags is list &&
+        tags.size() <= 6 &&
+        tags.hasOnly([
+          'appointment',
+          'laboratory',
+          'package',
+          'human-handoff',
+          'urgent-simulation',
+          'marketing-suppressed'
+        ]) &&
+        tags.toSet().size() == tags.size();
+    }
+
+    function validContactSuppression(suppression) {
+      return suppression is map &&
+        suppression.keys().hasAll([
+          'suppressAll',
+          'suppressMarketing',
+          'invalidContact',
+          'reasons',
+          'updatedAt'
+        ]) &&
+        suppression.keys().hasOnly([
+          'suppressAll',
+          'suppressMarketing',
+          'invalidContact',
+          'reasons',
+          'updatedAt'
+        ]) &&
+        suppression.suppressAll is bool &&
+        suppression.suppressMarketing is bool &&
+        suppression.invalidContact is bool &&
+        suppression.reasons is list &&
+        suppression.reasons.size() <= 6 &&
+        suppression.reasons.hasOnly([
+          'stop_keyword',
+          'manual_withdrawal',
+          'complaint',
+          'invalid_number',
+          'guardian_authority_missing',
+          'clinical_hold'
+        ]) &&
+        suppression.reasons.toSet().size() == suppression.reasons.size() &&
+        suppression.updatedAt is timestamp;
+    }
+
+    function isValidStaffContactReadModel(data, workspaceId) {
+      return data is map &&
+        data.keys().hasAll([
+          'id',
+          'workspaceId',
+          'teamId',
+          'locationId',
+          'maskedPhone',
+          'displayLabel',
+          'preferredLanguage',
+          'alternateLanguages',
+          'suppression',
+          'tags',
+          'synthetic',
+          'preferenceRevision',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'teamId',
+          'locationId',
+          'maskedPhone',
+          'displayLabel',
+          'preferredLanguage',
+          'alternateLanguages',
+          'suppression',
+          'tags',
+          'synthetic',
+          'preferenceRevision',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.teamId) &&
+        validStrictId(data.locationId) &&
+        validBoundedString(data.maskedPhone, 1, 160) &&
+        validBoundedString(data.displayLabel, 1, 160) &&
+        validContactLanguages(data) &&
+        validContactSuppression(data.suppression) &&
+        validContactTags(data.tags) &&
+        data.synthetic is bool &&
+        data.preferenceRevision is int &&
+        data.preferenceRevision >= 0 &&
+        data.preferenceRevision <= 1000000000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSyntheticContactPreferenceState(data, workspaceId, contactId) {
+      return isValidStaffContactReadModel(data, workspaceId) &&
+        data.id == contactId &&
+        data.synthetic == true;
+    }
+
+    // Existing contact identity, consent/suppression and routing fields are
+    // backend-authored. diff() below makes them immutable to this client path,
+    // while this validator checks every client-writable preference field.
+
+    function validContactPreferenceTransition() {
+      return resource.data.synthetic == true &&
+        request.resource.data.synthetic == true &&
+        resource.data.preferenceRevision is int &&
+        request.resource.data.preferenceRevision == resource.data.preferenceRevision + 1 &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'preferredLanguage',
+          'alternateLanguages',
+          'tags',
+          'preferenceRevision',
+          'updatedAt'
+        ]);
+    }
+
+    function validLabWorkflowStatus(value) {
+      return value in [
+        'registered',
+        'processing',
+        'ready',
+        'notification_queued',
+        'notification_simulated',
+        'notification_sent',
+        'accessed',
+        'expired',
+        'superseded'
+      ];
+    }
+
+    function validStaffSafeLabAccess(data) {
+      return data is map &&
+        data.keys().size() == 3 &&
+        data.keys().hasOnly(['mode', 'available', 'expiresAt']) &&
+        (
+          (
+            data.mode == 'simulator_handoff' &&
+            data.available == true &&
+            data.expiresAt is timestamp
+          ) ||
+          (
+            data.mode == 'not_available' &&
+            data.available == false &&
+            data.expiresAt == null
+          )
+        );
+    }
+
+    function isValidStaffSafeLabReport(data, workspaceId, labReportId) {
+      return data is map &&
+        data.keys().size() == 17 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'conversationId',
+          'contactId',
+          'teamId',
+          'locationId',
+          'workflowStatus',
+          'collectedAt',
+          'readyAt',
+          'secureAccess',
+          'lastNotificationAt',
+          'authoritativeSystem',
+          'revision',
+          'synthetic',
+          'schemaVersion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id == labReportId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.conversationId) &&
+        validStrictId(data.contactId) &&
+        validStrictId(data.teamId) &&
+        validStrictId(data.locationId) &&
+        validLabWorkflowStatus(data.workflowStatus) &&
+        (data.collectedAt == null || data.collectedAt is timestamp) &&
+        (data.readyAt == null || data.readyAt is timestamp) &&
+        validStaffSafeLabAccess(data.secureAccess) &&
+        (data.lastNotificationAt == null || data.lastNotificationAt is timestamp) &&
+        data.authoritativeSystem == 'simulator' &&
+        data.revision is int &&
+        data.revision >= 0 &&
+        data.revision <= 1000000000 &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidStaffSafeLabReportEvent(data, workspaceId, eventId) {
+      return data is map &&
+        data.keys().size() == 15 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'labReportId',
+          'conversationId',
+          'contactId',
+          'teamId',
+          'locationId',
+          'eventType',
+          'fromStatus',
+          'toStatus',
+          'source',
+          'synthetic',
+          'schemaVersion',
+          'occurredAt',
+          'createdAt'
+        ]) &&
+        data.id == eventId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.labReportId) &&
+        validStrictId(data.conversationId) &&
+        validStrictId(data.contactId) &&
+        validStrictId(data.teamId) &&
+        validStrictId(data.locationId) &&
+        data.eventType in [
+          'simulator_report_ready',
+          'notification_queued',
+          'notification_simulated',
+          'secure_accessed',
+          'secure_access_expired'
+        ] &&
+        (data.fromStatus == null || validLabWorkflowStatus(data.fromStatus)) &&
+        validLabWorkflowStatus(data.toStatus) &&
+        data.source in ['simulator_seed', 'trusted_backend'] &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.occurredAt is timestamp &&
+        data.createdAt is timestamp;
+    }
+
+    function validCampaignState(value) {
+      return value in [
+        'draft',
+        'audience_building',
+        'compliance_review',
+        'approval_pending',
+        'scheduled',
+        'dispatching',
+        'paused',
+        'completed',
+        'cancelled',
+        'failed'
+      ];
+    }
+
+    function validCampaignTemplateVersions(data) {
+      return data is map &&
+        data.keys().size() == 3 &&
+        data.keys().hasOnly(['en', 'si', 'ta']) &&
+        validStrictId(data.en) &&
+        validStrictId(data.si) &&
+        validStrictId(data.ta) &&
+        data.en.matches('^template_[a-z][a-z0-9_]*_en_v[1-9][0-9]*$') &&
+        data.si.matches('^template_[a-z][a-z0-9_]*_si_v[1-9][0-9]*$') &&
+        data.ta.matches('^template_[a-z][a-z0-9_]*_ta_v[1-9][0-9]*$') &&
+        data.en != data.si &&
+        data.en != data.ta &&
+        data.si != data.ta;
+    }
+
+    function validCampaignQuietHours(data) {
+      return data is map &&
+        data.keys().size() == 2 &&
+        data.keys().hasOnly(['startsAtLocal', 'endsAtLocal']) &&
+        data.startsAtLocal is string &&
+        data.startsAtLocal.size() == 5 &&
+        data.startsAtLocal.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        data.endsAtLocal is string &&
+        data.endsAtLocal.size() == 5 &&
+        data.endsAtLocal.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function validCampaignSchedule(data) {
+      return data is map &&
+        data.keys().size() == 3 &&
+        data.keys().hasOnly(['startsAt', 'timeZone', 'quietHours']) &&
+        data.startsAt is timestamp &&
+        data.timeZone == 'Asia/Colombo' &&
+        validCampaignQuietHours(data.quietHours);
+    }
+
+    function validSimulationCampaignApproval(data) {
+      return data is map &&
+        data.keys().size() == 6 &&
+        data.keys().hasOnly([
+          'required',
+          'status',
+          'scope',
+          'approverId',
+          'reviewedAt',
+          'approvedContentHash'
+        ]) &&
+        data.required == true &&
+        data.status == 'approved' &&
+        data.scope == 'simulation_only' &&
+        validStrictId(data.approverId) &&
+        data.reviewedAt is timestamp &&
+        data.approvedContentHash is string &&
+        data.approvedContentHash.matches('^[0-9a-f]{64}$');
+    }
+
+    function isValidGovernedCampaign(data, workspaceId, campaignId) {
+      return data is map &&
+        data.keys().size() == 26 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'name',
+          'purpose',
+          'messageCategory',
+          'targetAction',
+          'ownerId',
+          'templateVersionIds',
+          'audienceSnapshotId',
+          'state',
+          'dispatchMode',
+          'schedule',
+          'approval',
+          'revision',
+          'canaryStatus',
+          'processedEligible',
+          'scanOffset',
+          'nextBatchIndex',
+          'batchSize',
+          'lastCheckpointId',
+          'externalCalls',
+          'networkCalls',
+          'synthetic',
+          'schemaVersion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id == campaignId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validBoundedString(data.name, 1, 160) &&
+        data.purpose in ['health_campaigns', 'event_campaigns'] &&
+        data.messageCategory == 'marketing' &&
+        validBoundedString(data.targetAction, 1, 240) &&
+        validStrictId(data.ownerId) &&
+        validCampaignTemplateVersions(data.templateVersionIds) &&
+        validStrictId(data.audienceSnapshotId) &&
+        validCampaignState(data.state) &&
+        data.dispatchMode == 'simulation' &&
+        validCampaignSchedule(data.schedule) &&
+        validSimulationCampaignApproval(data.approval) &&
+        data.ownerId != data.approval.approverId &&
+        data.revision is int &&
+        data.revision >= 0 &&
+        data.revision <= 1000000000 &&
+        data.canaryStatus in ['not_run', 'passed_simulation', 'failed'] &&
+        data.processedEligible is int &&
+        data.processedEligible >= 0 &&
+        data.processedEligible <= 50000 &&
+        data.scanOffset is int &&
+        data.scanOffset >= data.processedEligible &&
+        data.scanOffset <= 50000 &&
+        data.nextBatchIndex is int &&
+        data.nextBatchIndex >= 0 &&
+        data.nextBatchIndex <= 50 &&
+        data.batchSize == 1000 &&
+        data.nextBatchIndex * data.batchSize >= data.processedEligible &&
+        (
+          (data.nextBatchIndex == 0 && data.processedEligible == 0) ||
+          (
+            data.nextBatchIndex > 0 &&
+            (data.nextBatchIndex - 1) * data.batchSize < data.processedEligible
+          )
+        ) &&
+        (data.lastCheckpointId == null || validStrictId(data.lastCheckpointId)) &&
+        (
+          data.lastCheckpointId != null ||
+          (
+            data.processedEligible == 0 &&
+            data.scanOffset == 0 &&
+            data.nextBatchIndex == 0
+          )
+        ) &&
+        (data.state != 'scheduled' || data.lastCheckpointId == null) &&
+        (data.state != 'completed' || data.lastCheckpointId != null) &&
+        data.externalCalls == 0 &&
+        data.networkCalls == 0 &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function validCampaignLanguageCounts(data, maximum) {
+      return data is map &&
+        data.keys().size() == 3 &&
+        data.keys().hasOnly(['en', 'si', 'ta']) &&
+        data.en is int && data.en >= 0 && data.en <= maximum &&
+        data.si is int && data.si >= 0 && data.si <= maximum &&
+        data.ta is int && data.ta >= 0 && data.ta <= maximum;
+    }
+
+    function validCampaignExclusionCounts(data) {
+      return data is map &&
+        data.keys().size() == 6 &&
+        data.keys().hasOnly([
+          'frequency_cap',
+          'consent_missing',
+          'suppressed',
+          'duplicate',
+          'invalid_contact',
+          'language_unavailable'
+        ]) &&
+        data.frequency_cap is int && data.frequency_cap >= 0 && data.frequency_cap <= 50000 &&
+        data.consent_missing is int && data.consent_missing >= 0 && data.consent_missing <= 50000 &&
+        data.suppressed is int && data.suppressed >= 0 && data.suppressed <= 50000 &&
+        data.duplicate is int && data.duplicate >= 0 && data.duplicate <= 50000 &&
+        data.invalid_contact is int && data.invalid_contact >= 0 && data.invalid_contact <= 50000 &&
+        data.language_unavailable is int && data.language_unavailable >= 0 && data.language_unavailable <= 50000;
+    }
+
+    function isValidAudienceSnapshot(data, workspaceId, snapshotId) {
+      return data is map &&
+        data.keys().size() == 17 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'campaignId',
+          'criteriaSummary',
+          'totalEvaluated',
+          'eligibleCount',
+          'excludedCount',
+          'unknownConsentCount',
+          'exclusionsByReason',
+          'languageCounts',
+          'contentHash',
+          'immutable',
+          'synthetic',
+          'schemaVersion',
+          'finalizedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id == snapshotId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.campaignId) &&
+        validBoundedString(data.criteriaSummary, 1, 500) &&
+        data.totalEvaluated is int &&
+        data.totalEvaluated >= 1 &&
+        data.totalEvaluated <= 50000 &&
+        data.eligibleCount is int && data.eligibleCount >= 0 &&
+        data.excludedCount is int && data.excludedCount >= 0 &&
+        data.unknownConsentCount is int && data.unknownConsentCount >= 0 &&
+        data.eligibleCount + data.excludedCount == data.totalEvaluated &&
+        validCampaignExclusionCounts(data.exclusionsByReason) &&
+        data.exclusionsByReason.frequency_cap +
+          data.exclusionsByReason.consent_missing +
+          data.exclusionsByReason.suppressed +
+          data.exclusionsByReason.duplicate +
+          data.exclusionsByReason.invalid_contact +
+          data.exclusionsByReason.language_unavailable == data.excludedCount &&
+        data.unknownConsentCount == data.exclusionsByReason.consent_missing &&
+        validCampaignLanguageCounts(data.languageCounts, 50000) &&
+        data.languageCounts.en + data.languageCounts.si + data.languageCounts.ta ==
+          data.totalEvaluated &&
+        data.contentHash is string && data.contentHash.matches('^[0-9a-f]{64}$') &&
+        data.immutable == true &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.finalizedAt is timestamp &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function validCampaignEventTransition(data) {
+      return (
+          data.action == 'run_canary' &&
+          data.fromState == 'scheduled' &&
+          data.toState == 'scheduled'
+        ) || (
+          data.action == 'start' &&
+          data.fromState == 'scheduled' &&
+          data.toState == 'dispatching'
+        ) || (
+          data.action == 'advance_batch' &&
+          data.fromState == 'dispatching' &&
+          data.toState in ['dispatching', 'completed'] &&
+          validStrictId(data.checkpointId) &&
+          data.checkpointId.matches(
+            '^' + data.campaignId + ':checkpoint:[0-9]{6}$'
+          )
+        ) || (
+          data.action == 'pause' &&
+          data.fromState == 'dispatching' &&
+          data.toState == 'paused'
+        ) || (
+          data.action == 'resume' &&
+          data.fromState == 'paused' &&
+          data.toState == 'dispatching'
+        ) || (
+          data.action == 'inject_fault' &&
+          data.fromState == 'dispatching' &&
+          data.toState == 'failed'
+        ) || (
+          data.action == 'retry' &&
+          data.fromState == 'failed' &&
+          data.toState == 'dispatching'
+        ) || (
+          data.action == 'cancel' &&
+          data.fromState in ['scheduled', 'dispatching', 'paused', 'failed'] &&
+          data.toState == 'cancelled'
+        );
+    }
+
+    function validCampaignCheckpointIdentity(checkpointId, campaignId, batchIndex) {
+      let checkpointParts = checkpointId.split(':checkpoint:');
+      return checkpointParts.size() == 2 &&
+        checkpointParts[0] == campaignId &&
+        checkpointParts[1].matches('^[0-9]{6}$') &&
+        (
+          (batchIndex == 0 && checkpointParts[1] == '000000') ||
+          (
+            batchIndex > 0 &&
+            checkpointParts[1].replace('^0+', '') == string(batchIndex)
+          )
+        );
+    }
+
+    function isValidCampaignEvent(data, workspaceId, eventId) {
+      return data is map &&
+        data.keys().size() == 14 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'campaignId',
+          'actorUid',
+          'action',
+          'fromState',
+          'toState',
+          'revision',
+          'checkpointId',
+          'externalCalls',
+          'networkCalls',
+          'synthetic',
+          'schemaVersion',
+          'createdAt'
+        ]) &&
+        data.id == eventId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.campaignId) &&
+        validStrictId(data.actorUid) &&
+        data.action in [
+          'run_canary',
+          'start',
+          'advance_batch',
+          'pause',
+          'resume',
+          'inject_fault',
+          'retry',
+          'cancel'
+        ] &&
+        validCampaignState(data.fromState) &&
+        validCampaignState(data.toState) &&
+        data.revision is int && data.revision >= 1 && data.revision <= 1000000000 &&
+        (data.checkpointId == null || validStrictId(data.checkpointId)) &&
+        validCampaignEventTransition(data) &&
+        (data.action == 'advance_batch' || data.checkpointId == null) &&
+        data.externalCalls == 0 &&
+        data.networkCalls == 0 &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCampaignCheckpoint(data, workspaceId, checkpointId) {
+      return data is map &&
+        data.keys().size() == 17 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'campaignId',
+          'eventId',
+          'batchIndex',
+          'sourceOffsetStart',
+          'sourceOffsetEnd',
+          'eligibleCount',
+          'languageCounts',
+          'processedEligible',
+          'scanComplete',
+          'digest',
+          'externalCalls',
+          'networkCalls',
+          'synthetic',
+          'schemaVersion',
+          'createdAt'
+        ]) &&
+        data.id == checkpointId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        validStrictId(data.campaignId) &&
+        validStrictId(data.eventId) &&
+        data.batchIndex is int && data.batchIndex >= 0 && data.batchIndex <= 49 &&
+        validCampaignCheckpointIdentity(data.id, data.campaignId, data.batchIndex) &&
+        data.sourceOffsetStart is int &&
+        data.sourceOffsetStart >= 0 && data.sourceOffsetStart <= 49999 &&
+        data.sourceOffsetEnd is int &&
+        data.sourceOffsetEnd > data.sourceOffsetStart && data.sourceOffsetEnd <= 50000 &&
+        data.eligibleCount is int && data.eligibleCount >= 1 && data.eligibleCount <= 1000 &&
+        validCampaignLanguageCounts(data.languageCounts, 1000) &&
+        data.languageCounts.en + data.languageCounts.si + data.languageCounts.ta ==
+          data.eligibleCount &&
+        data.processedEligible is int &&
+        data.processedEligible >= data.eligibleCount &&
+        data.processedEligible <= data.sourceOffsetEnd &&
+        data.scanComplete is bool &&
+        data.scanComplete == (data.sourceOffsetEnd == 50000) &&
+        (data.scanComplete || data.eligibleCount == 1000) &&
+        data.processedEligible > data.batchIndex * 1000 &&
+        data.processedEligible <= (data.batchIndex + 1) * 1000 &&
+        (data.scanComplete || data.processedEligible == (data.batchIndex + 1) * 1000) &&
+        data.digest is string && data.digest.matches('^[0-9a-f]{64}$') &&
+        data.externalCalls == 0 &&
+        data.networkCalls == 0 &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp;
+    }
+
+    function validTemplateProviderState(data) {
+      return data is map &&
+        data.keys().size() == 6 &&
+        data.keys().hasOnly([
+          'submissionState',
+          'approvalState',
+          'authority',
+          'assetId',
+          'qualityRating',
+          'checkedAt'
+        ]) &&
+        data.submissionState in ['not_submitted', 'submitted'] &&
+        data.approvalState in [
+          'unverified',
+          'pending',
+          'approved',
+          'paused',
+          'disabled',
+          'rejected'
+        ] &&
+        data.authority in ['none', 'meta'] &&
+        (data.assetId == null || validBoundedString(data.assetId, 1, 160)) &&
+        data.qualityRating in ['unknown', 'high', 'medium', 'low'] &&
+        (data.checkedAt == null || data.checkedAt is timestamp) &&
+        (
+          (
+            data.submissionState == 'not_submitted' &&
+            data.approvalState == 'unverified' &&
+            data.authority == 'none' &&
+            data.assetId == null &&
+            data.qualityRating == 'unknown' &&
+            data.checkedAt == null
+          ) ||
+          (
+            data.submissionState == 'submitted' &&
+            data.approvalState != 'unverified' &&
+            data.authority == 'meta' &&
+            validBoundedString(data.assetId, 1, 160) &&
+            data.checkedAt is timestamp
+          )
+        );
+    }
+
+    function validTemplateOwnership(data, workspaceId) {
+      return data is map &&
+        data.keys().size() == 5 &&
+        data.keys().hasOnly([
+          'ownerKind',
+          'ownerWorkspaceId',
+          'transferableToHemas',
+          'productionUseAllowed',
+          'notice'
+        ]) &&
+        data.ownerKind == 'safenet_demo' &&
+        data.ownerWorkspaceId == workspaceId &&
+        data.transferableToHemas == false &&
+        data.productionUseAllowed == false &&
+        data.notice ==
+          'SafeNet demo asset. It is not a Hemas-owned or transferable production asset.';
+    }
+
+    function validTemplateComponent(data) {
+      return data is map &&
+        (
+          (
+            data.kind == 'header' &&
+            data.keys().size() == 3 &&
+            data.keys().hasOnly(['kind', 'format', 'text']) &&
+            data.format == 'text' &&
+            validBoundedString(data.text, 1, 240)
+          ) ||
+          (
+            data.kind == 'body' &&
+            data.keys().size() == 2 &&
+            data.keys().hasOnly(['kind', 'text']) &&
+            validBoundedString(data.text, 1, 2048)
+          ) ||
+          (
+            data.kind == 'footer' &&
+            data.keys().size() == 2 &&
+            data.keys().hasOnly(['kind', 'text']) &&
+            validBoundedString(data.text, 1, 240)
+          ) ||
+          (
+            data.kind == 'buttons' &&
+            data.keys().size() == 2 &&
+            data.keys().hasOnly(['kind', 'buttons']) &&
+            data.buttons is list &&
+            data.buttons.size() >= 1 &&
+            data.buttons.size() <= 10
+          )
+        );
+    }
+
+    function validTemplateVariableRule(data) {
+      return data is map &&
+        data.keys().size() == 6 &&
+        data.keys().hasOnly([
+          'key',
+          'description',
+          'required',
+          'maxLength',
+          'exampleValue',
+          'allowedPattern'
+        ]) &&
+        data.key is string &&
+        data.key.matches('^[a-z][a-z0-9_]{0,63}$') &&
+        validBoundedString(data.description, 1, 240) &&
+        data.required is bool &&
+        data.maxLength is int && data.maxLength >= 1 && data.maxLength <= 500 &&
+        validBoundedString(data.exampleValue, 1, 500) &&
+        (data.allowedPattern == null || validBoundedString(data.allowedPattern, 1, 240));
+    }
+
+    function isValidTemplateCatalogueItem(data, workspaceId, templateId) {
+      return data is map &&
+        data.keys().size() == 19 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'assetKey',
+          'sortKey',
+          'providerName',
+          'category',
+          'language',
+          'version',
+          'localState',
+          'providerState',
+          'immutable',
+          'contentHash',
+          'components',
+          'variableRules',
+          'ownership',
+          'synthetic',
+          'schemaVersion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id == templateId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId &&
+        data.assetKey is string &&
+        data.assetKey.matches('^[a-z][a-z0-9_]*$') &&
+        validBoundedString(data.sortKey, 1, 260) &&
+        data.providerName is string &&
+        data.providerName.matches('^[a-z][a-z0-9_]*$') &&
+        data.category in ['utility', 'marketing', 'authentication'] &&
+        data.language in ['en', 'si', 'ta'] &&
+        data.version is int && data.version >= 1 && data.version <= 10000 &&
+        data.localState in ['draft', 'submitted', 'approved', 'paused', 'disabled', 'rejected'] &&
+        validTemplateProviderState(data.providerState) &&
+        data.immutable is bool &&
+        data.immutable == (data.localState != 'draft') &&
+        data.contentHash is string && data.contentHash.matches('^[0-9a-f]{64}$') &&
+        data.components is list &&
+        data.components.size() >= 1 && data.components.size() <= 8 &&
+        data.variableRules is list && data.variableRules.size() <= 20 &&
+        validTemplateOwnership(data.ownership, workspaceId) &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isFixedCampaignTemplateId(templateId) {
+      return templateId in [
+        'template_wellness_awareness_en_v3',
+        'template_wellness_awareness_si_v3',
+        'template_wellness_awareness_ta_v3'
+      ];
+    }
+
+    function isValidAnalystCampaignTemplate(data, workspaceId, templateId) {
+      return isFixedCampaignTemplateId(templateId) &&
+        data is map &&
+        data.keys().size() == 19 &&
+        data.keys().hasOnly([
+          'id',
+          'workspaceId',
+          'assetKey',
+          'sortKey',
+          'providerName',
+          'category',
+          'language',
+          'version',
+          'localState',
+          'providerState',
+          'immutable',
+          'contentHash',
+          'components',
+          'variableRules',
+          'ownership',
+          'synthetic',
+          'schemaVersion',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id == templateId &&
+        data.workspaceId == workspaceId &&
+        data.assetKey == 'wellness_awareness' &&
+        data.providerName == 'wellness_awareness' &&
+        data.category == 'marketing' &&
+        data.version == 3 &&
+        data.localState == 'approved' &&
+        data.immutable == true &&
+        data.contentHash is string &&
+        data.contentHash.matches('^[0-9a-f]{64}$') &&
+        data.providerState is map &&
+        data.providerState.keys().size() == 6 &&
+        data.providerState.keys().hasOnly([
+          'submissionState',
+          'approvalState',
+          'authority',
+          'assetId',
+          'qualityRating',
+          'checkedAt'
+        ]) &&
+        data.providerState.submissionState == 'not_submitted' &&
+        data.providerState.approvalState == 'unverified' &&
+        data.providerState.authority == 'none' &&
+        data.providerState.assetId == null &&
+        data.providerState.qualityRating == 'unknown' &&
+        data.providerState.checkedAt == null &&
+        data.ownership is map &&
+        data.ownership.keys().size() == 5 &&
+        data.ownership.keys().hasOnly([
+          'ownerKind',
+          'ownerWorkspaceId',
+          'transferableToHemas',
+          'productionUseAllowed',
+          'notice'
+        ]) &&
+        data.ownership.ownerKind == 'safenet_demo' &&
+        data.ownership.ownerWorkspaceId == workspaceId &&
+        data.ownership.transferableToHemas == false &&
+        data.ownership.productionUseAllowed == false &&
+        (
+          (
+            templateId == 'template_wellness_awareness_en_v3' &&
+            data.language == 'en' &&
+            data.sortKey == 'wellness_awareness:en:0003'
+          ) || (
+            templateId == 'template_wellness_awareness_si_v3' &&
+            data.language == 'si' &&
+            data.sortKey == 'wellness_awareness:si:0003'
+          ) || (
+            templateId == 'template_wellness_awareness_ta_v3' &&
+            data.language == 'ta' &&
+            data.sortKey == 'wellness_awareness:ta:0003'
+          )
+        ) &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function canGetTemplateCatalogueItem(data, workspaceId, templateId) {
+      let member = memberData(workspaceId);
+      return activeWorkspaceMember(workspaceId) &&
+        (
+          (
+            member.role in [
+              'tenant_admin',
+              'supervisor',
+              'agent',
+              'campaign_operator',
+              'campaign_approver'
+            ] &&
+            data is map &&
+            data.id == templateId &&
+            data.workspaceId == workspaceId
+          ) || (
+            member.role == 'analyst' &&
+            isValidAnalystCampaignTemplate(data, workspaceId, templateId)
+          )
+        );
+    }
+
+    // ===============================================================
+    // Phase 5 automation and clinical-care read-model helpers
+    // ===============================================================
+    function validSha256(value) {
+      return value is string && value.matches('^[0-9a-f]{64}$');
+    }
+
+    function validNullableTimestamp(value) {
+      return value == null || value is timestamp;
+    }
+
+    function validPhase5Identity(data, workspaceId, documentId) {
+      return data is map &&
+        data.id == documentId &&
+        validStrictId(data.id) &&
+        data.workspaceId == workspaceId;
+    }
+
+    function validPhase5SafeProjection(data) {
+      return data.schemaVersion == 1 &&
+        data.synthetic == true &&
+        data.externalDispatchCount == 0 &&
+        data.networkCallCount == 0;
+    }
+
+    function validPhase5Revision(value) {
+      return value is int && value >= 1 && value <= 1000000;
+    }
+
+    function validGovernedActor(actor) {
+      return actor is map &&
+        actor.keys().size() == 2 &&
+        actor.keys().hasOnly(['actorKind', 'actorUid']) &&
+        validGovernedActorFields(actor.actorKind, actor.actorUid);
+    }
+
+    function validGovernedActorFields(actorKind, actorUid) {
+      return (
+          (actorKind == 'system' && actorUid == null) ||
+          (actorKind == 'staff' && validStrictId(actorUid))
+        );
+    }
+
+    function canReadAutomationCatalogue(workspaceId) {
+      return hasRole(workspaceId, ['tenant_admin', 'supervisor', 'analyst']);
+    }
+
+    function canReadCareCatalogue(workspaceId) {
+      return hasRole(workspaceId, ['tenant_admin', 'analyst', 'clinical_approver']);
+    }
+
+    function canListAutomationCatalogue(workspaceId, data) {
+      return canReadAutomationCatalogue(workspaceId) &&
+        isBoundedList() &&
+        data.family in ['appointment_service', 'laboratory_service'];
+    }
+
+    function canListCareCatalogue(workspaceId, data) {
+      return canReadCareCatalogue(workspaceId) &&
+        isBoundedList() &&
+        data.family == 'post_discharge';
+    }
+
+    function canReadAutomationExecution(workspaceId, data) {
+      let member = memberData(workspaceId);
+      return activeWorkspaceMember(workspaceId) &&
+        isSameWorkspace(data, workspaceId) &&
+        hasValidPatientScope(data) &&
+        (
+          (
+            member.role == 'tenant_admin' &&
+            (
+              member.scopeMode == 'workspace_wide' ||
+              (
+                member.scopeMode == 'assigned' &&
+                member.teamIds.size() > 0 && member.locationIds.size() > 0 &&
+                data.teamId in member.teamIds && data.locationId in member.locationIds
+              )
+            )
+          ) ||
+          (
+            member.role == 'supervisor' &&
+            member.teamIds.size() > 0 &&
+            member.locationIds.size() > 0 &&
+            data.teamId in member.teamIds &&
+            data.locationId in member.locationIds
+          )
+        );
+    }
+
+    function canReadCareExecution(workspaceId, data) {
+      let member = memberData(workspaceId);
+      return activeWorkspaceMember(workspaceId) &&
+        isSameWorkspace(data, workspaceId) &&
+        hasValidPatientScope(data) &&
+        (
+          (
+            member.role == 'tenant_admin' &&
+            (
+              member.scopeMode == 'workspace_wide' ||
+              (
+                member.scopeMode == 'assigned' &&
+                member.teamIds.size() > 0 && member.locationIds.size() > 0 &&
+                data.teamId in member.teamIds && data.locationId in member.locationIds
+              )
+            )
+          ) ||
+          (
+            member.role == 'clinical_approver' &&
+            member.teamIds.size() > 0 &&
+            member.locationIds.size() > 0 &&
+            data.teamId in member.teamIds &&
+            data.locationId in member.locationIds
+          )
+        );
+    }
+
+    function validAutomationDefinition(data, workspaceId, definitionId) {
+      return data.keys().size() == 21 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'version', 'name', 'trigger',
+          'consentPurpose', 'riskLevel', 'steps', 'contentHash',
+          'secretBindingHash', 'ownerUid', 'approverUid', 'approvalHash',
+          'approvalScope', 'approvedAt', 'lifecycleState', 'schemaVersion',
+          'synthetic', 'createdAt', 'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, definitionId) &&
+        data.family in ['appointment_service', 'laboratory_service'] &&
+        data.version is int && data.version >= 1 && data.version <= 1000000 &&
+        validBoundedString(data.name, 1, 160) &&
+        data.trigger in [
+          'inbound_intent', 'appointment_event', 'lims_report_ready',
+          'discharge_event', 'scheduled_time', 'campaign_response', 'agent_action'
+        ] &&
+        data.consentPurpose in ['appointment_service', 'laboratory_service'] &&
+        data.riskLevel in ['low', 'medium', 'high'] &&
+        data.steps is list && data.steps.size() >= 1 && data.steps.size() <= 32 &&
+        validSha256(data.contentHash) &&
+        validSha256(data.secretBindingHash) &&
+        validStrictId(data.ownerUid) &&
+        data.lifecycleState in ['draft', 'review_pending', 'approved', 'retired'] &&
+        (
+          (
+            data.lifecycleState in ['draft', 'review_pending'] &&
+            data.approverUid == null && data.approvalHash == null &&
+            data.approvalScope == null && data.approvedAt == null
+          ) ||
+          (
+            data.lifecycleState in ['approved', 'retired'] &&
+            validStrictId(data.approverUid) &&
+            data.approverUid != data.ownerUid &&
+            validSha256(data.approvalHash) &&
+            data.approvalScope == 'simulation_only' &&
+            data.approvedAt is timestamp
+          )
+        ) &&
+        data.schemaVersion == 1 && data.synthetic == true &&
+        data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function validAutomationActivation(data, workspaceId, activationId) {
+      return data.keys().size() == 20 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'activeDefinitionId',
+          'activeDefinitionVersion', 'activeDefinitionContentHash',
+          'activeDefinitionApprovalHash', 'activeDefinitionApprovalScope',
+          'activeDefinitionSecretBindingHash', 'activatedByUid', 'activatedAt',
+          'activationEventId', 'activationAuditEventId', 'revision', 'createdAt',
+          'updatedAt', 'schemaVersion', 'synthetic', 'externalDispatchCount',
+          'networkCallCount'
+        ]) &&
+        validPhase5Identity(data, workspaceId, activationId) &&
+        activationId in ['appointment_service', 'laboratory_service'] &&
+        data.family == activationId &&
+        validStrictId(data.activeDefinitionId) &&
+        data.activeDefinitionVersion is int &&
+        data.activeDefinitionVersion >= 1 && data.activeDefinitionVersion <= 1000000 &&
+        validSha256(data.activeDefinitionContentHash) &&
+        validSha256(data.activeDefinitionApprovalHash) &&
+        data.activeDefinitionApprovalScope == 'simulation_only' &&
+        validSha256(data.activeDefinitionSecretBindingHash) &&
+        validStrictId(data.activatedByUid) &&
+        data.activatedAt is timestamp &&
+        validStrictId(data.activationEventId) &&
+        validStrictId(data.activationAuditEventId) &&
+        validPhase5Revision(data.revision) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validAutomationDefinitionEvent(data, workspaceId, eventId) {
+      return data.keys().size() == 21 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'eventType', 'definitionId',
+          'definitionVersion', 'definitionContentHash', 'definitionApprovalHash',
+          'definitionApprovalScope', 'definitionSecretBindingHash',
+          'fromLifecycleState', 'toLifecycleState', 'revision', 'auditEventId',
+          'occurredAt', 'schemaVersion', 'synthetic', 'externalDispatchCount',
+          'networkCallCount', 'actorKind', 'actorUid'
+        ]) &&
+        validPhase5Identity(data, workspaceId, eventId) &&
+        data.family in ['appointment_service', 'laboratory_service'] &&
+        data.eventType in ['created', 'review_requested', 'approved', 'activated', 'retired'] &&
+        validStrictId(data.definitionId) &&
+        data.definitionVersion is int &&
+        data.definitionVersion >= 1 && data.definitionVersion <= 1000000 &&
+        validSha256(data.definitionContentHash) &&
+        (data.definitionApprovalHash == null || validSha256(data.definitionApprovalHash)) &&
+        (data.definitionApprovalScope == null || data.definitionApprovalScope == 'simulation_only') &&
+        validSha256(data.definitionSecretBindingHash) &&
+        (data.fromLifecycleState == null || data.fromLifecycleState in ['draft', 'review_pending', 'approved', 'retired']) &&
+        data.toLifecycleState in ['draft', 'review_pending', 'approved', 'retired'] &&
+        validPhase5Revision(data.revision) &&
+        validStrictId(data.auditEventId) && data.occurredAt is timestamp &&
+        data.actorKind == 'staff' && validStrictId(data.actorUid) &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validAutomationRun(data, workspaceId, runId) {
+      return data.keys().size() == 23 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'definitionId', 'definitionVersion',
+          'definitionContentHash', 'teamId', 'locationId', 'state',
+          'pausedFromState', 'nextEligibleAt', 'openWorkItemId',
+          'currentStepIndex', 'completedStepCount', 'attemptCount', 'revision',
+          'outcomeCode', 'lastEventId', 'schemaVersion', 'synthetic',
+          'externalDispatchCount', 'networkCallCount', 'createdAt', 'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, runId) &&
+        validStrictId(data.definitionId) &&
+        data.definitionVersion is int && data.definitionVersion >= 1 && data.definitionVersion <= 1000000 &&
+        validSha256(data.definitionContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        data.state in [
+          'queued', 'running', 'waiting', 'paused_by_operator',
+          'paused_for_human', 'failed', 'completed', 'ended'
+        ] &&
+        (data.pausedFromState == null || data.pausedFromState in ['queued', 'running', 'waiting', 'failed']) &&
+        validNullableTimestamp(data.nextEligibleAt) &&
+        (data.openWorkItemId == null || validStrictId(data.openWorkItemId)) &&
+        data.currentStepIndex is int && data.currentStepIndex >= 0 && data.currentStepIndex <= 32 &&
+        data.completedStepCount is int && data.completedStepCount == data.currentStepIndex &&
+        data.attemptCount is int && data.attemptCount >= 0 && data.attemptCount <= 11 &&
+        validPhase5Revision(data.revision) &&
+        data.outcomeCode in [
+          'accepted', 'step_completed', 'wait_scheduled', 'human_takeover_required',
+          'fallback_work_item_created', 'fallback_stopped_safely', 'retry_scheduled',
+          'completed', 'ended_by_operator', 'synthetic_failure'
+        ] &&
+        (data.lastEventId == null || validStrictId(data.lastEventId)) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validAutomationRunEvent(data, workspaceId, eventId) {
+      return data.keys().size() == 28 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'runId', 'definitionId', 'definitionVersion',
+          'definitionContentHash', 'teamId', 'locationId', 'revision',
+          'auditEventId', 'action', 'fromState', 'toState', 'stepIndex',
+          'stepId', 'attemptNumber', 'workItemId', 'nextEligibleAt',
+          'reasonCode', 'evidenceFingerprint', 'outcomeCode', 'occurredAt',
+          'schemaVersion', 'synthetic', 'externalDispatchCount',
+          'networkCallCount', 'actorKind', 'actorUid'
+        ]) &&
+        validPhase5Identity(data, workspaceId, eventId) &&
+        validStrictId(data.runId) && validStrictId(data.definitionId) &&
+        data.definitionVersion is int && data.definitionVersion >= 1 && data.definitionVersion <= 1000000 &&
+        validSha256(data.definitionContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        validPhase5Revision(data.revision) && validStrictId(data.auditEventId) &&
+        data.action in [
+          'start', 'advance_step', 'pause', 'resume', 'simulate_human_takeover',
+          'release_human_takeover', 'inject_failure', 'retry',
+          'exercise_fallback', 'end'
+        ] &&
+        data.fromState in ['queued', 'running', 'waiting', 'paused_by_operator', 'paused_for_human', 'failed', 'completed', 'ended'] &&
+        data.toState in ['queued', 'running', 'waiting', 'paused_by_operator', 'paused_for_human', 'failed', 'completed', 'ended'] &&
+        (data.stepIndex == null || (data.stepIndex is int && data.stepIndex >= 0 && data.stepIndex <= 31)) &&
+        (data.stepId == null || validStrictId(data.stepId)) &&
+        data.attemptNumber is int && data.attemptNumber >= 0 && data.attemptNumber <= 11 &&
+        (data.workItemId == null || validStrictId(data.workItemId)) &&
+        validNullableTimestamp(data.nextEligibleAt) &&
+        validSha256(data.evidenceFingerprint) && data.occurredAt is timestamp &&
+        validPhase5SafeProjection(data) &&
+        validGovernedActorFields(data.actorKind, data.actorUid);
+    }
+
+    function validAutomationWorkItem(data, workspaceId, workItemId) {
+      return data.keys().size() == 27 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'runId', 'definitionId', 'definitionVersion',
+          'definitionContentHash', 'teamId', 'locationId', 'reasonCode', 'state',
+          'openedAt', 'slaMinutes', 'dueAt', 'assignedMemberUid',
+          'acknowledgedAt', 'acknowledgedByUid', 'resolvedAt', 'resolvedByUid',
+          'resolutionCode', 'revision', 'lastEventId', 'schemaVersion',
+          'synthetic', 'externalDispatchCount', 'networkCallCount', 'createdAt',
+          'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, workItemId) &&
+        validStrictId(data.runId) && validStrictId(data.definitionId) &&
+        data.definitionVersion is int && data.definitionVersion >= 1 && data.definitionVersion <= 1000000 &&
+        validSha256(data.definitionContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        data.reasonCode in ['integration_timeout', 'retry_exhausted', 'fallback_route', 'human_takeover', 'synthetic_failure'] &&
+        data.state in ['open', 'acknowledged', 'resolved'] &&
+        data.openedAt is timestamp &&
+        data.slaMinutes is int && data.slaMinutes >= 1 && data.slaMinutes <= 1440 &&
+        data.dueAt is timestamp &&
+        (data.assignedMemberUid == null || validStrictId(data.assignedMemberUid)) &&
+        validNullableTimestamp(data.acknowledgedAt) &&
+        (data.acknowledgedByUid == null || validStrictId(data.acknowledgedByUid)) &&
+        validNullableTimestamp(data.resolvedAt) &&
+        (data.resolvedByUid == null || validStrictId(data.resolvedByUid)) &&
+        (data.resolutionCode == null || data.resolutionCode in ['retried', 'routed_to_human', 'stopped_safely']) &&
+        validPhase5Revision(data.revision) && validStrictId(data.lastEventId) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validCarePathway(data, workspaceId, pathwayId) {
+      return data.keys().size() == 27 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'protocolVersion', 'name',
+          'clinicalOwnerUid', 'clinicalApproverUid', 'contactPoints',
+          'responseSlaMinutes', 'escalationTeamId', 'eligibleLocationIds',
+          'afterHoursBehavior', 'writeBackRequired', 'instructionsSource',
+          'aiMayGenerateInstructions', 'suppressions', 'protectedContentHash',
+          'secretBindingHash', 'contentHash', 'approvalHash', 'approvalScope',
+          'approvedAt', 'lifecycleState', 'schemaVersion', 'synthetic',
+          'createdAt', 'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, pathwayId) &&
+        data.family == 'post_discharge' &&
+        validBoundedString(data.protocolVersion, 1, 64) &&
+        validBoundedString(data.name, 1, 160) &&
+        validStrictId(data.clinicalOwnerUid) &&
+        data.contactPoints is list && data.contactPoints.size() >= 1 && data.contactPoints.size() <= 32 &&
+        data.responseSlaMinutes is int && data.responseSlaMinutes >= 1 && data.responseSlaMinutes <= 1440 &&
+        validStrictId(data.escalationTeamId) &&
+        data.eligibleLocationIds is list && data.eligibleLocationIds.size() >= 1 && data.eligibleLocationIds.size() <= 64 &&
+        data.afterHoursBehavior in ['emergency_path', 'next_business_day', 'on_call_queue'] &&
+        data.writeBackRequired is bool &&
+        data.instructionsSource == 'clinician_authored' &&
+        data.aiMayGenerateInstructions == false &&
+        data.suppressions is list && data.suppressions.size() == 6 &&
+        data.suppressions[0] == 'readmission' && data.suppressions[1] == 'transfer' &&
+        data.suppressions[2] == 'death' && data.suppressions[3] == 'clinical_hold' &&
+        data.suppressions[4] == 'withdrawal' && data.suppressions[5] == 'invalid_contact' &&
+        validSha256(data.protectedContentHash) && validSha256(data.secretBindingHash) &&
+        validSha256(data.contentHash) &&
+        data.lifecycleState in ['draft', 'clinical_review', 'approved', 'retired'] &&
+        (
+          (
+            data.lifecycleState in ['draft', 'clinical_review'] &&
+            data.clinicalApproverUid == null && data.approvalHash == null &&
+            data.approvalScope == null && data.approvedAt == null
+          ) ||
+          (
+            data.lifecycleState in ['approved', 'retired'] &&
+            validStrictId(data.clinicalApproverUid) &&
+            data.clinicalApproverUid != data.clinicalOwnerUid &&
+            validSha256(data.approvalHash) &&
+            data.approvalScope == 'clinical_simulation_only' &&
+            data.approvedAt is timestamp
+          )
+        ) &&
+        data.schemaVersion == 1 && data.synthetic == true &&
+        data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function validCarePathwayActivation(data, workspaceId, activationId) {
+      return data.keys().size() == 20 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'activePathwayId',
+          'activeProtocolVersion', 'activePathwayContentHash',
+          'activePathwayApprovalHash', 'activePathwayApprovalScope',
+          'activePathwaySecretBindingHash', 'activatedByUid', 'activatedAt',
+          'activationEventId', 'activationAuditEventId', 'revision', 'createdAt',
+          'updatedAt', 'schemaVersion', 'synthetic', 'externalDispatchCount',
+          'networkCallCount'
+        ]) &&
+        validPhase5Identity(data, workspaceId, activationId) &&
+        activationId == 'post_discharge' && data.family == 'post_discharge' &&
+        validStrictId(data.activePathwayId) &&
+        validBoundedString(data.activeProtocolVersion, 1, 64) &&
+        validSha256(data.activePathwayContentHash) &&
+        validSha256(data.activePathwayApprovalHash) &&
+        data.activePathwayApprovalScope == 'clinical_simulation_only' &&
+        validSha256(data.activePathwaySecretBindingHash) &&
+        validStrictId(data.activatedByUid) && data.activatedAt is timestamp &&
+        validStrictId(data.activationEventId) && validStrictId(data.activationAuditEventId) &&
+        validPhase5Revision(data.revision) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validCarePathwayEvent(data, workspaceId, eventId) {
+      return data.keys().size() == 21 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'family', 'eventType', 'pathwayId',
+          'pathwayProtocolVersion', 'pathwayContentHash', 'pathwayApprovalHash',
+          'pathwayApprovalScope', 'pathwaySecretBindingHash',
+          'fromLifecycleState', 'toLifecycleState', 'revision', 'auditEventId',
+          'occurredAt', 'schemaVersion', 'synthetic', 'externalDispatchCount',
+          'networkCallCount', 'actorKind', 'actorUid'
+        ]) &&
+        validPhase5Identity(data, workspaceId, eventId) &&
+        data.family == 'post_discharge' &&
+        data.eventType in ['created', 'clinical_review_requested', 'approved', 'activated', 'retired'] &&
+        validStrictId(data.pathwayId) && validBoundedString(data.pathwayProtocolVersion, 1, 64) &&
+        validSha256(data.pathwayContentHash) &&
+        (data.pathwayApprovalHash == null || validSha256(data.pathwayApprovalHash)) &&
+        (data.pathwayApprovalScope == null || data.pathwayApprovalScope == 'clinical_simulation_only') &&
+        validSha256(data.pathwaySecretBindingHash) &&
+        (data.fromLifecycleState == null || data.fromLifecycleState in ['draft', 'clinical_review', 'approved', 'retired']) &&
+        data.toLifecycleState in ['draft', 'clinical_review', 'approved', 'retired'] &&
+        validPhase5Revision(data.revision) && validStrictId(data.auditEventId) &&
+        data.occurredAt is timestamp && data.actorKind == 'staff' && validStrictId(data.actorUid) &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validCareEnrollment(data, workspaceId, enrollmentId) {
+      return data.keys().size() == 23 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'pathwayId', 'pathwayProtocolVersion',
+          'pathwayContentHash', 'teamId', 'locationId', 'state',
+          'nextContactIndex', 'nextContactAt', 'activeSuppressions',
+          'openEscalationId', 'safetyHoldEscalationId', 'openHandoffId',
+          'revision', 'outcomeCode', 'lastEventId', 'schemaVersion', 'synthetic',
+          'externalDispatchCount', 'networkCallCount', 'createdAt', 'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, enrollmentId) &&
+        validStrictId(data.pathwayId) && validBoundedString(data.pathwayProtocolVersion, 1, 64) &&
+        validSha256(data.pathwayContentHash) && validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        data.state in ['queued', 'active', 'paused_by_operator', 'paused_for_safety', 'paused_for_human', 'escalated', 'completed', 'ended'] &&
+        data.nextContactIndex is int && data.nextContactIndex >= 0 && data.nextContactIndex <= 32 &&
+        validNullableTimestamp(data.nextContactAt) &&
+        data.activeSuppressions is list && data.activeSuppressions.size() <= 6 &&
+        data.activeSuppressions.toSet().size() == data.activeSuppressions.size() &&
+        (data.openEscalationId == null || validStrictId(data.openEscalationId)) &&
+        (data.safetyHoldEscalationId == null || validStrictId(data.safetyHoldEscalationId)) &&
+        (data.openHandoffId == null || validStrictId(data.openHandoffId)) &&
+        validPhase5Revision(data.revision) &&
+        data.outcomeCode in [
+          'accepted', 'contact_advanced', 'suppressed_terminal', 'clinical_hold_applied',
+          'human_takeover_required', 'red_flag_escalated', 'escalation_acknowledged',
+          'escalation_resolved_safety_hold', 'escalation_resolved_terminal_suppression',
+          'safety_hold_cleared', 'completed', 'ended_by_operator'
+        ] &&
+        (data.lastEventId == null || validStrictId(data.lastEventId)) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validCareEnrollmentEvent(data, workspaceId, eventId) {
+      return data.keys().size() == 29 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'enrollmentId', 'pathwayId',
+          'pathwayProtocolVersion', 'pathwayContentHash', 'teamId', 'locationId',
+          'revision', 'auditEventId', 'action', 'fromState', 'toState',
+          'contactPointIndex', 'suppressionReason', 'escalationId',
+          'escalationStateBefore', 'escalationStateAfter', 'handoffId',
+          'activeSuppressionsAfter', 'nextContactAt', 'outcomeCode', 'occurredAt',
+          'schemaVersion', 'synthetic', 'externalDispatchCount', 'networkCallCount',
+          'actorKind', 'actorUid'
+        ]) &&
+        validPhase5Identity(data, workspaceId, eventId) &&
+        validStrictId(data.enrollmentId) && validStrictId(data.pathwayId) &&
+        validBoundedString(data.pathwayProtocolVersion, 1, 64) && validSha256(data.pathwayContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        validPhase5Revision(data.revision) && validStrictId(data.auditEventId) &&
+        data.action in [
+          'start', 'advance_contact', 'pause', 'resume', 'end',
+          'simulate_suppression', 'clear_clinical_hold', 'human_takeover_started',
+          'release_human_takeover', 'raise_red_flag', 'acknowledge_escalation',
+          'resolve_escalation', 'clear_safety_hold'
+        ] &&
+        data.fromState in ['queued', 'active', 'paused_by_operator', 'paused_for_safety', 'paused_for_human', 'escalated', 'completed', 'ended'] &&
+        data.toState in ['queued', 'active', 'paused_by_operator', 'paused_for_safety', 'paused_for_human', 'escalated', 'completed', 'ended'] &&
+        (data.contactPointIndex == null || (data.contactPointIndex is int && data.contactPointIndex >= 0 && data.contactPointIndex <= 31)) &&
+        (data.suppressionReason == null || data.suppressionReason in ['readmission', 'transfer', 'death', 'clinical_hold', 'withdrawal', 'invalid_contact']) &&
+        (data.escalationId == null || validStrictId(data.escalationId)) &&
+        (data.escalationStateBefore == null || data.escalationStateBefore in ['open', 'acknowledged', 'resolved']) &&
+        (data.escalationStateAfter == null || data.escalationStateAfter in ['open', 'acknowledged', 'resolved']) &&
+        (data.handoffId == null || validStrictId(data.handoffId)) &&
+        data.activeSuppressionsAfter is list && data.activeSuppressionsAfter.size() <= 6 &&
+        validNullableTimestamp(data.nextContactAt) && data.occurredAt is timestamp &&
+        validPhase5SafeProjection(data) &&
+        validGovernedActorFields(data.actorKind, data.actorUid);
+    }
+
+    function validCareEscalation(data, workspaceId, escalationId) {
+      return data.keys().size() == 29 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'enrollmentId', 'pathwayId',
+          'pathwayProtocolVersion', 'pathwayContentHash', 'teamId', 'locationId',
+          'reasonCode', 'state', 'openedAt', 'responseSlaMinutes', 'responseDueAt',
+          'openedBy', 'acknowledgedAt', 'acknowledgedByUid', 'resolvedAt',
+          'resolvedByUid', 'resolutionCode', 'writeBackRequired', 'writeBackState',
+          'revision', 'lastEventId', 'schemaVersion', 'synthetic',
+          'externalDispatchCount', 'networkCallCount', 'createdAt', 'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, escalationId) &&
+        validStrictId(data.enrollmentId) && validStrictId(data.pathwayId) &&
+        validBoundedString(data.pathwayProtocolVersion, 1, 64) && validSha256(data.pathwayContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        data.reasonCode in ['red_flag_response', 'emergency_keyword', 'clinical_review_required'] &&
+        data.state in ['open', 'acknowledged', 'resolved'] &&
+        data.openedAt is timestamp &&
+        data.responseSlaMinutes is int && data.responseSlaMinutes >= 1 && data.responseSlaMinutes <= 1440 &&
+        data.responseDueAt is timestamp && validGovernedActor(data.openedBy) &&
+        validNullableTimestamp(data.acknowledgedAt) &&
+        (data.acknowledgedByUid == null || validStrictId(data.acknowledgedByUid)) &&
+        validNullableTimestamp(data.resolvedAt) &&
+        (data.resolvedByUid == null || validStrictId(data.resolvedByUid)) &&
+        (data.resolutionCode == null || data.resolutionCode in ['safety_hold_applied', 'terminal_suppression_applied']) &&
+        data.writeBackRequired is bool &&
+        data.writeBackState in ['not_required', 'pending', 'unavailable_in_demo'] &&
+        validPhase5Revision(data.revision) && validStrictId(data.lastEventId) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    function validCareHandoff(data, workspaceId, handoffId) {
+      return data.keys().size() == 23 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'enrollmentId', 'pathwayId',
+          'pathwayProtocolVersion', 'pathwayContentHash', 'teamId', 'locationId',
+          'state', 'openedEventId', 'openedBy', 'openedAt', 'releasedEventId',
+          'releasedBy', 'releasedAt', 'revision', 'lastEventId', 'schemaVersion',
+          'synthetic', 'externalDispatchCount', 'networkCallCount', 'createdAt',
+          'updatedAt'
+        ]) &&
+        validPhase5Identity(data, workspaceId, handoffId) &&
+        validStrictId(data.enrollmentId) && validStrictId(data.pathwayId) &&
+        validBoundedString(data.pathwayProtocolVersion, 1, 64) && validSha256(data.pathwayContentHash) &&
+        validStrictId(data.teamId) && validStrictId(data.locationId) &&
+        data.state in ['open', 'released'] && validStrictId(data.openedEventId) &&
+        validGovernedActor(data.openedBy) && data.openedAt is timestamp &&
+        (data.releasedEventId == null || validStrictId(data.releasedEventId)) &&
+        (data.releasedBy == null || validGovernedActor(data.releasedBy)) &&
+        validNullableTimestamp(data.releasedAt) &&
+        data.revision is int && data.revision >= 1 && data.revision <= 999999 &&
+        validStrictId(data.lastEventId) &&
+        data.createdAt is timestamp && data.updatedAt is timestamp &&
+        validPhase5SafeProjection(data);
+    }
+
+    // ===============================================================
+    // Synthetic demo connection-centre read projections
+    // ===============================================================
+    function validDemoConnectionEvidence(
+      evidence,
+      expectedState,
+      expectedSource,
+      expectedDetailCode,
+      createdAt,
+      updatedAt
+    ) {
+      return evidence is map &&
+        evidence == {
+          'state': expectedState,
+          'source': expectedSource,
+          'observedAt': evidence.observedAt,
+          'lastSuccessfulVerificationAt': null,
+          'detailCode': expectedDetailCode
+        } &&
+        evidence.observedAt is timestamp &&
+        evidence.observedAt >= createdAt &&
+        evidence.observedAt <= updatedAt;
+    }
+
+    function validDemoWhatsAppSignals(signals, createdAt, updatedAt) {
+      return signals is map &&
+        signals == {
+          'waba': {
+            'state': 'not_configured',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.waba.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_meta_waba'
+          },
+          'phoneRegistration': {
+            'state': 'not_configured',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.phoneRegistration.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_provider_phone'
+          },
+          'webhook': {
+            'state': 'mock',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.webhook.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'synthetic_ingress_only'
+          },
+          'appMode': {
+            'state': 'not_configured',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.appMode.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_meta_app'
+          },
+          'permissions': {
+            'state': 'unverified',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.permissions.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_meta_permissions'
+          },
+          'templates': {
+            'state': 'not_submitted',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.templates.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'provider_approved_zero'
+          },
+          'payment': {
+            'state': 'not_configured',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.payment.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_payment_configuration'
+          },
+          'sending': {
+            'state': 'blocked',
+            'source': 'local_policy',
+            'observedAt': signals.sending.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'external_sending_disabled'
+          },
+          'quality': {
+            'state': 'not_available',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.quality.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_provider_quality'
+          },
+          'capacity': {
+            'state': 'not_available',
+            'source': 'synthetic_fixture',
+            'observedAt': signals.capacity.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_provider_capacity'
+          },
+          'realDeviceCanary': {
+            'state': 'blocked',
+            'source': 'local_policy',
+            'observedAt': signals.realDeviceCanary.observedAt,
+            'lastSuccessfulVerificationAt': null,
+            'detailCode': 'no_real_device_canary'
+          }
+        } &&
+        signals.waba.observedAt is timestamp &&
+        signals.waba.observedAt >= createdAt &&
+        signals.waba.observedAt <= updatedAt &&
+        signals.phoneRegistration.observedAt is timestamp &&
+        signals.phoneRegistration.observedAt >= createdAt &&
+        signals.phoneRegistration.observedAt <= updatedAt &&
+        signals.webhook.observedAt is timestamp &&
+        signals.webhook.observedAt >= createdAt &&
+        signals.webhook.observedAt <= updatedAt &&
+        signals.appMode.observedAt is timestamp &&
+        signals.appMode.observedAt >= createdAt &&
+        signals.appMode.observedAt <= updatedAt &&
+        signals.permissions.observedAt is timestamp &&
+        signals.permissions.observedAt >= createdAt &&
+        signals.permissions.observedAt <= updatedAt &&
+        signals.templates.observedAt is timestamp &&
+        signals.templates.observedAt >= createdAt &&
+        signals.templates.observedAt <= updatedAt &&
+        signals.payment.observedAt is timestamp &&
+        signals.payment.observedAt >= createdAt &&
+        signals.payment.observedAt <= updatedAt &&
+        signals.sending.observedAt is timestamp &&
+        signals.sending.observedAt >= createdAt &&
+        signals.sending.observedAt <= updatedAt &&
+        signals.quality.observedAt is timestamp &&
+        signals.quality.observedAt >= createdAt &&
+        signals.quality.observedAt <= updatedAt &&
+        signals.capacity.observedAt is timestamp &&
+        signals.capacity.observedAt >= createdAt &&
+        signals.capacity.observedAt <= updatedAt &&
+        signals.realDeviceCanary.observedAt is timestamp &&
+        signals.realDeviceCanary.observedAt >= createdAt &&
+        signals.realDeviceCanary.observedAt <= updatedAt;
+    }
+
+    function validStaffSafeDemoWhatsAppConnection(data, workspaceId, connectionId) {
+      return data is map &&
+        data.keys().size() == 18 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'displayName', 'provider', 'environment',
+          'status', 'maskedNumber', 'maskedWabaId', 'maskedPhoneNumberId',
+          'credentialState', 'externalMessagingEnabled', 'networkCallsEnabled',
+          'signals', 'sortKey', 'synthetic', 'schemaVersion', 'createdAt',
+          'updatedAt'
+        ]) &&
+        workspaceId == 'workspace_safenet_demo' &&
+        connectionId == 'connection_demo_simulator' &&
+        data.id == connectionId &&
+        data.workspaceId == workspaceId &&
+        data.displayName == 'Local WhatsApp journey simulator' &&
+        data.provider == 'simulator' &&
+        data.environment == 'demo' &&
+        data.status == 'mock' &&
+        data.maskedNumber == 'No external number' &&
+        data.maskedWabaId == null &&
+        data.maskedPhoneNumberId == null &&
+        data.credentialState == 'not_configured' &&
+        data.externalMessagingEnabled == false &&
+        data.networkCallsEnabled == false &&
+        data.sortKey == '01_whatsapp_simulator' &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        data.createdAt <= data.updatedAt &&
+        validDemoWhatsAppSignals(data.signals, data.createdAt, data.updatedAt);
+    }
+
+    function validStaffSafeDemoIntegration(data, workspaceId, integrationId) {
+      return data is map &&
+        data.keys().size() == 17 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'kind', 'displayName', 'environment',
+          'adapterMode', 'status', 'credentialState', 'externalNetworkEnabled',
+          'authoritativeSystemWriteEnabled', 'lastSyncAt', 'evidence', 'sortKey',
+          'synthetic', 'schemaVersion', 'createdAt', 'updatedAt'
+        ]) &&
+        workspaceId == 'workspace_safenet_demo' &&
+        data.id == integrationId &&
+        data.workspaceId == workspaceId &&
+        data.environment == 'demo' &&
+        data.adapterMode == 'synthetic' &&
+        data.status == 'mock' &&
+        data.credentialState == 'not_configured' &&
+        data.externalNetworkEnabled == false &&
+        data.authoritativeSystemWriteEnabled == false &&
+        data.lastSyncAt == null &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        data.createdAt <= data.updatedAt &&
+        (
+          (
+            integrationId == 'integration_demo_his_simulator' &&
+            data.kind == 'appointment_his' &&
+            data.displayName == 'Local appointment HIS simulator' &&
+            data.sortKey == '01_his_simulator' &&
+            validDemoConnectionEvidence(
+              data.evidence,
+              'mock',
+              'synthetic_fixture',
+              'deterministic_his_simulator_only',
+              data.createdAt,
+              data.updatedAt
+            )
+          ) ||
+          (
+            integrationId == 'integration_demo_lims_simulator' &&
+            data.kind == 'laboratory_lims' &&
+            data.displayName == 'Local laboratory LIMS simulator' &&
+            data.sortKey == '02_lims_simulator' &&
+            validDemoConnectionEvidence(
+              data.evidence,
+              'mock',
+              'synthetic_fixture',
+              'deterministic_lims_simulator_only',
+              data.createdAt,
+              data.updatedAt
+            )
+          )
+        );
+    }
+
+    function canReadDemoConnectionCentre(workspaceId) {
+      return workspaceId == 'workspace_safenet_demo' &&
+        hasRole(workspaceId, ['tenant_admin']);
+    }
+
+    // ===============================================================
+    // AI/knowledge fixed-path retrospective governance projections
+    // ===============================================================
+    function aiGovernanceEvaluatedAt() {
+      return timestamp.value(1786105800000);
+    }
+
+    function validAiGovernanceReadAuthority(workspaceId) {
+      let member = memberData(workspaceId);
+      let workspace = get(
+        /databases/$(database)/documents/workspaces/$(workspaceId)
+      ).data;
+      return workspaceId == 'workspace_safenet_demo' &&
+        workspaceAllowsSyntheticClientMutations(workspaceId) &&
+        workspace.mode == 'demo' &&
+        workspace.dataClassification == 'synthetic_only' &&
+        activeWorkspaceMember(workspaceId) &&
+        member.mfaSatisfied == true &&
+        member.lastAuthenticatedAt is timestamp &&
+        (
+          (member.role == 'tenant_admin' && member.scopeMode == 'workspace_wide') ||
+          (member.role == 'privacy_reviewer' && member.scopeMode == 'assigned') ||
+          (
+            member.role == 'supervisor' &&
+            member.scopeMode == 'assigned' &&
+            'team_demo_general' in member.teamIds &&
+            'location_demo_wattala' in member.locationIds
+          ) ||
+          (
+            member.role == 'clinical_approver' &&
+            member.scopeMode == 'assigned' &&
+            'team_demo_clinical_escalation' in member.teamIds &&
+            'location_demo_wattala' in member.locationIds
+          )
+        );
+    }
+
+    function canGetAiKnowledgeDocument(workspaceId, documentId) {
+      let member = memberData(workspaceId);
+      return validAiGovernanceReadAuthority(workspaceId) &&
+        documentId in [
+          'kn-appointments-v3',
+          'kn-labs-v2',
+          'kn-urgent-v5',
+          'kn-package-draft',
+          'kn-old-hours'
+        ] &&
+        (
+          member.role in ['tenant_admin', 'privacy_reviewer'] ||
+          (
+            member.role == 'supervisor' &&
+            documentId in [
+              'kn-appointments-v3',
+              'kn-package-draft',
+              'kn-old-hours'
+            ]
+          ) ||
+          (
+            member.role == 'clinical_approver' &&
+            documentId in ['kn-labs-v2', 'kn-urgent-v5']
+          )
+        );
+    }
+
+    function canGetAiKnowledgeSelection(workspaceId, selectionId) {
+      let member = memberData(workspaceId);
+      return validAiGovernanceReadAuthority(workspaceId) &&
+        selectionId in [
+          'knowledge_selection_appointments_v3',
+          'knowledge_selection_labs_v2',
+          'knowledge_selection_urgent_v5'
+        ] &&
+        (
+          member.role in ['tenant_admin', 'privacy_reviewer'] ||
+          (
+            member.role == 'supervisor' &&
+            selectionId == 'knowledge_selection_appointments_v3'
+          ) ||
+          (
+            member.role == 'clinical_approver' &&
+            selectionId in [
+              'knowledge_selection_labs_v2',
+              'knowledge_selection_urgent_v5'
+            ]
+          )
+        );
+    }
+
+    function canGetAiRuntimeEvidence(workspaceId, runtimeId) {
+      let member = memberData(workspaceId);
+      return validAiGovernanceReadAuthority(workspaceId) &&
+        runtimeId in [
+          'ai_run_demo_appointment_v1',
+          'ai_run_demo_urgent_v1',
+          'ai_run_demo_mixed_v1',
+          'ai_run_demo_stop_v1',
+          'ai_run_event_demo_appointment_v1',
+          'ai_run_event_demo_urgent_v1',
+          'ai_run_event_demo_mixed_v1',
+          'ai_run_event_demo_stop_v1'
+        ] &&
+        (
+          member.role == 'tenant_admin' ||
+          (
+            member.role == 'supervisor' &&
+            runtimeId in [
+              'ai_run_demo_appointment_v1',
+              'ai_run_demo_mixed_v1',
+              'ai_run_demo_stop_v1',
+              'ai_run_event_demo_appointment_v1',
+              'ai_run_event_demo_mixed_v1',
+              'ai_run_event_demo_stop_v1'
+            ]
+          ) ||
+          (
+            member.role == 'clinical_approver' &&
+            runtimeId in [
+              'ai_run_demo_urgent_v1',
+              'ai_run_event_demo_urgent_v1'
+            ]
+          )
+        );
+    }
+
+    function validAiKnowledgeDocumentMatrix(data, documentId) {
+      return (
+          documentId == 'kn-appointments-v3' &&
+          data.title == 'Appointment service guide' &&
+          data.version == '3.1' &&
+          data.language == 'trilingual' &&
+          data.contentKind == 'appointment_service_guide' &&
+          data.ownerUid == 'user_demo_supervisor' &&
+          data.approverUid == 'user_demo_admin' &&
+          data.approvalState == 'approved' &&
+          data.approvalScope == 'synthetic_information_only' &&
+          data.approvedAt == timestamp.value(1785542400000) &&
+          data.effectiveFrom == timestamp.value(1785542400000) &&
+          data.effectiveUntil == timestamp.value(1793491199999)
+        ) || (
+          documentId == 'kn-labs-v2' &&
+          data.title == 'Laboratory notification policy' &&
+          data.version == '2.4' &&
+          data.language == 'trilingual' &&
+          data.contentKind == 'laboratory_notification_policy' &&
+          data.ownerUid == 'user_demo_clinical_approver' &&
+          data.approverUid == 'user_demo_admin' &&
+          data.approvalState == 'approved' &&
+          data.approvalScope == 'synthetic_information_only' &&
+          data.approvedAt == timestamp.value(1782864000000) &&
+          data.effectiveFrom == timestamp.value(1782864000000) &&
+          data.effectiveUntil == timestamp.value(1790812799999)
+        ) || (
+          documentId == 'kn-urgent-v5' &&
+          data.title == 'Urgent-language response' &&
+          data.version == '5.0' &&
+          data.language == 'trilingual' &&
+          data.contentKind == 'urgent_language_response' &&
+          data.ownerUid == 'user_demo_clinical_approver' &&
+          data.approverUid == 'user_demo_admin' &&
+          data.approvalState == 'approved' &&
+          data.approvalScope == 'synthetic_information_only' &&
+          data.approvedAt == timestamp.value(1785542400000) &&
+          data.effectiveFrom == timestamp.value(1785542400000) &&
+          data.effectiveUntil == timestamp.value(1788220799999)
+        ) || (
+          documentId == 'kn-package-draft' &&
+          data.title == 'Package information draft' &&
+          data.version == '0.8' &&
+          data.language == 'en' &&
+          data.contentKind == 'package_information_draft' &&
+          data.ownerUid == 'user_demo_supervisor' &&
+          data.approverUid == null &&
+          data.approvalState == 'review' &&
+          data.approvalScope == null &&
+          data.approvedAt == null &&
+          data.effectiveFrom == null &&
+          data.effectiveUntil == null
+        ) || (
+          documentId == 'kn-old-hours' &&
+          data.title == 'Archived branch-hours sample' &&
+          data.version == '1.2' &&
+          data.language == 'en' &&
+          data.contentKind == 'archived_branch_hours' &&
+          data.ownerUid == 'user_demo_supervisor' &&
+          data.approverUid == 'user_demo_admin' &&
+          data.approvalState == 'expired' &&
+          data.approvalScope == 'synthetic_information_only' &&
+          data.approvedAt == timestamp.value(1780272000000) &&
+          data.effectiveFrom == timestamp.value(1780272000000) &&
+          data.effectiveUntil == timestamp.value(1785542399999)
+        );
+    }
+
+    function validStaffSafeAiKnowledgeDocument(data, workspaceId, documentId) {
+      return data is map &&
+        data == {
+          'id': documentId,
+          'workspaceId': workspaceId,
+          'title': data.title,
+          'version': data.version,
+          'language': data.language,
+          'contentKind': data.contentKind,
+          'ownerUid': data.ownerUid,
+          'approverUid': data.approverUid,
+          'approvalState': data.approvalState,
+          'approvalScope': data.approvalScope,
+          'approvedAt': data.approvedAt,
+          'evaluatedAt': aiGovernanceEvaluatedAt(),
+          'effectiveFrom': data.effectiveFrom,
+          'effectiveUntil': data.effectiveUntil,
+          'contentFingerprint': data.contentFingerprint,
+          'approvalFingerprint': data.approvalFingerprint,
+          'synthetic': true,
+          'schemaVersion': 1,
+          'createdAt': data.createdAt,
+          'updatedAt': data.updatedAt
+        } &&
+        validSha256(data.contentFingerprint) &&
+        validSha256(data.approvalFingerprint) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        data.createdAt <= data.updatedAt &&
+        validAiKnowledgeDocumentMatrix(data, documentId);
+    }
+
+    function validAiKnowledgeSelectionMatrix(data, selectionId) {
+      return (
+          selectionId == 'knowledge_selection_appointments_v3' &&
+          data.documentId == 'kn-appointments-v3' &&
+          data.effectiveFrom == timestamp.value(1785542400000) &&
+          data.effectiveUntil == timestamp.value(1793491199999)
+        ) || (
+          selectionId == 'knowledge_selection_labs_v2' &&
+          data.documentId == 'kn-labs-v2' &&
+          data.effectiveFrom == timestamp.value(1782864000000) &&
+          data.effectiveUntil == timestamp.value(1790812799999)
+        ) || (
+          selectionId == 'knowledge_selection_urgent_v5' &&
+          data.documentId == 'kn-urgent-v5' &&
+          data.effectiveFrom == timestamp.value(1785542400000) &&
+          data.effectiveUntil == timestamp.value(1788220799999)
+        );
+    }
+
+    function validStaffSafeAiKnowledgeSelection(data, workspaceId, selectionId) {
+      return data is map &&
+        data == {
+          'selectionId': selectionId,
+          'workspaceId': workspaceId,
+          'documentId': data.documentId,
+          'contentFingerprint': data.contentFingerprint,
+          'approvalFingerprint': data.approvalFingerprint,
+          'selectorVersionId': 'deterministic_knowledge_selector_v1',
+          'selectedAt': aiGovernanceEvaluatedAt(),
+          'evaluatedAt': aiGovernanceEvaluatedAt(),
+          'selectionScope': 'retrospective_synthetic_fixture',
+          'effectiveFrom': data.effectiveFrom,
+          'effectiveUntil': data.effectiveUntil,
+          'synthetic': true,
+          'selectionFingerprint': data.selectionFingerprint,
+          'schemaVersion': 1,
+          'createdAt': data.createdAt
+        } &&
+        validSha256(data.contentFingerprint) &&
+        validSha256(data.approvalFingerprint) &&
+        validSha256(data.selectionFingerprint) &&
+        data.createdAt is timestamp &&
+        data.createdAt > aiGovernanceEvaluatedAt() &&
+        validAiKnowledgeSelectionMatrix(data, selectionId);
+    }
+
+    function validAiRetrospectiveSelection(data, scenarioId) {
+      return (
+          scenarioId == 'appointment' &&
+          data.knowledgeSelectionId == 'knowledge_selection_appointments_v3' &&
+          validSha256(data.knowledgeSelectionFingerprint)
+        ) || (
+          scenarioId == 'urgent' &&
+          data.knowledgeSelectionId == 'knowledge_selection_urgent_v5' &&
+          validSha256(data.knowledgeSelectionFingerprint)
+        ) || (
+          scenarioId in ['mixed', 'stop'] &&
+          data.knowledgeSelectionId == null &&
+          data.knowledgeSelectionFingerprint == null
+        );
+    }
+
+    function validAiRetrospectiveDecision(data, scenarioId) {
+      return data.unsupportedClaim == false &&
+        data.privacy == 'pass' &&
+        data.serviceWindow == 'in_window' &&
+        data.retryCount == 0 &&
+        data.eventCount == 1 &&
+        data.modelCallCount == 0 &&
+        data.providerCallCount == 0 &&
+        data.externalDispatchCount == 0 &&
+        data.conversationMutationCount == 0 &&
+        data.handoffMutationCount == 0 &&
+        data.suppressionMutationCount == 0 &&
+        data.chainOfThoughtStored == false &&
+        (
+          (
+            scenarioId == 'appointment' &&
+            data.decision == 'pass' &&
+            data.reasonCodes == ['approved_knowledge_only'] &&
+            data.clinicalSafety == 'pass' &&
+            data.requiredCorrectionCode == null &&
+            data.marketingSuppressionRequired == false &&
+            data.sendMode == 'preview_only' &&
+            data.outcome == 'preview_only' &&
+            data.observedConversationStatus == 'active' &&
+            data.observedConversationMode == 'automation' &&
+            data.handoffRequired == false &&
+            data.urgentSafetyHoldObserved == false &&
+            data.contactMarketingSuppressionObserved == false &&
+            data.ordinaryAutomationPaused == false
+          ) || (
+            scenarioId == 'urgent' &&
+            data.decision == 'fail' &&
+            data.reasonCodes == ['urgent_language'] &&
+            data.clinicalSafety == 'blocked' &&
+            data.requiredCorrectionCode == 'preserve_existing_safety_hold' &&
+            data.marketingSuppressionRequired == false &&
+            data.sendMode == 'no_send' &&
+            data.outcome == 'safety_hold_already_present' &&
+            data.observedConversationStatus == 'escalated' &&
+            data.observedConversationMode == 'safety_hold' &&
+            data.handoffRequired == true &&
+            data.urgentSafetyHoldObserved == true &&
+            data.contactMarketingSuppressionObserved == false &&
+            data.ordinaryAutomationPaused == true
+          ) || (
+            scenarioId == 'mixed' &&
+            data.decision == 'fail' &&
+            data.reasonCodes == ['low_language_confidence'] &&
+            data.clinicalSafety == 'pass' &&
+            data.requiredCorrectionCode == 'preserve_existing_human_takeover' &&
+            data.marketingSuppressionRequired == false &&
+            data.sendMode == 'no_send' &&
+            data.outcome == 'human_takeover_already_present' &&
+            data.observedConversationStatus == 'assigned' &&
+            data.observedConversationMode == 'human_takeover' &&
+            data.handoffRequired == true &&
+            data.urgentSafetyHoldObserved == false &&
+            data.contactMarketingSuppressionObserved == false &&
+            data.ordinaryAutomationPaused == true
+          ) || (
+            scenarioId == 'stop' &&
+            data.decision == 'fail' &&
+            data.reasonCodes == ['stop_intent'] &&
+            data.clinicalSafety == 'pass' &&
+            data.requiredCorrectionCode == 'honor_existing_marketing_suppression' &&
+            data.marketingSuppressionRequired == true &&
+            data.sendMode == 'no_send' &&
+            data.outcome == 'suppression_already_recorded' &&
+            data.observedConversationStatus == 'resolved' &&
+            data.observedConversationMode == 'automation' &&
+            data.handoffRequired == false &&
+            data.urgentSafetyHoldObserved == false &&
+            data.contactMarketingSuppressionObserved == true &&
+            data.ordinaryAutomationPaused == true
+          )
+        );
+    }
+
+    function validAiRunIdentity(data, scenarioId, runId) {
+      return (
+          scenarioId == 'appointment' &&
+          runId == 'ai_run_demo_appointment_v1' &&
+          data.eventId == 'ai_run_event_demo_appointment_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_appointment_v1'
+        ) || (
+          scenarioId == 'urgent' &&
+          runId == 'ai_run_demo_urgent_v1' &&
+          data.eventId == 'ai_run_event_demo_urgent_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_urgent_v1'
+        ) || (
+          scenarioId == 'mixed' &&
+          runId == 'ai_run_demo_mixed_v1' &&
+          data.eventId == 'ai_run_event_demo_mixed_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_mixed_v1'
+        ) || (
+          scenarioId == 'stop' &&
+          runId == 'ai_run_demo_stop_v1' &&
+          data.eventId == 'ai_run_event_demo_stop_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_stop_v1'
+        );
+    }
+
+    function validStaffSafeAiRetrospectiveRun(data, workspaceId, runId) {
+      return data is map &&
+        data.keys().size() == 44 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'scenarioId', 'evaluationScope',
+          'durableScenarioScope', 'requestFingerprint', 'knowledgeSelectionId',
+          'knowledgeSelectionFingerprint', 'modelProvider', 'modelId',
+          'promptVersionId', 'policyVersionId', 'reviewerVersionId', 'eventId',
+          'auditEventId', 'evaluatedAt', 'recordedAt', 'decision', 'reasonCodes',
+          'unsupportedClaim', 'clinicalSafety', 'privacy', 'serviceWindow',
+          'requiredCorrectionCode', 'marketingSuppressionRequired', 'sendMode',
+          'outcome', 'observedConversationStatus', 'observedConversationMode',
+          'handoffRequired', 'urgentSafetyHoldObserved',
+          'contactMarketingSuppressionObserved', 'ordinaryAutomationPaused',
+          'retryCount', 'eventCount', 'modelCallCount', 'providerCallCount',
+          'externalDispatchCount', 'conversationMutationCount',
+          'handoffMutationCount', 'suppressionMutationCount',
+          'chainOfThoughtStored', 'synthetic', 'schemaVersion'
+        ]) &&
+        data.id == runId &&
+        data.workspaceId == workspaceId &&
+        data.scenarioId in ['appointment', 'urgent', 'mixed', 'stop'] &&
+        data.evaluationScope == 'retrospective_synthetic_fixture' &&
+        data.durableScenarioScope == 'partial_four_of_seven' &&
+        validSha256(data.requestFingerprint) &&
+        validAiRetrospectiveSelection(data, data.scenarioId) &&
+        data.modelProvider == 'none' &&
+        data.modelId == null &&
+        data.promptVersionId == null &&
+        data.policyVersionId == 'ai_policy_synthetic_v1' &&
+        data.reviewerVersionId == 'deterministic_healthcare_reviewer_v1' &&
+        data.evaluatedAt == aiGovernanceEvaluatedAt() &&
+        data.recordedAt is timestamp &&
+        data.recordedAt > data.evaluatedAt &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        validAiRunIdentity(data, data.scenarioId, runId) &&
+        validAiRetrospectiveDecision(data, data.scenarioId);
+    }
+
+    function validAiEventIdentity(data, scenarioId, eventId) {
+      return (
+          scenarioId == 'appointment' &&
+          eventId == 'ai_run_event_demo_appointment_v1' &&
+          data.runId == 'ai_run_demo_appointment_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_appointment_v1'
+        ) || (
+          scenarioId == 'urgent' &&
+          eventId == 'ai_run_event_demo_urgent_v1' &&
+          data.runId == 'ai_run_demo_urgent_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_urgent_v1'
+        ) || (
+          scenarioId == 'mixed' &&
+          eventId == 'ai_run_event_demo_mixed_v1' &&
+          data.runId == 'ai_run_demo_mixed_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_mixed_v1'
+        ) || (
+          scenarioId == 'stop' &&
+          eventId == 'ai_run_event_demo_stop_v1' &&
+          data.runId == 'ai_run_demo_stop_v1' &&
+          data.auditEventId == 'audit_ai_run_demo_stop_v1'
+        );
+    }
+
+    function validStaffSafeAiRetrospectiveEvent(data, workspaceId, eventId) {
+      return data is map &&
+        data.keys().size() == 47 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'runId', 'scenarioId', 'eventType', 'sequence',
+          'previousEventId', 'retryOfEventId', 'requestFingerprint',
+          'runFingerprint', 'knowledgeSelectionId', 'knowledgeSelectionFingerprint',
+          'modelProvider', 'modelId', 'promptVersionId', 'policyVersionId',
+          'reviewerVersionId', 'auditEventId', 'evaluatedAt', 'createdAt',
+          'decision', 'reasonCodes', 'unsupportedClaim', 'clinicalSafety',
+          'privacy', 'serviceWindow', 'requiredCorrectionCode',
+          'marketingSuppressionRequired', 'sendMode', 'outcome',
+          'observedConversationStatus', 'observedConversationMode',
+          'handoffRequired', 'urgentSafetyHoldObserved',
+          'contactMarketingSuppressionObserved', 'ordinaryAutomationPaused',
+          'retryCount', 'eventCount', 'modelCallCount', 'providerCallCount',
+          'externalDispatchCount', 'conversationMutationCount',
+          'handoffMutationCount', 'suppressionMutationCount',
+          'chainOfThoughtStored', 'synthetic', 'schemaVersion'
+        ]) &&
+        data.id == eventId &&
+        data.workspaceId == workspaceId &&
+        data.scenarioId in ['appointment', 'urgent', 'mixed', 'stop'] &&
+        data.eventType == 'retrospective_evaluation_recorded' &&
+        data.sequence == 1 &&
+        data.previousEventId == null &&
+        data.retryOfEventId == null &&
+        validSha256(data.requestFingerprint) &&
+        validSha256(data.runFingerprint) &&
+        validAiRetrospectiveSelection(data, data.scenarioId) &&
+        data.modelProvider == 'none' &&
+        data.modelId == null &&
+        data.promptVersionId == null &&
+        data.policyVersionId == 'ai_policy_synthetic_v1' &&
+        data.reviewerVersionId == 'deterministic_healthcare_reviewer_v1' &&
+        data.evaluatedAt == aiGovernanceEvaluatedAt() &&
+        data.createdAt is timestamp &&
+        data.createdAt > data.evaluatedAt &&
+        data.synthetic == true &&
+        data.schemaVersion == 1 &&
+        validAiEventIdentity(data, data.scenarioId, eventId) &&
+        validAiRetrospectiveDecision(data, data.scenarioId);
+    }
+
+    function validFirestoreAuditRecordV1(data, workspaceId, auditEventId) {
+      return data.keys().size() == 14 &&
+        data.keys().hasOnly([
+          'id', 'workspaceId', 'actorUid', 'actorType', 'action', 'resourceType',
+          'resourceId', 'outcome', 'requestId', 'occurredAt', 'createdAt',
+          'metadata', 'synthetic', 'schemaVersion'
+        ]) &&
+        validPhase5Identity(data, workspaceId, auditEventId) &&
+        validStrictId(data.actorUid) && data.actorType in ['user', 'service', 'system'] &&
+        validBoundedString(data.action, 3, 160) &&
+        data.action.matches('^[a-z][a-z0-9_-]*([.][a-z][a-z0-9_-]*)+$') &&
+        validBoundedString(data.resourceType, 1, 80) && validStrictId(data.resourceId) &&
+        data.outcome in ['allowed', 'denied', 'failed', 'simulated'] &&
+        validStrictId(data.requestId) && data.occurredAt is timestamp &&
+        data.createdAt is timestamp && data.createdAt == data.occurredAt &&
+        data.metadata is map && data.metadata.keys().size() <= 32 &&
+        data.synthetic == true && data.schemaVersion == 1;
+    }
+
+    function canGetPhase5CatalogueAudit(workspaceId, data) {
+      return (
+          (
+            canReadAutomationCatalogue(workspaceId) &&
+            data.resourceType == 'automation_definition' &&
+            data.action in [
+              'automation_definition.create',
+              'automation_definition.request_review',
+              'automation_definition.approve',
+              'automation_definition.activate',
+              'automation_definition.retire'
+            ]
+          ) ||
+          (
+            canReadCareCatalogue(workspaceId) &&
+            data.resourceType == 'care_pathway' &&
+            data.action in [
+              'care_pathway.create',
+              'care_pathway.request_clinical_review',
+              'care_pathway.approve',
+              'care_pathway.activate',
+              'care_pathway.retire'
+            ]
+          )
+        );
+    }
+
+    function canGetPrivilegedOrOwnAudit(workspaceId, data) {
+      return hasRole(workspaceId, ['tenant_admin', 'privacy_reviewer']) ||
+        (
+          activeWorkspaceMember(workspaceId) &&
+          data.actorUid == request.auth.uid
+        );
+    }
+
+    function canGetAuditEvent(workspaceId, data, auditEventId) {
+      return validFirestoreAuditRecordV1(data, workspaceId, auditEventId) &&
+        (
+          canGetPrivilegedOrOwnAudit(workspaceId, data) ||
+          canGetPhase5CatalogueAudit(workspaceId, data)
+        );
+    }
+
+    // ===============================================================
+    // Workspace authority and non-patient reference data
+    // ===============================================================
+    match /workspaces/{workspaceId} {
+      allow read: if activeWorkspaceMember(workspaceId) &&
+        resource.data.id == workspaceId;
+
+      // Workspace lifecycle/configuration is server-managed and audited.
+      allow create, update, delete: if false;
+
+      match /members/{memberId} {
+        allow read: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == memberId &&
+          resource.data.uid == memberId &&
+          (
+            request.auth.uid == memberId ||
+            hasRole(workspaceId, ['tenant_admin'])
+          );
+
+        // Authority source is server-managed. No member, including a tenant
+        // admin, can self-create, edit, revoke or promote membership directly.
+        allow create, update, delete: if false;
+      }
+
+      match /teams/{teamId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == teamId;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /locations/{locationId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == locationId;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /whatsappConnections/{connectionId} {
+        allow get: if canReadDemoConnectionCentre(workspaceId) &&
+          connectionId == 'connection_demo_simulator' &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/whatsappConnections/$(connectionId)
+            ) ||
+            validStaffSafeDemoWhatsAppConnection(
+              resource.data,
+              workspaceId,
+              connectionId
+            )
+          );
+        // The frozen one-document catalogue is fetched only by exact path.
+        // Firestore cannot prove all strict document literals for list reads.
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /whatsappConnectionSecrets/{document=**} {
+        // Raw Meta asset identifiers and Secret Manager references never have
+        // a direct browser read or write path. The demo seeds zero records.
+        allow get, list, create, update, delete: if false;
+      }
+
+      // =============================================================
+      // Patient-operational and clinical-adjacent data
+      // =============================================================
+      match /contactSecrets/{contactId} {
+        // Protected contact lookup and reference material is backend-only.
+        // Admin SDK callers bypass Rules and must validate the exact schema,
+        // tenant path and audited purpose before reading or writing it.
+        allow read, write: if false;
+      }
+
+      match /labReportSecrets/{labReportId} {
+        // External report references, notification fingerprints and protected
+        // handoff references are available only to purpose-bound server code.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /labReportEventSecrets/{eventId} {
+        // Immutable-event replay fingerprints are never client-readable.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /contacts/{contactId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == contactId &&
+          isValidStaffContactReadModel(resource.data, workspaceId);
+        // Firestore queries cannot prove a full-document schema allowlist.
+        // The exact staff schema is therefore enforced by every trusted
+        // backend writer plus the strict client parser; list authorization
+        // remains tenant/scope/limit constrained here.
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow update: if workspaceAllowsSyntheticClientMutations(workspaceId) &&
+          hasRole(workspaceId, ['tenant_admin']) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          hasValidPatientScope(resource.data) &&
+          isValidSyntheticContactPreferenceState(
+            request.resource.data,
+            workspaceId,
+            contactId
+          ) &&
+          validContactPreferenceTransition();
+        allow create, delete: if false;
+      }
+
+      match /consentRecords/{consentRecordId} {
+        allow get: if canReadConsentData(workspaceId, resource.data) &&
+          resource.data.id == consentRecordId;
+        allow list: if canListConsentData(workspaceId, resource.data);
+
+        // Consent is evidence. Only backend services may append records after
+        // source/provenance verification. Existing records never mutate.
+        allow create, update, delete: if false;
+      }
+
+      match /conversations/{conversationId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == conversationId;
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /messages/{messageId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == messageId;
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /handoffSessions/{handoffId} {
+        // The corrected retrospective milestone observes an existing
+        // conversation mode only; it never creates or exposes a handoff
+        // aggregate through the browser.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /internalNotes/{noteId} {
+        allow get: if workspaceAllowsSyntheticClientMutations(workspaceId) &&
+          canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.synthetic == true &&
+          resource.data.id == noteId;
+        allow list: if workspaceAllowsSyntheticClientMutations(workspaceId) &&
+          canListScopedPatientData(workspaceId, resource.data) &&
+          resource.data.synthetic == true;
+
+        // Notes are server-authored through the purpose-bound audited callable.
+        // The browser cannot fabricate, overwrite or delete staff evidence.
+        allow create, update, delete: if false;
+      }
+
+      match /aiRuns/{aiRunId} {
+        allow get: if aiRunId in [
+            'ai_run_demo_appointment_v1',
+            'ai_run_demo_urgent_v1',
+            'ai_run_demo_mixed_v1',
+            'ai_run_demo_stop_v1'
+          ] &&
+          canGetAiRuntimeEvidence(workspaceId, aiRunId) &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/aiRuns/$(aiRunId)
+            ) ||
+            validStaffSafeAiRetrospectiveRun(resource.data, workspaceId, aiRunId)
+          );
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /aiRunEvents/{eventId} {
+        allow get: if eventId in [
+            'ai_run_event_demo_appointment_v1',
+            'ai_run_event_demo_urgent_v1',
+            'ai_run_event_demo_mixed_v1',
+            'ai_run_event_demo_stop_v1'
+          ] &&
+          canGetAiRuntimeEvidence(workspaceId, eventId) &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/aiRunEvents/$(eventId)
+            ) ||
+            validStaffSafeAiRetrospectiveEvent(resource.data, workspaceId, eventId)
+          );
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /aiRunSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /aiRunEventSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /appointments/{appointmentId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == appointmentId;
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /appointmentEvents/{eventId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == eventId;
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /labReports/{labReportId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          isValidStaffSafeLabReport(resource.data, workspaceId, labReportId);
+        // Firestore cannot prove a full-document schema allowlist from query
+        // constraints. Trusted writers enforce the staff-safe schema and the
+        // strict repository parser fails the complete list closed if polluted.
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /labReportEvents/{eventId} {
+        allow get: if canReadScopedPatientData(workspaceId, resource.data) &&
+          isValidStaffSafeLabReportEvent(resource.data, workspaceId, eventId);
+        allow list: if canListScopedPatientData(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      // =============================================================
+      // Knowledge, templates, campaigns and governed automation
+      // =============================================================
+      match /knowledgeDocuments/{knowledgeDocumentId} {
+        allow get: if canGetAiKnowledgeDocument(workspaceId, knowledgeDocumentId) &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/knowledgeDocuments/$(knowledgeDocumentId)
+            ) ||
+            validStaffSafeAiKnowledgeDocument(
+              resource.data,
+              workspaceId,
+              knowledgeDocumentId
+            )
+          );
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /knowledgeSelections/{selectionId} {
+        allow get: if canGetAiKnowledgeSelection(workspaceId, selectionId) &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/knowledgeSelections/$(selectionId)
+            ) ||
+            validStaffSafeAiKnowledgeSelection(
+              resource.data,
+              workspaceId,
+              selectionId
+            )
+          );
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /knowledgeDocumentSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /templates/{templateId} {
+        allow get: if canGetTemplateCatalogueItem(
+            resource.data,
+            workspaceId,
+            templateId
+          );
+        allow list: if canReadTemplateCatalogue(workspaceId) && isBoundedList();
+
+        // Local drafts and every released version are backend-governed. A
+        // browser cannot claim provider submission/approval, edit immutable
+        // components/variables/language/version or change SafeNet ownership.
+        allow create, update, delete: if false;
+      }
+
+      match /flows/{flowId} {
+        allow get: if canReadTemplateCatalogue(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == flowId;
+        allow list: if canReadTemplateCatalogue(workspaceId) && isBoundedList();
+
+        // Flow/provider status and endpoint metadata are server-only.
+        allow create, update, delete: if false;
+      }
+
+      match /flowSessions/{flowSessionId} {
+        allow read: if canReadScopedPatientData(workspaceId, resource.data) &&
+          resource.data.id == flowSessionId;
+        allow create, update, delete: if false;
+      }
+
+      match /campaigns/{campaignId} {
+        allow get: if canReadCampaignData(workspaceId, resource.data) &&
+          isValidGovernedCampaign(resource.data, workspaceId, campaignId);
+        // Queries cannot prove an arbitrary whole-document key allowlist.
+        // Trusted writers enforce it and the repository parser rejects the
+        // complete bounded list when any record is polluted.
+        allow list: if canListCampaignData(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /audienceSnapshots/{snapshotId} {
+        allow get: if canReadCampaignData(workspaceId, resource.data) &&
+          isValidAudienceSnapshot(resource.data, workspaceId, snapshotId);
+        allow list: if canListCampaignData(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /campaignEvents/{eventId} {
+        allow get: if canReadCampaignData(workspaceId, resource.data) &&
+          isValidCampaignEvent(resource.data, workspaceId, eventId);
+        allow list: if canListCampaignData(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /campaignCheckpoints/{checkpointId} {
+        allow get: if canReadCampaignData(workspaceId, resource.data) &&
+          isValidCampaignCheckpoint(resource.data, workspaceId, checkpointId);
+        allow list: if canListCampaignData(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /campaignRecipients/{recipientId} {
+        // Recipient/patient state is backend-owned and not exposed by the
+        // governed aggregate campaign read model.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /automationDefinitions/{definitionId} {
+        allow get: if canReadAutomationCatalogue(workspaceId) &&
+          validAutomationDefinition(resource.data, workspaceId, definitionId);
+        allow list: if canListAutomationCatalogue(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /automationActivations/{activationId} {
+        allow get: if canReadAutomationCatalogue(workspaceId) &&
+          validAutomationActivation(resource.data, workspaceId, activationId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /automationDefinitionEvents/{eventId} {
+        allow get: if canReadAutomationCatalogue(workspaceId) &&
+          validAutomationDefinitionEvent(resource.data, workspaceId, eventId);
+        allow list: if canListAutomationCatalogue(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /automationRuns/{runId} {
+        allow get: if canReadAutomationExecution(workspaceId, resource.data) &&
+          validAutomationRun(resource.data, workspaceId, runId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /automationRunEvents/{eventId} {
+        allow get: if canReadAutomationExecution(workspaceId, resource.data) &&
+          validAutomationRunEvent(resource.data, workspaceId, eventId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /automationWorkItems/{workItemId} {
+        allow get: if canReadAutomationExecution(workspaceId, resource.data) &&
+          validAutomationWorkItem(resource.data, workspaceId, workItemId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /carePathways/{pathwayId} {
+        allow get: if canReadCareCatalogue(workspaceId) &&
+          validCarePathway(resource.data, workspaceId, pathwayId);
+        allow list: if canListCareCatalogue(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /carePathwayActivations/{activationId} {
+        allow get: if canReadCareCatalogue(workspaceId) &&
+          validCarePathwayActivation(resource.data, workspaceId, activationId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /carePathwayEvents/{eventId} {
+        allow get: if canReadCareCatalogue(workspaceId) &&
+          validCarePathwayEvent(resource.data, workspaceId, eventId);
+        allow list: if canListCareCatalogue(workspaceId, resource.data);
+        allow create, update, delete: if false;
+      }
+
+      match /careEnrollments/{enrollmentId} {
+        allow get: if canReadCareExecution(workspaceId, resource.data) &&
+          validCareEnrollment(resource.data, workspaceId, enrollmentId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /careEnrollmentEvents/{eventId} {
+        allow get: if canReadCareExecution(workspaceId, resource.data) &&
+          validCareEnrollmentEvent(resource.data, workspaceId, eventId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /careEscalations/{escalationId} {
+        allow get: if canReadCareExecution(workspaceId, resource.data) &&
+          validCareEscalation(resource.data, workspaceId, escalationId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /careHandoffs/{handoffId} {
+        allow get: if canReadCareExecution(workspaceId, resource.data) &&
+          validCareHandoff(resource.data, workspaceId, handoffId);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      // All protected configuration, identity, replay and clinical-context
+      // projections are Admin-SDK-only. The explicit matches make a future
+      // broad workspace rule unable to expose one by accident.
+      match /automationDefinitionSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /automationTriggerReceipts/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /automationRunSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /automationRunEventSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /automationWorkItemSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /carePathwaySecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /careEnrollmentReceipts/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /careEnrollmentSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /careEnrollmentEventSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      match /careEscalationSecrets/{document=**} {
+        allow get, list, create, update, delete: if false;
+      }
+      // =============================================================
+      // Connections, metering, aggregate analytics and audit
+      // =============================================================
+      match /integrations/{integrationId} {
+        allow get: if canReadDemoConnectionCentre(workspaceId) &&
+          integrationId in [
+            'integration_demo_his_simulator',
+            'integration_demo_lims_simulator'
+          ] &&
+          (
+            !exists(
+              /databases/$(database)/documents/workspaces/$(workspaceId)/integrations/$(integrationId)
+            ) ||
+            validStaffSafeDemoIntegration(
+              resource.data,
+              workspaceId,
+              integrationId
+            )
+          );
+        // The frozen two-document catalogue is fetched only by exact paths.
+        // Every collection read remains closed for all client roles.
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /integrationSecrets/{document=**} {
+        // Provider endpoints and Secret Manager references are server-only.
+        // No actual token, key, certificate or secret belongs in Firestore.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /usageLedger/{ledgerId} {
+        allow read: if hasRole(workspaceId, ['tenant_admin']) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == ledgerId;
+        allow create, update, delete: if false;
+      }
+
+      match /dailyMetrics/{metricId} {
+        allow read: if isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == metricId &&
+          hasRole(workspaceId, [
+            'tenant_admin',
+            'supervisor',
+            'campaign_operator',
+            'campaign_approver',
+            'analyst',
+            'privacy_reviewer'
+          ]);
+        allow create, update, delete: if false;
+      }
+
+      // Backend mutation idempotency evidence is never visible or writable to
+      // a browser. Admin SDK services bypass Rules and must enforce their own
+      // tenant, schema, expiry and replay policy.
+      match /idempotencyKeys/{idempotencyKeyId} {
+        allow read, write: if false;
+      }
+
+      match /auditEvents/{auditEventId} {
+        allow get: if canGetAuditEvent(
+          workspaceId,
+          resource.data,
+          auditEventId
+        );
+        allow list: if false;
+
+        // Server-only is safer than accepting client-authored audit evidence.
+        allow create, update, delete: if false;
+      }
+
+      // Unknown workspace subcollections are denied explicitly.
+      match /{unknownPath=**} {
+        allow read, write: if false;
+      }
+    }
+
+    // Global provider routing, webhook receipts, locks and platform audit are
+    // server-only. The Admin SDK is not governed by these Rules.
+    match /phoneRoutes/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /wabaRoutes/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /webhookEvents/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /jobLocks/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /platformAudit/{document=**} {
+      allow read, write: if false;
+    }
+
+    // Default deny for every path not enumerated above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

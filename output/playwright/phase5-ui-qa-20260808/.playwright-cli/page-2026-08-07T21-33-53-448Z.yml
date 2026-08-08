@@ -1,0 +1,224 @@
+- generic [ref=e1]:
+  - alert [ref=e44]: Hemas Connect — SafeNet Synthetic Demo
+  - status [ref=e45]: Synthetic identity and workspace access verified.
+  - generic [ref=e49]:
+    - generic [ref=e50]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=e54]:
+      - generic [ref=e55]:
+        - link "Hemas Connect overview" [ref=e57] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e62]:
+            - generic [ref=e63]: Hemas Connect
+            - generic [ref=e64]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=e66]':
+          - generic [ref=e67]: SH
+          - generic [ref=e68]:
+            - generic [ref=e69]: SafeNet Healthcare Platform Demo
+            - generic [ref=e70]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=e74]:
+          - generic [ref=e75]:
+            - paragraph [ref=e76]: Operations
+            - generic [ref=e77]:
+              - link "Overview" [ref=e78] [cursor=pointer]:
+                - /url: /
+              - link "Inbox 28" [ref=e85] [cursor=pointer]:
+                - /url: /inbox
+                - generic [ref=e89]: Inbox
+                - generic [ref=e90]: "28"
+              - link "Contacts" [ref=e91] [cursor=pointer]:
+                - /url: /contacts
+              - link "Appointments" [ref=e97] [cursor=pointer]:
+                - /url: /appointments
+              - link "Lab journeys" [ref=e102] [cursor=pointer]:
+                - /url: /labs
+          - generic [ref=e106]:
+            - paragraph [ref=e107]: Engagement
+            - generic [ref=e108]:
+              - link "Campaigns" [ref=e109] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Templates & Flows" [ref=e113] [cursor=pointer]:
+                - /url: /templates
+              - link "Automations" [ref=e119] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=e125]:
+            - paragraph [ref=e126]: Intelligence
+            - generic [ref=e127]:
+              - link "Analytics" [ref=e128] [cursor=pointer]:
+                - /url: /analytics
+              - link "AI & Knowledge" [ref=e132] [cursor=pointer]:
+                - /url: /ai-knowledge
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: Administration
+            - generic [ref=e139]:
+              - link "Connections" [ref=e140] [cursor=pointer]:
+                - /url: /connections
+              - link "Team & Routing" [ref=e147] [cursor=pointer]:
+                - /url: /team
+              - link "Compliance" [ref=e153] [cursor=pointer]:
+                - /url: /compliance
+              - link "Usage" [ref=e158] [cursor=pointer]:
+                - /url: /usage
+              - link "Settings" [ref=e163] [cursor=pointer]:
+                - /url: /settings
+              - link "Demo Lab" [ref=e168] [cursor=pointer]:
+                - /url: /demo-lab
+        - generic [ref=e180]:
+          - link "Help & escalation" [ref=e181] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Tenant administrator. Workspace-wide patient-record scope" [ref=e189]:
+            - generic [ref=e190]: DT
+            - generic [ref=e191]:
+              - generic [ref=e192]: Demo tenant administrator
+              - generic "Tenant administrator · Workspace-wide patient-record scope" [ref=e193]
+    - generic [ref=e197]:
+      - banner [ref=e198]:
+        - search [ref=e199]:
+          - searchbox "Search workspace" [ref=e200]
+        - generic [ref=e201]:
+          - generic [ref=e202]: Meta disconnected
+          - button "Operational alerts" [ref=e204]
+      - main [ref=e209]:
+        - generic [ref=e462]:
+          - region [ref=e463]:
+            - generic [ref=e464]:
+              - generic [ref=e470]:
+                - generic [ref=e471]:
+                  - heading "Persisted synthetic governance boundary" [level=2] [ref=e472]
+                  - generic [ref=e473]: Firestore authoritative
+                - paragraph [ref=e475]: Catalogue and operation state come only from no-cache Firebase emulator reads. Controls call fixed localhost Functions, then require exact aggregate, immutable event, redacted audit, lifecycle pointer, revision, and result-fingerprint evidence.
+              - generic [ref=e476]:
+                - generic [ref=e477]: Provider dispatch 0
+                - generic [ref=e478]: Network calls 0
+          - tablist "Automation governance families" [ref=e480]:
+            - tab "Automation definitions" [active] [selected] [ref=e481]
+            - tab "Post-discharge care" [ref=e486]
+          - tabpanel "Automation definitions" [ref=e781]:
+            - generic [ref=e782]:
+              - generic [ref=e783]:
+                - article [ref=e784]:
+                  - generic [ref=e786]:
+                    - paragraph [ref=e787]: Persisted versions
+                    - paragraph [ref=e788]: "6"
+                  - paragraph [ref=e794]: Two bounded executable-family catalogues
+                - article [ref=e795]:
+                  - generic [ref=e797]:
+                    - paragraph [ref=e798]: Active families
+                    - paragraph [ref=e799]: "2"
+                  - paragraph [ref=e805]: Activation + immutable event + redacted audit joined
+                - article [ref=e806]:
+                  - generic [ref=e808]:
+                    - paragraph [ref=e809]: Dispatches
+                    - paragraph [ref=e810]: "0"
+                  - paragraph [ref=e817]: External provider writes are contractually zero
+                - article [ref=e818]:
+                  - generic [ref=e820]:
+                    - paragraph [ref=e821]: Execution lists
+                    - paragraph [ref=e822]: Denied
+                  - paragraph [ref=e827]: Only the fixed authorized run is read by exact ID
+              - generic [ref=e828]:
+                - complementary "Persisted automation versions" [ref=e829]:
+                  - generic [ref=e830]:
+                    - heading "Versioned definitions" [level=3] [ref=e836]
+                    - paragraph [ref=e837]: Bounded server reads · immutable content hashes
+                  - generic [ref=e838]:
+                    - button "Synthetic appointment service v3 Appointment Service · v3 Active" [ref=e839]:
+                      - generic [ref=e840]:
+                        - generic [ref=e841]:
+                          - generic [ref=e842]: Synthetic appointment service v3
+                          - generic [ref=e843]: Appointment Service · v3
+                        - generic [ref=e844]: Active
+                    - button "Synthetic appointment service v2 Appointment Service · v2" [ref=e845]:
+                      - generic [ref=e847]:
+                        - generic [ref=e848]: Synthetic appointment service v2
+                        - generic [ref=e849]: Appointment Service · v2
+                    - button "Synthetic appointment service v1 Appointment Service · v1" [ref=e850]:
+                      - generic [ref=e852]:
+                        - generic [ref=e853]: Synthetic appointment service v1
+                        - generic [ref=e854]: Appointment Service · v1
+                    - button "Synthetic laboratory routing v3 Laboratory Service · v3 Active" [ref=e855]:
+                      - generic [ref=e856]:
+                        - generic [ref=e857]:
+                          - generic [ref=e858]: Synthetic laboratory routing v3
+                          - generic [ref=e859]: Laboratory Service · v3
+                        - generic [ref=e860]: Active
+                    - button "Synthetic laboratory routing v2 Laboratory Service · v2" [ref=e861]:
+                      - generic [ref=e863]:
+                        - generic [ref=e864]: Synthetic laboratory routing v2
+                        - generic [ref=e865]: Laboratory Service · v2
+                    - button "Synthetic laboratory routing v1 Laboratory Service · v1" [ref=e866]:
+                      - generic [ref=e868]:
+                        - generic [ref=e869]: Synthetic laboratory routing v1
+                        - generic [ref=e870]: Laboratory Service · v1
+                - region [ref=e871]:
+                  - generic [ref=e872]:
+                    - generic [ref=e873]:
+                      - paragraph [ref=e874]: Persisted definition
+                      - heading "Synthetic appointment service v3" [level=3] [ref=e875]
+                      - paragraph [ref=e876]: Appointment Event · Appointment Service
+                    - generic [ref=e877]:
+                      - generic [ref=e878]: Approved
+                      - generic [ref=e879]: Medium risk
+                  - generic [ref=e880]:
+                    - generic [ref=e881]:
+                      - term [ref=e882]: Content hash
+                      - definition [ref=e883]: e8284c9f4f…a2f598fe
+                    - generic [ref=e884]:
+                      - term [ref=e885]: Approval scope
+                      - definition [ref=e886]: simulation_only
+                    - generic [ref=e887]:
+                      - term [ref=e888]: Approved at
+                      - definition [ref=e889]: Aug 7, 2026, 02:52 PM
+                    - generic [ref=e890]:
+                      - term [ref=e891]: Schema
+                      - definition [ref=e892]: v1 · synthetic
+                  - generic [ref=e893]:
+                    - heading "Immutable policy steps" [level=4] [ref=e894]
+                    - list [ref=e895]:
+                      - listitem [ref=e896]:
+                        - generic [ref=e897]:
+                          - generic [ref=e898]: "1"
+                          - generic [ref=e899]:
+                            - paragraph [ref=e900]: Send Template
+                            - paragraph [ref=e901]: Use Approved Template · timeout 30s · retry max 3 · Create Work Item
+                            - paragraph [ref=e902]: Template template_appointment_confirmation_en_v3 · 548cc18fe0…c86e7e06
+                      - listitem [ref=e903]:
+                        - generic [ref=e904]:
+                          - generic [ref=e905]: "2"
+                          - generic [ref=e906]:
+                            - paragraph [ref=e907]: Request Appointment Action
+                            - paragraph [ref=e908]: Send In Window · timeout 30s · retry max 1 · Route To Human
+                      - listitem [ref=e909]:
+                        - generic [ref=e910]:
+                          - generic [ref=e911]: "3"
+                          - generic [ref=e912]:
+                            - paragraph [ref=e913]: Stop
+                            - paragraph [ref=e914]: Send In Window · timeout 5s · retry max 0 · Stop Run
+              - region [ref=e915]:
+                - generic [ref=e916]:
+                  - generic [ref=e917]:
+                    - heading "Fixed synthetic run" [level=3] [ref=e921]
+                    - paragraph [ref=e922]: automation_run_synthetic_appointment_001
+                  - generic [ref=e923]:
+                    - generic [ref=e924]: Queued
+                    - generic [ref=e925]: Revision 1
+                - generic [ref=e926]:
+                  - generic [ref=e927]:
+                    - term [ref=e928]: Current step
+                    - definition [ref=e929]: 0 / 0 completed
+                  - generic [ref=e930]:
+                    - term [ref=e931]: Outcome
+                    - definition [ref=e932]: Accepted
+                  - generic [ref=e933]:
+                    - term [ref=e934]: Next eligible
+                    - definition [ref=e935]: Not scheduled
+                  - generic [ref=e936]:
+                    - term [ref=e937]: Last event
+                    - definition [ref=e938]: Initial aggregate
+                - generic "Governed automation actions" [ref=e939]:
+                  - button "Start governed run" [ref=e940]
+                  - button "Pause run" [ref=e941]
+                  - button "End run safely" [ref=e942]
+          - generic [ref=e653]:
+            - generic [ref=e654]: Exact activation, event, audit, pointer, and result-fingerprint joins
+            - generic [ref=e659]: No fixture, cache, secret-read, execution-list, or patient-identity fallback
+  - button "Sign out of demo" [ref=e458]

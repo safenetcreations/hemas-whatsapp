@@ -1,0 +1,22 @@
+- generic [active] [ref=f3e1]:
+  - alert [ref=f3e9]: Sign in to the local demo
+  - main [ref=f3e379]:
+    - generic [ref=f3e380]:
+      - generic [ref=f3e386]:
+        - paragraph [ref=f3e387]: Hemas Connect
+        - paragraph [ref=f3e388]: SafeNet synthetic environment
+      - generic [ref=f3e389]:
+        - generic [ref=f3e390]: Emulator only
+        - heading "Sign in to the local demo" [level=1] [ref=f3e396]
+        - paragraph [ref=f3e397]: Firebase Auth first verifies the seeded identity; Firestore then verifies its active synthetic workspace, membership, role, and scope. These public fixture credentials cannot access a cloud project.
+      - generic [ref=f3e398]:
+        - generic [ref=f3e399]:
+          - generic [ref=f3e400]: Synthetic email
+          - textbox "Synthetic email" [ref=f3e401]: demo.admin@synthetic.invalid
+        - generic [ref=f3e402]:
+          - generic [ref=f3e403]: Synthetic password
+          - generic [ref=f3e404]:
+            - textbox "Synthetic password Show password" [ref=f3e405]: Synthetic-Demo-Only-2026!
+            - button "Show password" [ref=f3e406]
+        - button "Sign in to emulator" [ref=f3e410]
+      - paragraph [ref=f3e420]: This local flow validates only the seeded identity and synthetic membership. Hemas SSO, MFA, cloud sessions, production roles, and external providers remain unconfigured.

@@ -1,0 +1,34 @@
+# Dependencies and build products
+/node_modules/
+/.next/
+/out/
+/coverage/
+/functions/lib/
+*.tsbuildinfo
+
+# Firebase local state and logs
+/.firebase/
+/firebase-debug.log*
+/firestore-debug.log*
+/ui-debug.log*
+/.runtimeconfig.json
+
+# Local secrets and environment values
+.env*
+!.env.example
+apphosting.emulator.yaml
+*.local
+*.pem
+*.key
+
+# Tooling and editor output
+.DS_Store
+*.log
+.wrangler/
+.vinext/
+.vercel/
+/.playwright-cli/
+
+# Generated exports and private working material
+/outputs/
+/work/

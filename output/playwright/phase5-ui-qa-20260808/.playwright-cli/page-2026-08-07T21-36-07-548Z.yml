@@ -1,0 +1,183 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e44]: Hemas Connect — SafeNet Synthetic Demo
+  - status [ref=e1027]: Synthetic identity and workspace access verified.
+  - generic [ref=e1031]:
+    - generic [ref=e1032]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=e1036]:
+      - generic [ref=e1037]:
+        - link "Hemas Connect overview" [ref=e1039] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e1044]:
+            - generic [ref=e1045]: Hemas Connect
+            - generic [ref=e1046]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=e1048]':
+          - generic [ref=e1049]: SH
+          - generic [ref=e1050]:
+            - generic [ref=e1051]: SafeNet Healthcare Platform Demo
+            - generic [ref=e1052]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=e1056]:
+          - generic [ref=e1057]:
+            - paragraph [ref=e1058]: Operations
+            - link "Overview" [ref=e1060] [cursor=pointer]:
+              - /url: /
+          - generic [ref=e1067]:
+            - paragraph [ref=e1068]: Engagement
+            - generic [ref=e1069]:
+              - link "Campaigns" [ref=e1070] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Automations" [ref=e1074] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=e1080]:
+            - paragraph [ref=e1081]: Intelligence
+            - link "Analytics" [ref=e1083] [cursor=pointer]:
+              - /url: /analytics
+          - generic [ref=e1087]:
+            - paragraph [ref=e1088]: Administration
+            - link "Usage" [ref=e1090] [cursor=pointer]:
+              - /url: /usage
+        - generic [ref=e1095]:
+          - link "Help & escalation" [ref=e1096] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Analyst. Assigned scope · no patient-record routes" [ref=e1104]:
+            - generic [ref=e1105]: DT
+            - generic [ref=e1106]:
+              - generic [ref=e1107]: Demo tenant administrator
+              - generic "Analyst · Assigned scope · no patient-record routes" [ref=e1108]
+    - generic [ref=e1112]:
+      - banner [ref=e1113]:
+        - search [ref=e1114]:
+          - searchbox "Search workspace" [ref=e1115]
+        - generic [ref=e1116]:
+          - generic [ref=e1117]: Meta disconnected
+          - button "Operational alerts" [ref=e1119]
+      - main [ref=e1124]:
+        - generic [ref=e1125]:
+          - generic [ref=e1127]:
+            - generic [ref=e1128]:
+              - generic [ref=e1129]: Demo systems ready
+              - generic [ref=e1131]: Outbound disabled
+            - heading "Operations overview" [level=1] [ref=e1133]
+            - paragraph [ref=e1134]: Monitor synthetic patient journeys, team queues, safeguards, and campaign readiness across the demo workspace.
+          - region "Sample metrics" [ref=e1135]:
+            - article [ref=e1136]:
+              - generic [ref=e1138]:
+                - paragraph [ref=e1139]: Open conversations
+                - paragraph [ref=e1140]: "28"
+              - paragraph [ref=e1145]: Sample data · 6 need attention
+            - article [ref=e1146]:
+              - generic [ref=e1148]:
+                - paragraph [ref=e1149]: Waiting over 10 min
+                - paragraph [ref=e1150]: "6"
+              - paragraph [ref=e1159]: 2 more than the sample target
+            - article [ref=e1160]:
+              - generic [ref=e1162]:
+                - paragraph [ref=e1163]: Appointments today
+                - paragraph [ref=e1164]: "42"
+              - paragraph [ref=e1171]: 31 confirmed · mock schedule
+            - article [ref=e1172]:
+              - generic [ref=e1174]:
+                - paragraph [ref=e1175]: Consent-eligible audience
+                - paragraph [ref=e1176]: 38,443
+              - paragraph [ref=e1182]: Deterministic 50K cohort after exclusions
+          - generic [ref=e1183]:
+            - article [ref=e1184]:
+              - generic [ref=e1186]:
+                - heading "Queue health" [level=2] [ref=e1187]
+                - paragraph [ref=e1188]: Synthetic operational workload by routing queue
+              - table [ref=e1190]:
+                - rowgroup [ref=e1191]:
+                  - row [ref=e1192]:
+                    - columnheader "Queue" [ref=e1193]
+                    - columnheader "Open" [ref=e1194]
+                    - columnheader "Unassigned" [ref=e1195]
+                    - columnheader "Oldest wait" [ref=e1196]
+                    - columnheader "State" [ref=e1197]
+                - rowgroup [ref=e1198]:
+                  - row [ref=e1199]:
+                    - cell "General enquiries" [ref=e1200]
+                    - cell "12" [ref=e1201]
+                    - cell "3" [ref=e1202]
+                    - cell "6m" [ref=e1203]
+                    - cell "Healthy" [ref=e1204]
+                  - row [ref=e1206]:
+                    - cell "Appointments" [ref=e1207]
+                    - cell "8" [ref=e1208]
+                    - cell "2" [ref=e1209]
+                    - cell "9m" [ref=e1210]
+                    - cell "Healthy" [ref=e1211]
+                  - row [ref=e1213]:
+                    - cell "Laboratory" [ref=e1214]
+                    - cell "5" [ref=e1215]
+                    - cell "1" [ref=e1216]
+                    - cell "14m" [ref=e1217]
+                    - cell "Attention" [ref=e1218]
+                  - row [ref=e1220]:
+                    - cell "Urgent escalation" [ref=e1221]
+                    - cell "3" [ref=e1222]
+                    - cell "0" [ref=e1223]
+                    - cell "<1m" [ref=e1224]
+                    - cell "Escalated" [ref=e1225]
+            - article [ref=e1227]:
+              - generic [ref=e1229]:
+                - paragraph [ref=e1230]: Connection centre
+                - heading "Production remains locked" [level=2] [ref=e1231]
+              - paragraph [ref=e1235]: No real messages can leave this environment. Hemas-owned Firebase, Meta assets, approvals, and real-device verification are required before activation.
+              - generic [ref=e1236]:
+                - generic [ref=e1237]:
+                  - generic [ref=e1238]: Firebase emulator
+                  - generic [ref=e1242]: Ready
+                - generic [ref=e1243]:
+                  - generic [ref=e1244]: Meta WhatsApp Cloud API
+                  - generic [ref=e1247]: Not configured
+                - generic [ref=e1248]:
+                  - generic [ref=e1249]: Hemas HIS / LIMS
+                  - generic [ref=e1252]: Locked
+                - generic [ref=e1253]:
+                  - generic [ref=e1254]: Real patient data
+                  - generic [ref=e1257]: Blocked
+          - generic [ref=e1258]:
+            - article [ref=e1259]:
+              - generic [ref=e1261]:
+                - heading "Synthetic activity" [level=2] [ref=e1262]
+                - paragraph [ref=e1263]: No patient identities or external provider events
+              - generic [ref=e1266]:
+                - generic [ref=e1267]:
+                  - generic [ref=e1274]:
+                    - paragraph [ref=e1275]: Urgent-language safeguard triggered
+                    - paragraph [ref=e1276]: Conversation SYN-C009 · routed to supervisor
+                  - generic [ref=e1277]: 2m
+                - generic [ref=e1281]:
+                  - generic [ref=e1287]:
+                    - paragraph [ref=e1288]: Human takeover accepted
+                    - paragraph [ref=e1289]: Tamil appointment enquiry · Synthetic Agent 04
+                  - generic [ref=e1290]: 7m
+                - generic [ref=e1294]:
+                  - generic [ref=e1301]:
+                    - paragraph [ref=e1302]: Mock appointment rescheduled
+                    - paragraph [ref=e1303]: Reference SYN-A1842 · no external write
+                  - generic [ref=e1304]: 13m
+                - generic [ref=e1308]:
+                  - generic [ref=e1312]:
+                    - paragraph [ref=e1313]: Campaign simulation paused
+                    - paragraph [ref=e1314]: 50K Wellness Awareness · quality safeguard test
+                  - generic [ref=e1315]: 24m
+            - article [ref=e1319]:
+              - generic [ref=e1320]: Governed AI
+              - heading "Assist, review, then hand off." [level=2] [ref=e1325]
+              - paragraph [ref=e1326]: The demo can classify intent, switch language, and draft service-navigation replies. Diagnosis, treatment advice, and autonomous report interpretation stay blocked.
+              - generic [ref=e1327]:
+                - generic [ref=e1328]:
+                  - strong [ref=e1333]: 3 languages
+                  - generic [ref=e1334]: English · தமிழ் · සිංහල
+                - generic [ref=e1335]:
+                  - strong [ref=e1338]: Human override
+                  - generic [ref=e1339]: Always available
+          - generic [ref=e1341]:
+            - generic [ref=e1347]:
+              - generic [ref=e1348]:
+                - heading "50K Wellness Awareness simulation" [level=2] [ref=e1349]
+                - generic [ref=e1350]: Approval ready
+              - paragraph [ref=e1351]: 50,000 synthetic records · 38,443 eligible · 11,557 excluded by consent, suppression, validity, language, duplicate, or frequency policy
+            - link "Open campaign control" [ref=e1352] [cursor=pointer]:
+              - /url: /campaigns
+  - button "Sign out of demo" [ref=e1356]

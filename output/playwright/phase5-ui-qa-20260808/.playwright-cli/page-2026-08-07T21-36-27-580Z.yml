@@ -1,0 +1,132 @@
+- generic [ref=f1e1]:
+  - alert [ref=f1e9]
+  - status [ref=f1e10]: Synthetic identity and workspace access verified.
+  - generic [ref=f1e14]:
+    - generic [ref=f1e15]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=f1e19]:
+      - generic [ref=f1e20]:
+        - link "Hemas Connect overview" [ref=f1e22] [cursor=pointer]:
+          - /url: /
+          - generic [ref=f1e27]:
+            - generic [ref=f1e28]: Hemas Connect
+            - generic [ref=f1e29]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=f1e31]':
+          - generic [ref=f1e32]: SH
+          - generic [ref=f1e33]:
+            - generic [ref=f1e34]: SafeNet Healthcare Platform Demo
+            - generic [ref=f1e35]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=f1e39]:
+          - generic [ref=f1e40]:
+            - paragraph [ref=f1e41]: Operations
+            - link "Overview" [ref=f1e43] [cursor=pointer]:
+              - /url: /
+          - generic [ref=f1e50]:
+            - paragraph [ref=f1e51]: Engagement
+            - generic [ref=f1e52]:
+              - link "Campaigns" [ref=f1e53] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Automations" [ref=f1e57] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=f1e63]:
+            - paragraph [ref=f1e64]: Intelligence
+            - link "Analytics" [ref=f1e66] [cursor=pointer]:
+              - /url: /analytics
+          - generic [ref=f1e70]:
+            - paragraph [ref=f1e71]: Administration
+            - link "Usage" [ref=f1e73] [cursor=pointer]:
+              - /url: /usage
+        - generic [ref=f1e78]:
+          - link "Help & escalation" [ref=f1e79] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Analyst. Assigned scope · no patient-record routes" [ref=f1e87]:
+            - generic [ref=f1e88]: DT
+            - generic [ref=f1e89]:
+              - generic [ref=f1e90]: Demo tenant administrator
+              - generic "Analyst · Assigned scope · no patient-record routes" [ref=f1e91]
+    - generic [ref=f1e95]:
+      - banner [ref=f1e96]:
+        - search [ref=f1e97]:
+          - searchbox "Search workspace" [ref=f1e98]
+        - generic [ref=f1e99]:
+          - generic [ref=f1e100]: Meta disconnected
+          - button "Operational alerts" [ref=f1e102]
+      - main [ref=f1e107]:
+        - generic [ref=f1e108]:
+          - region [ref=f1e109]:
+            - generic [ref=f1e110]:
+              - generic [ref=f1e116]:
+                - generic [ref=f1e117]:
+                  - heading "Persisted synthetic governance boundary" [level=2] [ref=f1e118]
+                  - generic [ref=f1e119]: Firestore authoritative
+                - paragraph [ref=f1e121]: Catalogue and operation state come only from no-cache Firebase emulator reads. Controls call fixed localhost Functions, then require exact aggregate, immutable event, redacted audit, lifecycle pointer, revision, and result-fingerprint evidence.
+              - generic [ref=f1e122]:
+                - generic [ref=f1e123]: Provider dispatch 0
+                - generic [ref=f1e124]: Network calls 0
+          - tablist "Automation governance families" [ref=f1e126]:
+            - tab "Automation definitions" [ref=f1e127]
+            - tab "Post-discharge care" [active] [selected] [ref=f1e132]
+          - tabpanel "Post-discharge care" [ref=f1e296]:
+            - generic [ref=f1e297]:
+              - generic [ref=f1e298]:
+                - article [ref=f1e299]:
+                  - generic [ref=f1e301]:
+                    - paragraph [ref=f1e302]: Active pathways
+                    - paragraph [ref=f1e303]: "1"
+                  - paragraph [ref=f1e309]: Approved activation + event + audit proof
+                - article [ref=f1e310]:
+                  - generic [ref=f1e312]:
+                    - paragraph [ref=f1e313]: Clinical text
+                    - paragraph [ref=f1e314]: Never loaded
+                  - paragraph [ref=f1e320]: Only aggregate protocol and lifecycle evidence is visible
+                - article [ref=f1e321]:
+                  - generic [ref=f1e323]:
+                    - paragraph [ref=f1e324]: Provider writes
+                    - paragraph [ref=f1e325]: "0"
+                  - paragraph [ref=f1e332]: No WhatsApp, HIS, LIMS, SMS, or email dispatch
+                - article [ref=f1e333]:
+                  - generic [ref=f1e335]:
+                    - paragraph [ref=f1e336]: Enrollment lists
+                    - paragraph [ref=f1e337]: Denied
+                  - paragraph [ref=f1e342]: One fixed in-scope aggregate is read by exact ID
+              - region [ref=f1e343]:
+                - generic [ref=f1e344]:
+                  - generic [ref=f1e345]:
+                    - paragraph [ref=f1e346]: Clinician-authored metadata only
+                    - heading "Synthetic post-discharge follow-up" [level=3] [ref=f1e347]
+                    - paragraph [ref=f1e348]: Protocol v1.0 · response SLA 15 minutes
+                  - generic [ref=f1e349]:
+                    - generic [ref=f1e350]: Approved + active
+                    - generic [ref=f1e351]: clinical_simulation_only
+                - generic [ref=f1e352]:
+                  - generic [ref=f1e353]:
+                    - term [ref=f1e354]: Content hash
+                    - definition [ref=f1e355]: 83698f5405…d92866f2
+                  - generic [ref=f1e356]:
+                    - term [ref=f1e357]: Instruction source
+                    - definition [ref=f1e358]: Clinician authored
+                  - generic [ref=f1e359]:
+                    - term [ref=f1e360]: AI instructions
+                    - definition [ref=f1e361]: Prohibited
+                  - generic [ref=f1e362]:
+                    - term [ref=f1e363]: Write-back
+                    - definition [ref=f1e364]: Required · simulator only
+                - generic [ref=f1e365]:
+                  - article [ref=f1e366]:
+                    - heading "Day 1 contact point" [level=4] [ref=f1e371]
+                    - list [ref=f1e372]:
+                      - listitem [ref=f1e373]: EN · template_synthetic_care_day1_en_v1 · 2df838fbe5…fbfb85e8
+                      - listitem [ref=f1e374]: SI · template_synthetic_care_day1_si_v1 · ef5715a5bf…100b5a18
+                      - listitem [ref=f1e375]: TA · template_synthetic_care_day1_ta_v1 · 21d3822c91…e7d7a287
+                  - article [ref=f1e376]:
+                    - heading "Day 3 contact point" [level=4] [ref=f1e381]
+                    - list [ref=f1e382]:
+                      - listitem [ref=f1e383]: EN · template_synthetic_care_day3_en_v1 · 1f1c2c92af…d71a4d67
+                      - listitem [ref=f1e384]: SI · template_synthetic_care_day3_si_v1 · 286204f289…08915d1a
+                      - listitem [ref=f1e385]: TA · template_synthetic_care_day3_ta_v1 · 117bea5281…f9a88bca
+              - generic [ref=f1e392]:
+                - heading "Catalogue-only authority" [level=3] [ref=f1e393]
+                - paragraph [ref=f1e394]: This role may inspect governed care metadata, but exact operational aggregates and controls remain hidden.
+          - generic [ref=f1e280]:
+            - generic [ref=f1e281]: Exact activation, event, audit, pointer, and result-fingerprint joins
+            - generic [ref=f1e286]: No fixture, cache, secret-read, execution-list, or patient-identity fallback
+  - button "Sign out of demo" [ref=f1e292]

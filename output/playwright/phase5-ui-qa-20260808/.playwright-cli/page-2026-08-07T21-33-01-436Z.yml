@@ -1,0 +1,178 @@
+- generic [ref=e1]:
+  - alert [ref=e44]: Hemas Connect — SafeNet Synthetic Demo
+  - status [ref=e45]: Synthetic identity and workspace access verified.
+  - generic [ref=e49]:
+    - generic [ref=e50]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=e54]:
+      - generic [ref=e55]:
+        - link "Hemas Connect overview" [ref=e57] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e62]:
+            - generic [ref=e63]: Hemas Connect
+            - generic [ref=e64]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=e66]':
+          - generic [ref=e67]: SH
+          - generic [ref=e68]:
+            - generic [ref=e69]: SafeNet Healthcare Platform Demo
+            - generic [ref=e70]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=e74]:
+          - generic [ref=e75]:
+            - paragraph [ref=e76]: Operations
+            - generic [ref=e77]:
+              - link "Overview" [ref=e78] [cursor=pointer]:
+                - /url: /
+              - link "Inbox 28" [ref=e85] [cursor=pointer]:
+                - /url: /inbox
+                - generic [ref=e89]: Inbox
+                - generic [ref=e90]: "28"
+              - link "Contacts" [ref=e91] [cursor=pointer]:
+                - /url: /contacts
+              - link "Appointments" [ref=e97] [cursor=pointer]:
+                - /url: /appointments
+              - link "Lab journeys" [ref=e102] [cursor=pointer]:
+                - /url: /labs
+          - generic [ref=e106]:
+            - paragraph [ref=e107]: Engagement
+            - generic [ref=e108]:
+              - link "Campaigns" [ref=e109] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Templates & Flows" [ref=e113] [cursor=pointer]:
+                - /url: /templates
+              - link "Automations" [ref=e119] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=e125]:
+            - paragraph [ref=e126]: Intelligence
+            - generic [ref=e127]:
+              - link "Analytics" [ref=e128] [cursor=pointer]:
+                - /url: /analytics
+              - link "AI & Knowledge" [ref=e132] [cursor=pointer]:
+                - /url: /ai-knowledge
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: Administration
+            - generic [ref=e139]:
+              - link "Connections" [ref=e140] [cursor=pointer]:
+                - /url: /connections
+              - link "Team & Routing" [ref=e147] [cursor=pointer]:
+                - /url: /team
+              - link "Compliance" [ref=e153] [cursor=pointer]:
+                - /url: /compliance
+              - link "Usage" [ref=e158] [cursor=pointer]:
+                - /url: /usage
+              - link "Settings" [ref=e163] [cursor=pointer]:
+                - /url: /settings
+              - link "Demo Lab" [ref=e168] [cursor=pointer]:
+                - /url: /demo-lab
+        - generic [ref=e180]:
+          - link "Help & escalation" [ref=e181] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Tenant administrator. Workspace-wide patient-record scope" [ref=e189]:
+            - generic [ref=e190]: DT
+            - generic [ref=e191]:
+              - generic [ref=e192]: Demo tenant administrator
+              - generic "Tenant administrator · Workspace-wide patient-record scope" [ref=e193]
+    - generic [ref=e197]:
+      - banner [ref=e198]:
+        - search [ref=e199]:
+          - searchbox "Search workspace" [ref=e200]
+        - generic [ref=e201]:
+          - generic [ref=e202]: Meta disconnected
+          - button "Operational alerts" [ref=e204]
+      - main [ref=e209]:
+        - generic [ref=e462]:
+          - region [ref=e463]:
+            - generic [ref=e464]:
+              - generic [ref=e470]:
+                - generic [ref=e471]:
+                  - heading "Persisted synthetic governance boundary" [level=2] [ref=e472]
+                  - generic [ref=e473]: Firestore authoritative
+                - paragraph [ref=e475]: Catalogue and operation state come only from no-cache Firebase emulator reads. Controls call fixed localhost Functions, then require exact aggregate, immutable event, redacted audit, lifecycle pointer, revision, and result-fingerprint evidence.
+              - generic [ref=e476]:
+                - generic [ref=e477]: Provider dispatch 0
+                - generic [ref=e478]: Network calls 0
+          - tablist "Automation governance families" [ref=e480]:
+            - tab "Automation definitions" [ref=e481]
+            - tab "Post-discharge care" [active] [selected] [ref=e486]
+          - tabpanel "Post-discharge care" [ref=e664]:
+            - generic [ref=e665]:
+              - generic [ref=e666]:
+                - article [ref=e667]:
+                  - generic [ref=e669]:
+                    - paragraph [ref=e670]: Active pathways
+                    - paragraph [ref=e671]: "1"
+                  - paragraph [ref=e677]: Approved activation + event + audit proof
+                - article [ref=e678]:
+                  - generic [ref=e680]:
+                    - paragraph [ref=e681]: Clinical text
+                    - paragraph [ref=e682]: Never loaded
+                  - paragraph [ref=e688]: Only aggregate protocol and lifecycle evidence is visible
+                - article [ref=e689]:
+                  - generic [ref=e691]:
+                    - paragraph [ref=e692]: Provider writes
+                    - paragraph [ref=e693]: "0"
+                  - paragraph [ref=e700]: No WhatsApp, HIS, LIMS, SMS, or email dispatch
+                - article [ref=e701]:
+                  - generic [ref=e703]:
+                    - paragraph [ref=e704]: Enrollment lists
+                    - paragraph [ref=e705]: Denied
+                  - paragraph [ref=e710]: One fixed in-scope aggregate is read by exact ID
+              - region [ref=e711]:
+                - generic [ref=e712]:
+                  - generic [ref=e713]:
+                    - paragraph [ref=e714]: Clinician-authored metadata only
+                    - heading "Synthetic post-discharge follow-up" [level=3] [ref=e715]
+                    - paragraph [ref=e716]: Protocol v1.0 · response SLA 15 minutes
+                  - generic [ref=e717]:
+                    - generic [ref=e718]: Approved + active
+                    - generic [ref=e719]: clinical_simulation_only
+                - generic [ref=e720]:
+                  - generic [ref=e721]:
+                    - term [ref=e722]: Content hash
+                    - definition [ref=e723]: 83698f5405…d92866f2
+                  - generic [ref=e724]:
+                    - term [ref=e725]: Instruction source
+                    - definition [ref=e726]: Clinician authored
+                  - generic [ref=e727]:
+                    - term [ref=e728]: AI instructions
+                    - definition [ref=e729]: Prohibited
+                  - generic [ref=e730]:
+                    - term [ref=e731]: Write-back
+                    - definition [ref=e732]: Required · simulator only
+                - generic [ref=e733]:
+                  - article [ref=e734]:
+                    - heading "Day 1 contact point" [level=4] [ref=e739]
+                    - list [ref=e740]:
+                      - listitem [ref=e741]: EN · template_synthetic_care_day1_en_v1 · 2df838fbe5…fbfb85e8
+                      - listitem [ref=e742]: SI · template_synthetic_care_day1_si_v1 · ef5715a5bf…100b5a18
+                      - listitem [ref=e743]: TA · template_synthetic_care_day1_ta_v1 · 21d3822c91…e7d7a287
+                  - article [ref=e744]:
+                    - heading "Day 3 contact point" [level=4] [ref=e749]
+                    - list [ref=e750]:
+                      - listitem [ref=e751]: EN · template_synthetic_care_day3_en_v1 · 1f1c2c92af…d71a4d67
+                      - listitem [ref=e752]: SI · template_synthetic_care_day3_si_v1 · 286204f289…08915d1a
+                      - listitem [ref=e753]: TA · template_synthetic_care_day3_ta_v1 · 117bea5281…f9a88bca
+              - region [ref=e754]:
+                - generic [ref=e755]:
+                  - generic [ref=e756]:
+                    - heading "Fixed synthetic enrollment" [level=3] [ref=e762]
+                    - paragraph [ref=e763]: care_enrollment_synthetic_001
+                  - generic [ref=e764]:
+                    - generic [ref=e765]: Queued
+                    - generic [ref=e766]: Revision 1
+                - generic [ref=e767]:
+                  - generic [ref=e768]:
+                    - term [ref=e769]: Next contact index
+                    - definition [ref=e770]: "0"
+                  - generic [ref=e771]:
+                    - term [ref=e772]: Next contact
+                    - definition [ref=e773]: Aug 7, 2026, 05:30 AM
+                  - generic [ref=e774]:
+                    - term [ref=e775]: Outcome
+                    - definition [ref=e776]: Accepted
+                  - generic [ref=e777]:
+                    - term [ref=e778]: Suppressions
+                    - definition [ref=e779]: None
+                - paragraph [ref=e780]: No transition is available from this persisted state under the current clinical authority.
+          - generic [ref=e653]:
+            - generic [ref=e654]: Exact activation, event, audit, pointer, and result-fingerprint joins
+            - generic [ref=e659]: No fixture, cache, secret-read, execution-list, or patient-identity fallback
+  - button "Sign out of demo" [ref=e458]

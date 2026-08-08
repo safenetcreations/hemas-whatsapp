@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Prototype policy: no browser or mobile client receives direct object
+    // access. Healthcare content, consent evidence, message bodies, imports,
+    // exports and knowledge files must move through an authenticated backend
+    // that applies workspace, role, purpose, malware-scan, retention and audit
+    // controls. Trusted Firebase Admin SDK services bypass Storage Rules.
+    //
+    // Signed URLs, if introduced, must be short-lived, single-purpose and
+    // issued only after the same backend authorization checks. Their lifetime
+    // and revocation behavior require a separate production threat review.
+    match /workspaces/{workspaceId}/{objectPath=**} {
+      allow read, write: if false;
+    }
+
+    // Global imports, exports, provider payloads, temporary files and unknown
+    // paths are also server-only. There are no public patient-data objects.
+    match /{objectPath=**} {
+      allow read, write: if false;
+    }
+  }
+}

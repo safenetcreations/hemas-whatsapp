@@ -1,0 +1,6 @@
+- generic [active] [ref=f5e1]:
+  - main [ref=f5e2]:
+    - generic [ref=f5e3]:
+      - heading "Checking synthetic session" [level=1] [ref=f5e7]
+      - paragraph [ref=f5e8]: Portal content stays hidden until the Firebase Auth emulator verifies this browser session.
+  - alert [ref=f5e9]

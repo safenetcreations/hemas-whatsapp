@@ -1,0 +1,509 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e44]: Hemas Connect — SafeNet Synthetic Demo
+  - status [ref=e45]: Synthetic identity and workspace access verified.
+  - generic [ref=e49]:
+    - generic [ref=e50]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=e54]:
+      - generic [ref=e55]:
+        - link "Hemas Connect overview" [ref=e57] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e62]:
+            - generic [ref=e63]: Hemas Connect
+            - generic [ref=e64]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=e66]':
+          - generic [ref=e67]: SH
+          - generic [ref=e68]:
+            - generic [ref=e69]: SafeNet Healthcare Platform Demo
+            - generic [ref=e70]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=e74]:
+          - generic [ref=e75]:
+            - paragraph [ref=e76]: Operations
+            - generic [ref=e77]:
+              - link "Overview" [ref=e78] [cursor=pointer]:
+                - /url: /
+              - link "Inbox 28" [ref=e85] [cursor=pointer]:
+                - /url: /inbox
+                - generic [ref=e89]: Inbox
+                - generic [ref=e90]: "28"
+              - link "Contacts" [ref=e91] [cursor=pointer]:
+                - /url: /contacts
+              - link "Appointments" [ref=e97] [cursor=pointer]:
+                - /url: /appointments
+              - link "Lab journeys" [ref=e102] [cursor=pointer]:
+                - /url: /labs
+          - generic [ref=e106]:
+            - paragraph [ref=e107]: Engagement
+            - generic [ref=e108]:
+              - link "Campaigns" [ref=e109] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Templates & Flows" [ref=e113] [cursor=pointer]:
+                - /url: /templates
+              - link "Automations" [ref=e119] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=e125]:
+            - paragraph [ref=e126]: Intelligence
+            - generic [ref=e127]:
+              - link "Analytics" [ref=e128] [cursor=pointer]:
+                - /url: /analytics
+              - link "AI & Knowledge" [ref=e132] [cursor=pointer]:
+                - /url: /ai-knowledge
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: Administration
+            - generic [ref=e139]:
+              - link "Connections" [ref=e140] [cursor=pointer]:
+                - /url: /connections
+              - link "Team & Routing" [ref=e147] [cursor=pointer]:
+                - /url: /team
+              - link "Compliance" [ref=e153] [cursor=pointer]:
+                - /url: /compliance
+              - link "Usage" [ref=e158] [cursor=pointer]:
+                - /url: /usage
+              - link "Settings" [ref=e163] [cursor=pointer]:
+                - /url: /settings
+              - link "Demo Lab" [ref=e168] [cursor=pointer]:
+                - /url: /demo-lab
+        - generic [ref=e180]:
+          - link "Help & escalation" [ref=e181] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Tenant administrator. Workspace-wide patient-record scope" [ref=e189]:
+            - generic [ref=e190]: DT
+            - generic [ref=e191]:
+              - generic [ref=e192]: Demo tenant administrator
+              - generic "Tenant administrator · Workspace-wide patient-record scope" [ref=e193]
+    - generic [ref=e197]:
+      - banner [ref=e198]:
+        - search [ref=e199]:
+          - searchbox "Search workspace" [ref=e200]
+        - generic [ref=e201]:
+          - generic [ref=e202]: Meta disconnected
+          - button "Operational alerts" [ref=e204]
+      - main [ref=e209]:
+        - generic [ref=e462]:
+          - generic [ref=e463]:
+            - generic [ref=e469]:
+              - paragraph [ref=e470]: Governance evidence
+              - heading "Compliance & Audit" [level=1] [ref=e471]
+              - paragraph [ref=e472]: Review synthetic-stage controls, unresolved ownership, restricted server-projected evidence, and production gates. This is product planning—not legal advice or certification.
+            - button "Production release locked" [disabled] [ref=e473]
+          - region "Compliance control summary" [ref=e478]:
+            - article [ref=e479]:
+              - paragraph [ref=e480]: Demo implemented
+              - paragraph [ref=e481]: "2"
+              - paragraph [ref=e482]: Synthetic-stage evidence
+            - article [ref=e483]:
+              - paragraph [ref=e484]: Partial controls
+              - paragraph [ref=e485]: "4"
+              - paragraph [ref=e486]: Needs connected verification
+            - article [ref=e487]:
+              - paragraph [ref=e488]: Owner decisions
+              - paragraph [ref=e489]: "4"
+              - paragraph [ref=e490]: Hemas approval required
+            - article [ref=e491]:
+              - paragraph [ref=e492]: Not implemented
+              - paragraph [ref=e493]: "1"
+              - paragraph [ref=e494]: Release-blocking workflow
+          - generic [ref=e495]:
+            - article [ref=e496]:
+              - generic [ref=e504]:
+                - heading "Sri Lanka PDPA planning boundary" [level=2] [ref=e505]
+                - paragraph [ref=e506]: The dated PRD snapshot is not a current legal opinion. Recheck legislation, final rules, and health guidance before launch.
+            - article [ref=e507]:
+              - generic [ref=e511]:
+                - heading "Prototype Rules notice" [level=2] [ref=e512]
+                - paragraph [ref=e513]: Local hostile coverage exists, but Admin SDK bypass, production IAM, connected queries, Storage workflows, and threat review remain separate release gates.
+            - article [ref=e514]:
+              - generic [ref=e519]:
+                - heading "No certification claim" [level=2] [ref=e520]
+                - paragraph [ref=e521]: The dashboard does not label SafeNet, Hemas, Firebase, Meta, AI, or this product as PDPA-certified or production-approved.
+          - generic [ref=e522]:
+            - article [ref=e523]:
+              - generic [ref=e524]:
+                - generic [ref=e525]:
+                  - heading "Control register" [level=2] [ref=e526]
+                  - paragraph [ref=e527]: Evidence state by owner and release gate
+                - generic [ref=e528]:
+                  - generic [ref=e529]: Search controls
+                  - searchbox "Search controls" [ref=e530]
+                - generic [ref=e531]:
+                  - generic [ref=e532]:
+                    - generic [ref=e533]: Filter control category
+                    - combobox "Filter control category" [ref=e534]:
+                      - option "All categories" [selected]
+                      - option "Privacy"
+                      - option "Security"
+                      - option "Clinical"
+                      - option "Consent"
+                      - option "Operations"
+                  - generic [ref=e535]:
+                    - generic [ref=e536]: Filter control status
+                    - combobox "Filter control status" [ref=e537]:
+                      - option "All statuses" [selected]
+                      - option "Demo implemented"
+                      - option "Partial"
+                      - option "Owner decision"
+                      - option "Not implemented"
+              - list "Compliance control register" [ref=e538]:
+                - button "Synthetic-only demo data Privacy · SafeNet engineering" [ref=e539]:
+                  - generic [ref=e541]:
+                    - generic [ref=e542]: Synthetic-only demo data
+                    - generic [ref=e543]: Privacy · SafeNet engineering
+                - button "Tenant and patient-scope isolation Security · SafeNet engineering / Hemas security" [ref=e546]:
+                  - generic [ref=e548]:
+                    - generic [ref=e549]: Tenant and patient-scope isolation
+                    - generic [ref=e550]: Security · SafeNet engineering / Hemas security
+                - button "Purpose-specific consent and suppression Consent · Hemas privacy / communications" [ref=e553]:
+                  - generic [ref=e555]:
+                    - generic [ref=e556]: Purpose-specific consent and suppression
+                    - generic [ref=e557]: Consent · Hemas privacy / communications
+                - button "Clinical-content minimization Privacy · Hemas DPO / clinical governance" [ref=e560]:
+                  - generic [ref=e562]:
+                    - generic [ref=e563]: Clinical-content minimization
+                    - generic [ref=e564]: Privacy · Hemas DPO / clinical governance
+                - button "AI and urgent-language boundaries Clinical · Hemas clinical governance / SafeNet engineering" [ref=e567]:
+                  - generic [ref=e569]:
+                    - generic [ref=e570]: AI and urgent-language boundaries
+                    - generic [ref=e571]: Clinical · Hemas clinical governance / SafeNet engineering
+                - button "Clinician-governed care pathways Clinical · Named Hemas clinical owner" [ref=e574]:
+                  - generic [ref=e576]:
+                    - generic [ref=e577]: Clinician-governed care pathways
+                    - generic [ref=e578]: Clinical · Named Hemas clinical owner
+                - button "Retention and deletion schedule Privacy · Hemas DPO / records management" [ref=e581]:
+                  - generic [ref=e583]:
+                    - generic [ref=e584]: Retention and deletion schedule
+                    - generic [ref=e585]: Privacy · Hemas DPO / records management
+                - button "Subprocessor and cross-border assessment Privacy · Hemas legal / DPO / procurement" [ref=e588]:
+                  - generic [ref=e590]:
+                    - generic [ref=e591]: Subprocessor and cross-border assessment
+                    - generic [ref=e592]: Privacy · Hemas legal / DPO / procurement
+                - button "Restricted synthetic audit evidence Security · SafeNet engineering / Hemas security" [ref=e595]:
+                  - generic [ref=e597]:
+                    - generic [ref=e598]: Restricted synthetic audit evidence
+                    - generic [ref=e599]: Security · SafeNet engineering / Hemas security
+                - button "Data-subject and authorized-representative workflow Operations · Hemas privacy operations" [ref=e602]:
+                  - generic [ref=e604]:
+                    - generic [ref=e605]: Data-subject and authorized-representative workflow
+                    - generic [ref=e606]: Operations · Hemas privacy operations
+                - button "Incident, rollback, and support access Operations · Hemas security / SafeNet operations" [ref=e609]:
+                  - generic [ref=e611]:
+                    - generic [ref=e612]: Incident, rollback, and support access
+                    - generic [ref=e613]: Operations · Hemas security / SafeNet operations
+            - article [ref=e616]:
+              - generic [ref=e617]:
+                - generic [ref=e618]:
+                  - paragraph [ref=e619]: Selected control
+                  - heading "Synthetic-only demo data" [level=2] [ref=e620]
+                  - paragraph [ref=e621]: Privacy · SafeNet engineering
+                - generic [ref=e622]: Demo implemented
+              - paragraph [ref=e623]: The local demo uses seeded synthetic records and opaque identifiers. Real-patient-data mode is false and imports are unavailable.
+              - generic [ref=e624]:
+                - paragraph [ref=e625]: Observed evidence
+                - list [ref=e626]:
+                  - listitem [ref=e627]: Visible environment banner
+                  - listitem [ref=e630]: Fresh synthetic emulator seed
+                  - listitem [ref=e633]: Disabled import/export actions
+                  - listitem [ref=e636]: Fail-closed public environment flags
+              - generic [ref=e639]:
+                - generic [ref=e640]: Release gate
+                - paragraph [ref=e643]: Run a repository, logs, screenshots, and emulator-state scan before every demo handoff.
+          - generic [ref=e644]:
+            - generic [ref=e645]:
+              - generic [ref=e646]:
+                - heading "Minimized synthetic audit timeline" [level=2] [ref=e652]
+                - paragraph [ref=e653]: Server-projected evidence only. This view omits raw metadata and does not claim a complete audit trail.
+              - generic [ref=e654]:
+                - generic [ref=e655]:
+                  - generic [ref=e656]: Filter projected audit outcome
+                  - combobox "Filter projected audit outcome" [ref=e657]:
+                    - option "All outcomes" [selected]
+                    - option "Allowed"
+                    - option "Denied"
+                    - option "Failed"
+                    - option "Simulated"
+                - button "Export locked" [disabled] [ref=e658]
+            - generic [ref=e1317]:
+              - generic [ref=e1318]: 28 minimized audit events loaded.
+              - list "Minimized synthetic audit events" [ref=e1327]:
+                - listitem [ref=e1328]:
+                  - generic [ref=e1329]:
+                    - paragraph [ref=e1330]: Projected event
+                    - time [ref=e1331]: 2026-08-07T13:03:00.000Z
+                    - paragraph [ref=e1332]: user · event_actor:audit_care_pathway_event_post_discharge_activated
+                  - generic [ref=e1333]:
+                    - paragraph [ref=e1334]: Care pathway activated
+                    - paragraph [ref=e1335]: care_pathway.activate
+                    - paragraph [ref=e1336]: care_pathway · event_resource:audit_care_pathway_event_post_discharge_activated
+                  - generic [ref=e1337]: Allowed
+                - listitem [ref=e1339]:
+                  - generic [ref=e1340]:
+                    - paragraph [ref=e1341]: Projected event
+                    - time [ref=e1342]: 2026-08-07T13:02:00.000Z
+                    - paragraph [ref=e1343]: user · event_actor:audit_care_pathway_event_post_discharge_approved
+                  - generic [ref=e1344]:
+                    - paragraph [ref=e1345]: Care pathway approved
+                    - paragraph [ref=e1346]: care_pathway.approve
+                    - paragraph [ref=e1347]: care_pathway · event_resource:audit_care_pathway_event_post_discharge_approved
+                  - generic [ref=e1348]: Allowed
+                - listitem [ref=e1350]:
+                  - generic [ref=e1351]:
+                    - paragraph [ref=e1352]: Projected event
+                    - time [ref=e1353]: 2026-08-07T13:01:00.000Z
+                    - paragraph [ref=e1354]: user · event_actor:audit_care_pathway_event_post_discharge_clinical_review_requested
+                  - generic [ref=e1355]:
+                    - paragraph [ref=e1356]: Care pathway clinical review requested
+                    - paragraph [ref=e1357]: care_pathway.request_clinical_review
+                    - paragraph [ref=e1358]: care_pathway · event_resource:audit_care_pathway_event_post_discharge_clinical_review_requested
+                  - generic [ref=e1359]: Allowed
+                - listitem [ref=e1361]:
+                  - generic [ref=e1362]:
+                    - paragraph [ref=e1363]: Projected event
+                    - time [ref=e1364]: 2026-08-07T13:00:00.000Z
+                    - paragraph [ref=e1365]: user · event_actor:audit_care_pathway_event_post_discharge_created
+                  - generic [ref=e1366]:
+                    - paragraph [ref=e1367]: Care pathway created
+                    - paragraph [ref=e1368]: care_pathway.create
+                    - paragraph [ref=e1369]: care_pathway · event_resource:audit_care_pathway_event_post_discharge_created
+                  - generic [ref=e1370]: Allowed
+                - listitem [ref=e1372]:
+                  - generic [ref=e1373]:
+                    - paragraph [ref=e1374]: Projected event
+                    - time [ref=e1375]: 2026-08-07T10:23:00.000Z
+                    - paragraph [ref=e1376]: user · event_actor:audit_automation_definition_event_laboratory_service_3_activated
+                  - generic [ref=e1377]:
+                    - paragraph [ref=e1378]: Automation definition activated
+                    - paragraph [ref=e1379]: automation_definition.activate
+                    - paragraph [ref=e1380]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_3_activated
+                  - generic [ref=e1381]: Allowed
+                - listitem [ref=e1383]:
+                  - generic [ref=e1384]:
+                    - paragraph [ref=e1385]: Projected event
+                    - time [ref=e1386]: 2026-08-07T10:22:00.000Z
+                    - paragraph [ref=e1387]: user · event_actor:audit_automation_definition_event_laboratory_service_3_approved
+                  - generic [ref=e1388]:
+                    - paragraph [ref=e1389]: Automation definition approved
+                    - paragraph [ref=e1390]: automation_definition.approve
+                    - paragraph [ref=e1391]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_3_approved
+                  - generic [ref=e1392]: Allowed
+                - listitem [ref=e1394]:
+                  - generic [ref=e1395]:
+                    - paragraph [ref=e1396]: Projected event
+                    - time [ref=e1397]: 2026-08-07T10:21:00.000Z
+                    - paragraph [ref=e1398]: user · event_actor:audit_automation_definition_event_laboratory_service_3_review_requested
+                  - generic [ref=e1399]:
+                    - paragraph [ref=e1400]: Automation definition review requested
+                    - paragraph [ref=e1401]: automation_definition.request_review
+                    - paragraph [ref=e1402]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_3_review_requested
+                  - generic [ref=e1403]: Allowed
+                - listitem [ref=e1405]:
+                  - generic [ref=e1406]:
+                    - paragraph [ref=e1407]: Projected event
+                    - time [ref=e1408]: 2026-08-07T10:20:00.000Z
+                    - paragraph [ref=e1409]: user · event_actor:audit_automation_definition_event_laboratory_service_3_created
+                  - generic [ref=e1410]:
+                    - paragraph [ref=e1411]: Automation definition created
+                    - paragraph [ref=e1412]: automation_definition.create
+                    - paragraph [ref=e1413]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_3_created
+                  - generic [ref=e1414]: Allowed
+                - listitem [ref=e1416]:
+                  - generic [ref=e1417]:
+                    - paragraph [ref=e1418]: Projected event
+                    - time [ref=e1419]: 2026-08-07T10:13:00.000Z
+                    - paragraph [ref=e1420]: user · event_actor:audit_automation_definition_event_laboratory_service_2_retired
+                  - generic [ref=e1421]:
+                    - paragraph [ref=e1422]: Automation definition retired
+                    - paragraph [ref=e1423]: automation_definition.retire
+                    - paragraph [ref=e1424]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_2_retired
+                  - generic [ref=e1425]: Allowed
+                - listitem [ref=e1427]:
+                  - generic [ref=e1428]:
+                    - paragraph [ref=e1429]: Projected event
+                    - time [ref=e1430]: 2026-08-07T10:12:00.000Z
+                    - paragraph [ref=e1431]: user · event_actor:audit_automation_definition_event_laboratory_service_2_approved
+                  - generic [ref=e1432]:
+                    - paragraph [ref=e1433]: Automation definition approved
+                    - paragraph [ref=e1434]: automation_definition.approve
+                    - paragraph [ref=e1435]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_2_approved
+                  - generic [ref=e1436]: Allowed
+                - listitem [ref=e1438]:
+                  - generic [ref=e1439]:
+                    - paragraph [ref=e1440]: Projected event
+                    - time [ref=e1441]: 2026-08-07T10:11:00.000Z
+                    - paragraph [ref=e1442]: user · event_actor:audit_automation_definition_event_laboratory_service_2_review_requested
+                  - generic [ref=e1443]:
+                    - paragraph [ref=e1444]: Automation definition review requested
+                    - paragraph [ref=e1445]: automation_definition.request_review
+                    - paragraph [ref=e1446]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_2_review_requested
+                  - generic [ref=e1447]: Allowed
+                - listitem [ref=e1449]:
+                  - generic [ref=e1450]:
+                    - paragraph [ref=e1451]: Projected event
+                    - time [ref=e1452]: 2026-08-07T10:10:00.000Z
+                    - paragraph [ref=e1453]: user · event_actor:audit_automation_definition_event_laboratory_service_2_created
+                  - generic [ref=e1454]:
+                    - paragraph [ref=e1455]: Automation definition created
+                    - paragraph [ref=e1456]: automation_definition.create
+                    - paragraph [ref=e1457]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_2_created
+                  - generic [ref=e1458]: Allowed
+                - listitem [ref=e1460]:
+                  - generic [ref=e1461]:
+                    - paragraph [ref=e1462]: Projected event
+                    - time [ref=e1463]: 2026-08-07T10:03:00.000Z
+                    - paragraph [ref=e1464]: user · event_actor:audit_automation_definition_event_laboratory_service_1_retired
+                  - generic [ref=e1465]:
+                    - paragraph [ref=e1466]: Automation definition retired
+                    - paragraph [ref=e1467]: automation_definition.retire
+                    - paragraph [ref=e1468]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_1_retired
+                  - generic [ref=e1469]: Allowed
+                - listitem [ref=e1471]:
+                  - generic [ref=e1472]:
+                    - paragraph [ref=e1473]: Projected event
+                    - time [ref=e1474]: 2026-08-07T10:02:00.000Z
+                    - paragraph [ref=e1475]: user · event_actor:audit_automation_definition_event_laboratory_service_1_approved
+                  - generic [ref=e1476]:
+                    - paragraph [ref=e1477]: Automation definition approved
+                    - paragraph [ref=e1478]: automation_definition.approve
+                    - paragraph [ref=e1479]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_1_approved
+                  - generic [ref=e1480]: Allowed
+                - listitem [ref=e1482]:
+                  - generic [ref=e1483]:
+                    - paragraph [ref=e1484]: Projected event
+                    - time [ref=e1485]: 2026-08-07T10:01:00.000Z
+                    - paragraph [ref=e1486]: user · event_actor:audit_automation_definition_event_laboratory_service_1_review_requested
+                  - generic [ref=e1487]:
+                    - paragraph [ref=e1488]: Automation definition review requested
+                    - paragraph [ref=e1489]: automation_definition.request_review
+                    - paragraph [ref=e1490]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_1_review_requested
+                  - generic [ref=e1491]: Allowed
+                - listitem [ref=e1493]:
+                  - generic [ref=e1494]:
+                    - paragraph [ref=e1495]: Projected event
+                    - time [ref=e1496]: 2026-08-07T10:00:00.000Z
+                    - paragraph [ref=e1497]: user · event_actor:audit_automation_definition_event_laboratory_service_1_created
+                  - generic [ref=e1498]:
+                    - paragraph [ref=e1499]: Automation definition created
+                    - paragraph [ref=e1500]: automation_definition.create
+                    - paragraph [ref=e1501]: automation_definition · event_resource:audit_automation_definition_event_laboratory_service_1_created
+                  - generic [ref=e1502]: Allowed
+                - listitem [ref=e1504]:
+                  - generic [ref=e1505]:
+                    - paragraph [ref=e1506]: Projected event
+                    - time [ref=e1507]: 2026-08-07T09:23:00.000Z
+                    - paragraph [ref=e1508]: user · event_actor:audit_automation_definition_event_appointment_service_3_activated
+                  - generic [ref=e1509]:
+                    - paragraph [ref=e1510]: Automation definition activated
+                    - paragraph [ref=e1511]: automation_definition.activate
+                    - paragraph [ref=e1512]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_3_activated
+                  - generic [ref=e1513]: Allowed
+                - listitem [ref=e1515]:
+                  - generic [ref=e1516]:
+                    - paragraph [ref=e1517]: Projected event
+                    - time [ref=e1518]: 2026-08-07T09:22:00.000Z
+                    - paragraph [ref=e1519]: user · event_actor:audit_automation_definition_event_appointment_service_3_approved
+                  - generic [ref=e1520]:
+                    - paragraph [ref=e1521]: Automation definition approved
+                    - paragraph [ref=e1522]: automation_definition.approve
+                    - paragraph [ref=e1523]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_3_approved
+                  - generic [ref=e1524]: Allowed
+                - listitem [ref=e1526]:
+                  - generic [ref=e1527]:
+                    - paragraph [ref=e1528]: Projected event
+                    - time [ref=e1529]: 2026-08-07T09:21:00.000Z
+                    - paragraph [ref=e1530]: user · event_actor:audit_automation_definition_event_appointment_service_3_review_requested
+                  - generic [ref=e1531]:
+                    - paragraph [ref=e1532]: Automation definition review requested
+                    - paragraph [ref=e1533]: automation_definition.request_review
+                    - paragraph [ref=e1534]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_3_review_requested
+                  - generic [ref=e1535]: Allowed
+                - listitem [ref=e1537]:
+                  - generic [ref=e1538]:
+                    - paragraph [ref=e1539]: Projected event
+                    - time [ref=e1540]: 2026-08-07T09:20:00.000Z
+                    - paragraph [ref=e1541]: user · event_actor:audit_automation_definition_event_appointment_service_3_created
+                  - generic [ref=e1542]:
+                    - paragraph [ref=e1543]: Automation definition created
+                    - paragraph [ref=e1544]: automation_definition.create
+                    - paragraph [ref=e1545]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_3_created
+                  - generic [ref=e1546]: Allowed
+                - listitem [ref=e1548]:
+                  - generic [ref=e1549]:
+                    - paragraph [ref=e1550]: Projected event
+                    - time [ref=e1551]: 2026-08-07T09:13:00.000Z
+                    - paragraph [ref=e1552]: user · event_actor:audit_automation_definition_event_appointment_service_2_retired
+                  - generic [ref=e1553]:
+                    - paragraph [ref=e1554]: Automation definition retired
+                    - paragraph [ref=e1555]: automation_definition.retire
+                    - paragraph [ref=e1556]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_2_retired
+                  - generic [ref=e1557]: Allowed
+                - listitem [ref=e1559]:
+                  - generic [ref=e1560]:
+                    - paragraph [ref=e1561]: Projected event
+                    - time [ref=e1562]: 2026-08-07T09:12:00.000Z
+                    - paragraph [ref=e1563]: user · event_actor:audit_automation_definition_event_appointment_service_2_approved
+                  - generic [ref=e1564]:
+                    - paragraph [ref=e1565]: Automation definition approved
+                    - paragraph [ref=e1566]: automation_definition.approve
+                    - paragraph [ref=e1567]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_2_approved
+                  - generic [ref=e1568]: Allowed
+                - listitem [ref=e1570]:
+                  - generic [ref=e1571]:
+                    - paragraph [ref=e1572]: Projected event
+                    - time [ref=e1573]: 2026-08-07T09:11:00.000Z
+                    - paragraph [ref=e1574]: user · event_actor:audit_automation_definition_event_appointment_service_2_review_requested
+                  - generic [ref=e1575]:
+                    - paragraph [ref=e1576]: Automation definition review requested
+                    - paragraph [ref=e1577]: automation_definition.request_review
+                    - paragraph [ref=e1578]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_2_review_requested
+                  - generic [ref=e1579]: Allowed
+                - listitem [ref=e1581]:
+                  - generic [ref=e1582]:
+                    - paragraph [ref=e1583]: Projected event
+                    - time [ref=e1584]: 2026-08-07T09:10:00.000Z
+                    - paragraph [ref=e1585]: user · event_actor:audit_automation_definition_event_appointment_service_2_created
+                  - generic [ref=e1586]:
+                    - paragraph [ref=e1587]: Automation definition created
+                    - paragraph [ref=e1588]: automation_definition.create
+                    - paragraph [ref=e1589]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_2_created
+                  - generic [ref=e1590]: Allowed
+                - listitem [ref=e1592]:
+                  - generic [ref=e1593]:
+                    - paragraph [ref=e1594]: Projected event
+                    - time [ref=e1595]: 2026-08-07T09:03:00.000Z
+                    - paragraph [ref=e1596]: user · event_actor:audit_automation_definition_event_appointment_service_1_retired
+                  - generic [ref=e1597]:
+                    - paragraph [ref=e1598]: Automation definition retired
+                    - paragraph [ref=e1599]: automation_definition.retire
+                    - paragraph [ref=e1600]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_1_retired
+                  - generic [ref=e1601]: Allowed
+                - listitem [ref=e1608]:
+                  - generic [ref=e1609]:
+                    - paragraph [ref=e1610]: Projected event
+                    - time [ref=e1611]: 2026-08-07T09:02:00.000Z
+                    - paragraph [ref=e1612]: user · event_actor:audit_automation_definition_event_appointment_service_1_approved
+                  - generic [ref=e1613]:
+                    - paragraph [ref=e1614]: Automation definition approved
+                    - paragraph [ref=e1615]: automation_definition.approve
+                    - paragraph [ref=e1616]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_1_approved
+                  - generic [ref=e1617]: Allowed
+                - listitem [ref=e1619]:
+                  - generic [ref=e1620]:
+                    - paragraph [ref=e1621]: Projected event
+                    - time [ref=e1622]: 2026-08-07T09:01:00.000Z
+                    - paragraph [ref=e1623]: user · event_actor:audit_automation_definition_event_appointment_service_1_review_requested
+                  - generic [ref=e1624]:
+                    - paragraph [ref=e1625]: Automation definition review requested
+                    - paragraph [ref=e1626]: automation_definition.request_review
+                    - paragraph [ref=e1627]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_1_review_requested
+                  - generic [ref=e1628]: Allowed
+                - listitem [ref=e1630]:
+                  - generic [ref=e1631]:
+                    - paragraph [ref=e1632]: Projected event
+                    - time [ref=e1633]: 2026-08-07T09:00:00.000Z
+                    - paragraph [ref=e1634]: user · event_actor:audit_automation_definition_event_appointment_service_1_created
+                  - generic [ref=e1635]:
+                    - paragraph [ref=e1636]: Automation definition created
+                    - paragraph [ref=e1637]: automation_definition.create
+                    - paragraph [ref=e1638]: automation_definition · event_resource:audit_automation_definition_event_appointment_service_1_created
+                  - generic [ref=e1639]: Allowed
+              - generic [ref=e1641]:
+                - paragraph [ref=e1642]: 28 strictly projected events in this mounted view.
+                - button "Refresh" [ref=e1644]
+  - button "Sign out of demo" [ref=e458]

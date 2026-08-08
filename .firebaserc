@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "demo-hemas-connect",
+    "hemas-cloud-uat": "hemas-whatsapp"
+  }
+}

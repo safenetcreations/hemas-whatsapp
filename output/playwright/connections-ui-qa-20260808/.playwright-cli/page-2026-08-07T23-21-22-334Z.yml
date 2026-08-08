@@ -1,0 +1,469 @@
+- generic [ref=e1]:
+  - alert [ref=e44]: Hemas Connect — SafeNet Synthetic Demo
+  - status [ref=e1362]: Synthetic identity and workspace access verified.
+  - generic [ref=e1366]:
+    - generic [ref=e1367]: SAFENET SYNTHETIC DEMO · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF
+    - complementary [ref=e1371]:
+      - generic [ref=e1372]:
+        - link "Hemas Connect overview" [ref=e1374] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e1379]:
+            - generic [ref=e1380]: Hemas Connect
+            - generic [ref=e1381]: SafeNet product prototype
+        - 'generic "Verified workspace: SafeNet Healthcare Platform Demo" [ref=e1383]':
+          - generic [ref=e1384]: SH
+          - generic [ref=e1385]:
+            - generic [ref=e1386]: SafeNet Healthcare Platform Demo
+            - generic [ref=e1387]: Verified synthetic workspace
+        - navigation "Primary navigation" [ref=e1391]:
+          - generic [ref=e1392]:
+            - paragraph [ref=e1393]: Operations
+            - generic [ref=e1394]:
+              - link "Overview" [ref=e1395] [cursor=pointer]:
+                - /url: /
+              - link "Inbox 28" [ref=e1402] [cursor=pointer]:
+                - /url: /inbox
+                - generic [ref=e1406]: Inbox
+                - generic [ref=e1407]: "28"
+              - link "Contacts" [ref=e1408] [cursor=pointer]:
+                - /url: /contacts
+              - link "Appointments" [ref=e1414] [cursor=pointer]:
+                - /url: /appointments
+              - link "Lab journeys" [ref=e1419] [cursor=pointer]:
+                - /url: /labs
+          - generic [ref=e1423]:
+            - paragraph [ref=e1424]: Engagement
+            - generic [ref=e1425]:
+              - link "Campaigns" [ref=e1426] [cursor=pointer]:
+                - /url: /campaigns
+              - link "Templates & Flows" [ref=e1430] [cursor=pointer]:
+                - /url: /templates
+              - link "Automations" [ref=e1436] [cursor=pointer]:
+                - /url: /automations
+          - generic [ref=e1442]:
+            - paragraph [ref=e1443]: Intelligence
+            - generic [ref=e1444]:
+              - link "Analytics" [ref=e1445] [cursor=pointer]:
+                - /url: /analytics
+              - link "AI & Knowledge" [ref=e1449] [cursor=pointer]:
+                - /url: /ai-knowledge
+          - generic [ref=e1454]:
+            - paragraph [ref=e1455]: Administration
+            - generic [ref=e1456]:
+              - link "Connections" [active] [ref=e1457] [cursor=pointer]:
+                - /url: /connections
+              - link "Team & Routing" [ref=e1464] [cursor=pointer]:
+                - /url: /team
+              - link "Compliance" [ref=e1470] [cursor=pointer]:
+                - /url: /compliance
+              - link "Usage" [ref=e1475] [cursor=pointer]:
+                - /url: /usage
+              - link "Settings" [ref=e1480] [cursor=pointer]:
+                - /url: /settings
+              - link "Demo Lab" [ref=e1485] [cursor=pointer]:
+                - /url: /demo-lab
+        - generic [ref=e1497]:
+          - link "Help & escalation" [ref=e1498] [cursor=pointer]:
+            - /url: /help
+          - generic "Signed in as Demo tenant administrator, Tenant administrator. Workspace-wide patient-record scope" [ref=e1506]:
+            - generic [ref=e1507]: DT
+            - generic [ref=e1508]:
+              - generic [ref=e1509]: Demo tenant administrator
+              - generic "Tenant administrator · Workspace-wide patient-record scope" [ref=e1510]
+    - generic [ref=e1514]:
+      - banner [ref=e1515]:
+        - search [ref=e1516]:
+          - searchbox "Search workspace" [ref=e1517]
+        - generic [ref=e1518]:
+          - generic [ref=e1519]: Meta disconnected
+          - button "Operational alerts" [ref=e1521]
+      - main [ref=e1526]:
+        - generic [ref=e1779]:
+          - generic [ref=e1780]:
+            - generic [ref=e1788]:
+              - paragraph [ref=e1789]: Authoritative local catalogue
+              - heading "Connections" [level=1] [ref=e1790]
+              - paragraph [ref=e1791]: Read the strict staff-safe v1 simulator inventory from local Firestore. This surface has no mutations, provider controls, credential fields, cache, or fixture fallback.
+            - generic "Connection-centre boundaries" [ref=e1792]:
+              - generic [ref=e1793]: Read only
+              - generic [ref=e1795]: External sending off
+          - generic [ref=e1797]:
+            - region "Persisted connection inventory summary" [ref=e1798]:
+              - article [ref=e1799]:
+                - paragraph [ref=e1800]: Mock WhatsApp
+                - paragraph [ref=e1801]: "1"
+                - paragraph [ref=e1802]: Persisted simulator record
+              - article [ref=e1803]:
+                - paragraph [ref=e1804]: Mock HIS / LIMS
+                - paragraph [ref=e1805]: "2"
+                - paragraph [ref=e1806]: Persisted synthetic adapters
+              - article [ref=e1807]:
+                - paragraph [ref=e1808]: External providers
+                - paragraph [ref=e1809]: "0"
+                - paragraph [ref=e1810]: Derived from every network and write gate
+              - article [ref=e1811]:
+                - paragraph [ref=e1812]: External sending
+                - paragraph [ref=e1813]: "Off"
+                - paragraph [ref=e1814]: Derived from the persisted WhatsApp gate
+            - generic [ref=e1820]:
+              - heading "Persisted boundary, not external proof" [level=2] [ref=e1821]
+              - paragraph [ref=e1822]: These rows prove only the governed zero-network local simulator catalogue. They do not evidence a cloud deployment, Meta account, Hemas system connection, real-device delivery, or external acceptance.
+            - region "Persisted simulator records" [ref=e1823]:
+              - article [ref=e1824]:
+                - generic [ref=e1825]:
+                  - generic [ref=e1830]:
+                    - paragraph [ref=e1831]: Persisted WhatsApp simulator
+                    - heading "Local WhatsApp journey simulator" [level=2] [ref=e1832]
+                  - generic [ref=e1833]: mock
+                - generic [ref=e1834]:
+                  - generic [ref=e1835]:
+                    - term [ref=e1836]: Environment
+                    - definition [ref=e1837]:
+                      - code [ref=e1838]: demo
+                  - generic [ref=e1839]:
+                    - term [ref=e1840]: External number
+                    - definition [ref=e1841]: No external number
+                  - generic [ref=e1842]:
+                    - term [ref=e1843]: Credential state
+                    - definition [ref=e1844]:
+                      - code [ref=e1845]: not_configured
+                - region [ref=e1846]:
+                  - heading "Frozen browser safety gates" [level=3] [ref=e1847]
+                  - generic [ref=e1848]:
+                    - generic [ref=e1849]:
+                      - generic [ref=e1850]: External messaging enabled
+                      - code [ref=e1851]: "false"
+                    - generic [ref=e1852]:
+                      - generic [ref=e1853]: Network calls enabled
+                      - code [ref=e1854]: "false"
+                - region [ref=e1855]:
+                  - generic [ref=e1856]:
+                    - heading "Exact synthetic evidence matrix" [level=3] [ref=e1857]
+                    - paragraph [ref=e1858]: Eleven persisted v1 signals. Sources and timestamps are shown literally.
+                  - generic [ref=e1859]:
+                    - article [ref=e1860]:
+                      - heading "Business account" [level=4] [ref=e1861]
+                      - generic [ref=e1862]:
+                        - generic [ref=e1863]:
+                          - term [ref=e1864]: State
+                          - definition [ref=e1865]:
+                            - code [ref=e1866]: not_configured
+                        - generic [ref=e1867]:
+                          - term [ref=e1868]: Source
+                          - definition [ref=e1869]:
+                            - code [ref=e1870]: synthetic_fixture
+                        - generic [ref=e1871]:
+                          - term [ref=e1872]: Observed timestamp
+                          - definition [ref=e1873]:
+                            - time [ref=e1874]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1875]:
+                          - term [ref=e1876]: Last successful verification
+                          - definition [ref=e1877]: Never verified
+                    - article [ref=e1878]:
+                      - heading "Phone registration" [level=4] [ref=e1879]
+                      - generic [ref=e1880]:
+                        - generic [ref=e1881]:
+                          - term [ref=e1882]: State
+                          - definition [ref=e1883]:
+                            - code [ref=e1884]: not_configured
+                        - generic [ref=e1885]:
+                          - term [ref=e1886]: Source
+                          - definition [ref=e1887]:
+                            - code [ref=e1888]: synthetic_fixture
+                        - generic [ref=e1889]:
+                          - term [ref=e1890]: Observed timestamp
+                          - definition [ref=e1891]:
+                            - time [ref=e1892]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1893]:
+                          - term [ref=e1894]: Last successful verification
+                          - definition [ref=e1895]: Never verified
+                    - article [ref=e1896]:
+                      - heading "Inbound webhook" [level=4] [ref=e1897]
+                      - generic [ref=e1898]:
+                        - generic [ref=e1899]:
+                          - term [ref=e1900]: State
+                          - definition [ref=e1901]:
+                            - code [ref=e1902]: mock
+                        - generic [ref=e1903]:
+                          - term [ref=e1904]: Source
+                          - definition [ref=e1905]:
+                            - code [ref=e1906]: synthetic_fixture
+                        - generic [ref=e1907]:
+                          - term [ref=e1908]: Observed timestamp
+                          - definition [ref=e1909]:
+                            - time [ref=e1910]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1911]:
+                          - term [ref=e1912]: Last successful verification
+                          - definition [ref=e1913]: Never verified
+                    - article [ref=e1914]:
+                      - heading "Application mode" [level=4] [ref=e1915]
+                      - generic [ref=e1916]:
+                        - generic [ref=e1917]:
+                          - term [ref=e1918]: State
+                          - definition [ref=e1919]:
+                            - code [ref=e1920]: not_configured
+                        - generic [ref=e1921]:
+                          - term [ref=e1922]: Source
+                          - definition [ref=e1923]:
+                            - code [ref=e1924]: synthetic_fixture
+                        - generic [ref=e1925]:
+                          - term [ref=e1926]: Observed timestamp
+                          - definition [ref=e1927]:
+                            - time [ref=e1928]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1929]:
+                          - term [ref=e1930]: Last successful verification
+                          - definition [ref=e1931]: Never verified
+                    - article [ref=e1932]:
+                      - heading "Account permissions" [level=4] [ref=e1933]
+                      - generic [ref=e1934]:
+                        - generic [ref=e1935]:
+                          - term [ref=e1936]: State
+                          - definition [ref=e1937]:
+                            - code [ref=e1938]: unverified
+                        - generic [ref=e1939]:
+                          - term [ref=e1940]: Source
+                          - definition [ref=e1941]:
+                            - code [ref=e1942]: synthetic_fixture
+                        - generic [ref=e1943]:
+                          - term [ref=e1944]: Observed timestamp
+                          - definition [ref=e1945]:
+                            - time [ref=e1946]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1947]:
+                          - term [ref=e1948]: Last successful verification
+                          - definition [ref=e1949]: Never verified
+                    - article [ref=e1950]:
+                      - heading "Message templates" [level=4] [ref=e1951]
+                      - generic [ref=e1952]:
+                        - generic [ref=e1953]:
+                          - term [ref=e1954]: State
+                          - definition [ref=e1955]:
+                            - code [ref=e1956]: not_submitted
+                        - generic [ref=e1957]:
+                          - term [ref=e1958]: Source
+                          - definition [ref=e1959]:
+                            - code [ref=e1960]: synthetic_fixture
+                        - generic [ref=e1961]:
+                          - term [ref=e1962]: Observed timestamp
+                          - definition [ref=e1963]:
+                            - time [ref=e1964]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1965]:
+                          - term [ref=e1966]: Last successful verification
+                          - definition [ref=e1967]: Never verified
+                    - article [ref=e1968]:
+                      - heading "Payment configuration" [level=4] [ref=e1969]
+                      - generic [ref=e1970]:
+                        - generic [ref=e1971]:
+                          - term [ref=e1972]: State
+                          - definition [ref=e1973]:
+                            - code [ref=e1974]: not_configured
+                        - generic [ref=e1975]:
+                          - term [ref=e1976]: Source
+                          - definition [ref=e1977]:
+                            - code [ref=e1978]: synthetic_fixture
+                        - generic [ref=e1979]:
+                          - term [ref=e1980]: Observed timestamp
+                          - definition [ref=e1981]:
+                            - time [ref=e1982]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e1983]:
+                          - term [ref=e1984]: Last successful verification
+                          - definition [ref=e1985]: Never verified
+                    - article [ref=e1986]:
+                      - heading "External sending" [level=4] [ref=e1987]
+                      - generic [ref=e1988]:
+                        - generic [ref=e1989]:
+                          - term [ref=e1990]: State
+                          - definition [ref=e1991]:
+                            - code [ref=e1992]: blocked
+                        - generic [ref=e1993]:
+                          - term [ref=e1994]: Source
+                          - definition [ref=e1995]:
+                            - code [ref=e1996]: local_policy
+                        - generic [ref=e1997]:
+                          - term [ref=e1998]: Observed timestamp
+                          - definition [ref=e1999]:
+                            - time [ref=e2000]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e2001]:
+                          - term [ref=e2002]: Last successful verification
+                          - definition [ref=e2003]: Never verified
+                    - article [ref=e2004]:
+                      - heading "Quality evidence" [level=4] [ref=e2005]
+                      - generic [ref=e2006]:
+                        - generic [ref=e2007]:
+                          - term [ref=e2008]: State
+                          - definition [ref=e2009]:
+                            - code [ref=e2010]: not_available
+                        - generic [ref=e2011]:
+                          - term [ref=e2012]: Source
+                          - definition [ref=e2013]:
+                            - code [ref=e2014]: synthetic_fixture
+                        - generic [ref=e2015]:
+                          - term [ref=e2016]: Observed timestamp
+                          - definition [ref=e2017]:
+                            - time [ref=e2018]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e2019]:
+                          - term [ref=e2020]: Last successful verification
+                          - definition [ref=e2021]: Never verified
+                    - article [ref=e2022]:
+                      - heading "Messaging capacity" [level=4] [ref=e2023]
+                      - generic [ref=e2024]:
+                        - generic [ref=e2025]:
+                          - term [ref=e2026]: State
+                          - definition [ref=e2027]:
+                            - code [ref=e2028]: not_available
+                        - generic [ref=e2029]:
+                          - term [ref=e2030]: Source
+                          - definition [ref=e2031]:
+                            - code [ref=e2032]: synthetic_fixture
+                        - generic [ref=e2033]:
+                          - term [ref=e2034]: Observed timestamp
+                          - definition [ref=e2035]:
+                            - time [ref=e2036]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e2037]:
+                          - term [ref=e2038]: Last successful verification
+                          - definition [ref=e2039]: Never verified
+                    - article [ref=e2040]:
+                      - heading "Real-device canary" [level=4] [ref=e2041]
+                      - generic [ref=e2042]:
+                        - generic [ref=e2043]:
+                          - term [ref=e2044]: State
+                          - definition [ref=e2045]:
+                            - code [ref=e2046]: blocked
+                        - generic [ref=e2047]:
+                          - term [ref=e2048]: Source
+                          - definition [ref=e2049]:
+                            - code [ref=e2050]: local_policy
+                        - generic [ref=e2051]:
+                          - term [ref=e2052]: Observed timestamp
+                          - definition [ref=e2053]:
+                            - time [ref=e2054]: 2026-08-07T12:20:00.000Z
+                        - generic [ref=e2055]:
+                          - term [ref=e2056]: Last successful verification
+                          - definition [ref=e2057]: Never verified
+                - generic [ref=e2058]:
+                  - generic [ref=e2059]:
+                    - term [ref=e2060]: Created timestamp
+                    - definition [ref=e2061]:
+                      - time [ref=e2062]: 2026-08-01T03:30:00.000Z
+                  - generic [ref=e2063]:
+                    - term [ref=e2064]: Updated timestamp
+                    - definition [ref=e2065]:
+                      - time [ref=e2066]: 2026-08-07T12:20:00.000Z
+              - generic [ref=e2067]:
+                - article [ref=e2068]:
+                  - generic [ref=e2069]:
+                    - generic [ref=e2083]:
+                      - paragraph [ref=e2084]: Persisted system simulator
+                      - heading "Local appointment HIS simulator" [level=2] [ref=e2085]
+                    - generic [ref=e2086]: mock
+                  - generic [ref=e2087]:
+                    - generic [ref=e2088]:
+                      - term [ref=e2089]: Environment
+                      - definition [ref=e2090]:
+                        - code [ref=e2091]: demo
+                    - generic [ref=e2092]:
+                      - term [ref=e2093]: Adapter mode
+                      - definition [ref=e2094]:
+                        - code [ref=e2095]: synthetic
+                    - generic [ref=e2096]:
+                      - term [ref=e2097]: Credential state
+                      - definition [ref=e2098]:
+                        - code [ref=e2099]: not_configured
+                  - region "Local appointment HIS simulator safety gates" [ref=e2100]:
+                    - generic [ref=e2101]:
+                      - generic [ref=e2102]:
+                        - generic [ref=e2103]: External network enabled
+                        - code [ref=e2104]: "false"
+                      - generic [ref=e2105]:
+                        - generic [ref=e2106]: Authoritative system write enabled
+                        - code [ref=e2107]: "false"
+                  - generic [ref=e2108]:
+                    - heading "Synthetic evidence" [level=3] [ref=e2109]
+                    - generic [ref=e2110]:
+                      - generic [ref=e2111]:
+                        - term [ref=e2112]: State
+                        - definition [ref=e2113]:
+                          - code [ref=e2114]: mock
+                      - generic [ref=e2115]:
+                        - term [ref=e2116]: Source
+                        - definition [ref=e2117]:
+                          - code [ref=e2118]: synthetic_fixture
+                      - generic [ref=e2119]:
+                        - term [ref=e2120]: Observed timestamp
+                        - definition [ref=e2121]:
+                          - time [ref=e2122]: 2026-08-07T12:20:00.000Z
+                      - generic [ref=e2123]:
+                        - term [ref=e2124]: Last successful verification
+                        - definition [ref=e2125]: Never verified
+                    - generic [ref=e2126]:
+                      - term [ref=e2127]: Last synchronization
+                      - definition [ref=e2128]: Never
+                  - generic [ref=e2129]:
+                    - generic [ref=e2130]:
+                      - term [ref=e2131]: Created timestamp
+                      - definition [ref=e2132]:
+                        - time [ref=e2133]: 2026-08-01T03:30:00.000Z
+                    - generic [ref=e2134]:
+                      - term [ref=e2135]: Updated timestamp
+                      - definition [ref=e2136]:
+                        - time [ref=e2137]: 2026-08-07T12:20:00.000Z
+                - article [ref=e2138]:
+                  - generic [ref=e2139]:
+                    - generic [ref=e2153]:
+                      - paragraph [ref=e2154]: Persisted system simulator
+                      - heading "Local laboratory LIMS simulator" [level=2] [ref=e2155]
+                    - generic [ref=e2156]: mock
+                  - generic [ref=e2157]:
+                    - generic [ref=e2158]:
+                      - term [ref=e2159]: Environment
+                      - definition [ref=e2160]:
+                        - code [ref=e2161]: demo
+                    - generic [ref=e2162]:
+                      - term [ref=e2163]: Adapter mode
+                      - definition [ref=e2164]:
+                        - code [ref=e2165]: synthetic
+                    - generic [ref=e2166]:
+                      - term [ref=e2167]: Credential state
+                      - definition [ref=e2168]:
+                        - code [ref=e2169]: not_configured
+                  - region "Local laboratory LIMS simulator safety gates" [ref=e2170]:
+                    - generic [ref=e2171]:
+                      - generic [ref=e2172]:
+                        - generic [ref=e2173]: External network enabled
+                        - code [ref=e2174]: "false"
+                      - generic [ref=e2175]:
+                        - generic [ref=e2176]: Authoritative system write enabled
+                        - code [ref=e2177]: "false"
+                  - generic [ref=e2178]:
+                    - heading "Synthetic evidence" [level=3] [ref=e2179]
+                    - generic [ref=e2180]:
+                      - generic [ref=e2181]:
+                        - term [ref=e2182]: State
+                        - definition [ref=e2183]:
+                          - code [ref=e2184]: mock
+                      - generic [ref=e2185]:
+                        - term [ref=e2186]: Source
+                        - definition [ref=e2187]:
+                          - code [ref=e2188]: synthetic_fixture
+                      - generic [ref=e2189]:
+                        - term [ref=e2190]: Observed timestamp
+                        - definition [ref=e2191]:
+                          - time [ref=e2192]: 2026-08-07T12:20:00.000Z
+                      - generic [ref=e2193]:
+                        - term [ref=e2194]: Last successful verification
+                        - definition [ref=e2195]: Never verified
+                    - generic [ref=e2196]:
+                      - term [ref=e2197]: Last synchronization
+                      - definition [ref=e2198]: Never
+                  - generic [ref=e2199]:
+                    - generic [ref=e2200]:
+                      - term [ref=e2201]: Created timestamp
+                      - definition [ref=e2202]:
+                        - time [ref=e2203]: 2026-08-01T03:30:00.000Z
+                    - generic [ref=e2204]:
+                      - term [ref=e2205]: Updated timestamp
+                      - definition [ref=e2206]:
+                        - time [ref=e2207]: 2026-08-07T12:20:00.000Z
+            - generic [ref=e2214]:
+              - heading "Every outbound boundary remains false" [level=2] [ref=e2215]
+              - paragraph [ref=e2216]: "Network enabled: false · authoritative writes enabled: false · external messaging enabled: false."
+  - button "Sign out of demo" [ref=e1775]
