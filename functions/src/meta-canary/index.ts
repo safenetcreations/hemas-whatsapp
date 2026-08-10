@@ -76,6 +76,39 @@ function graphVersion(): string {
   return /^v\d{1,3}\.\d{1,2}$/.test(raw) ? raw : "v23.0";
 }
 
+const AUTO_REPLY_TEXT =
+  "✅ Hemas Connect received your message. This is a synthetic SafeNet demo — a care-team agent reviews and responds through the governed portal. No real patient data is processed here.";
+
+async function sendAutoReply(
+  toNumber: string,
+  phoneNumberId: string,
+  token: string,
+): Promise<void> {
+  const url = `https://graph.facebook.com/${graphVersion()}/${phoneNumberId}/messages`;
+  const providerResponse = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: toNumber,
+      type: "text",
+      text: { preview_url: false, body: AUTO_REPLY_TEXT },
+    }),
+  });
+  if (!providerResponse.ok) {
+    const detail = (await providerResponse.json().catch(() => null)) as
+      | { error?: { code?: number; message?: string } }
+      | null;
+    throw new Error(
+      `provider ${providerResponse.status}${detail?.error?.code ? ` code ${detail.error.code}` : ""}`,
+    );
+  }
+}
+
 export const metaCanaryWebhook = onRequest(
   {
     cors: false,
@@ -83,7 +116,7 @@ export const metaCanaryWebhook = onRequest(
     timeoutSeconds: 30,
     maxInstances: 3,
     concurrency: 40,
-    secrets: [metaAppSecret, metaVerifyToken],
+    secrets: [metaAppSecret, metaVerifyToken, metaAccessToken],
   },
   async (request, response) => {
     const boundary = canaryBoundaryOrNull();
@@ -138,6 +171,24 @@ export const metaCanaryWebhook = onRequest(
       return;
     }
 
+    // Content-free diagnostic: surface Meta delivery-failure codes (no PII).
+    try {
+      const root = payload as { entry?: Array<{ changes?: Array<{ value?: { statuses?: Array<{ status?: string; errors?: Array<{ code?: number; title?: string; error_data?: { details?: string } }> }> } }> }> };
+      for (const entry of root.entry ?? []) {
+        for (const change of entry.changes ?? []) {
+          for (const st of change.value?.statuses ?? []) {
+            if (st.status === "failed") {
+              logger.warn("meta-canary: outbound delivery FAILED", {
+                errors: (st.errors ?? []).map((e) => ({ code: e.code, title: e.title, details: e.error_data?.details })),
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      /* diagnostic only */
+    }
+
     const records = extractCanaryInboundRecords(payload, sha256Hex);
     if (records.length > 0) {
       const db = getCanaryFirestore(boundary.projectId);
@@ -154,6 +205,29 @@ export const metaCanaryWebhook = onRequest(
         );
       }
       await batch.commit();
+
+      // Optional governed auto-reply: within the open 24h service window,
+      // acknowledge each distinct human sender exactly once per webhook.
+      if (process.env.HEMAS_META_AUTO_REPLY_ENABLED === "true") {
+        const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
+        const token = metaAccessToken.value();
+        if (/^\d{5,32}$/.test(phoneNumberId) && token) {
+          const repliedTo = new Set<string>();
+          for (const record of records) {
+            if (record.kind !== "message" || !record.fromNumber) continue;
+            if (repliedTo.has(record.fromNumber)) continue;
+            repliedTo.add(record.fromNumber);
+            try {
+              await sendAutoReply(record.fromNumber, phoneNumberId, token);
+            } catch (error) {
+              logger.warn("meta-canary: auto-reply failed", {
+                reason: error instanceof Error ? error.message : "unknown",
+              });
+            }
+          }
+        }
+      }
+
       logger.info("meta-canary: stored content-free inbound records", {
         count: records.length,
         kinds: records.map((record) => record.kind),
