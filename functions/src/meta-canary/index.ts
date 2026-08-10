@@ -23,6 +23,13 @@ import {
   verifyMetaSignature,
   verifyMetaWebhookChallenge,
 } from "./contracts.js";
+import { runBotEngine, type BotInbound } from "../meta-bot/engine.js";
+import {
+  bridgeToInbox,
+  loadBotSession,
+  saveBooking,
+  saveBotSession,
+} from "../meta-bot/bridge.js";
 
 /**
  * Governed Meta WhatsApp CANARY lane.
@@ -78,6 +85,77 @@ function graphVersion(): string {
 
 const AUTO_REPLY_TEXT =
   "✅ Hemas Connect received your message. This is a synthetic SafeNet demo — a care-team agent reviews and responds through the governed portal. No real patient data is processed here.";
+
+type RawBotMessage = {
+  readonly waId: string;
+  readonly waMessageId: string;
+  readonly messageType: string;
+  readonly inbound: Omit<BotInbound, "nowMs">;
+};
+
+/** Extract bot-relevant inbound messages (text + interactive selections). */
+function extractBotMessages(payload: unknown): RawBotMessage[] {
+  const out: RawBotMessage[] = [];
+  const root = payload as {
+    entry?: Array<{ changes?: Array<{ field?: string; value?: { messages?: Array<Record<string, unknown>> } }> }>;
+  };
+  for (const entry of root.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "messages") continue;
+      for (const message of change.value?.messages ?? []) {
+        const waId = typeof message.from === "string" ? message.from.replace(/\D/g, "") : "";
+        const waMessageId = typeof message.id === "string" ? message.id : "";
+        if (!waId || !waMessageId) continue;
+        const type = typeof message.type === "string" ? message.type : "unknown";
+        let selectionId = "";
+        let text = "";
+        if (type === "interactive") {
+          const interactive = message.interactive as
+            | { button_reply?: { id?: string }; list_reply?: { id?: string } }
+            | undefined;
+          selectionId = interactive?.button_reply?.id ?? interactive?.list_reply?.id ?? "";
+        } else if (type === "text") {
+          const body = (message.text as { body?: string } | undefined)?.body;
+          text = typeof body === "string" ? body.slice(0, 512) : "";
+        }
+        out.push({
+          waId,
+          waMessageId,
+          messageType: type,
+          inbound: selectionId
+            ? { kind: "selection", selectionId, text: "" }
+            : { kind: "text", selectionId: "", text },
+        });
+      }
+    }
+  }
+  return out;
+}
+
+async function sendGraphMessage(
+  phoneNumberId: string,
+  token: string,
+  to: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const url = `https://graph.facebook.com/${graphVersion()}/${phoneNumberId}/messages`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      ...body,
+    }),
+  });
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => null)) as
+      | { error?: { code?: number; message?: string } }
+      | null;
+    throw new Error(`graph ${response.status}${detail?.error?.code ? ` code ${detail.error.code}` : ""}`);
+  }
+}
 
 async function sendAutoReply(
   toNumber: string,
@@ -206,9 +284,56 @@ export const metaCanaryWebhook = onRequest(
       }
       await batch.commit();
 
-      // Optional governed auto-reply: within the open 24h service window,
-      // acknowledge each distinct human sender exactly once per webhook.
-      if (process.env.HEMAS_META_AUTO_REPLY_ENABLED === "true") {
+      // Governed trilingual menu BOT: selections-only conversation flows with
+      // live inbox mirroring. Takes precedence over the flat auto-reply.
+      if (process.env.HEMAS_META_BOT_ENABLED === "true") {
+        const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
+        const token = metaAccessToken.value();
+        if (/^\d{5,32}$/.test(phoneNumberId) && token) {
+          for (const raw of extractBotMessages(payload)) {
+            try {
+              const session = await loadBotSession(db, raw.waId);
+              const result = runBotEngine(session, { ...raw.inbound, nowMs: Date.now() });
+              for (const reply of result.replies) {
+                await sendGraphMessage(phoneNumberId, token, raw.waId, reply);
+              }
+              await saveBotSession(db, raw.waId, result.session);
+              if (result.booking) {
+                await saveBooking(db, raw.waId, result.booking).catch(() => undefined);
+              }
+              const bridgeBase = {
+                language: result.session.language,
+                purpose: result.purpose,
+                staffHandoff: result.staffHandoff,
+                last4: raw.waId.slice(-4),
+              } as const;
+              await bridgeToInbox(db, raw.waId, {
+                ...bridgeBase,
+                direction: "inbound",
+                waMessageId: raw.waMessageId,
+                messageType: raw.messageType,
+              });
+              await bridgeToInbox(db, raw.waId, {
+                ...bridgeBase,
+                direction: "outbound",
+                waMessageId: `${raw.waMessageId}:reply`,
+                messageType: typeof result.replies[0]?.type === "string" ? String(result.replies[0].type) : "text",
+              });
+              logger.info("meta-bot: handled inbound", {
+                kind: raw.inbound.kind,
+                state: result.session.state,
+                language: result.session.language,
+                replies: result.replies.length,
+                booked: Boolean(result.booking),
+              });
+            } catch (error) {
+              logger.warn("meta-bot: handling failed", {
+                reason: error instanceof Error ? error.message : "unknown",
+              });
+            }
+          }
+        }
+      } else if (process.env.HEMAS_META_AUTO_REPLY_ENABLED === "true") {
         const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
         const token = metaAccessToken.value();
         if (/^\d{5,32}$/.test(phoneNumberId) && token) {
