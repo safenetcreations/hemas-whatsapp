@@ -148,3 +148,12 @@ test("rolling calendar offers 9 real dates and skips Sundays", () => {
   assert.ok(si[0]!.title.startsWith("අද"), si[0]!.title);
   assert.ok(formatDateLabel("2026-08-12", "ta").includes("ஆக"));
 });
+
+test("welcome image precedes the language menu when configured", () => {
+  const r = runBotEngine(FRESH_BOT_SESSION, text("hi"), { welcomeMediaId: "12345" });
+  assert.equal((r.replies[0] as any).type, "image");
+  assert.equal((r.replies[0] as any).image.id, "12345");
+  assert.equal((r.replies[1] as any).interactive.type, "button");
+  const noImage = runBotEngine(FRESH_BOT_SESSION, text("hi"));
+  assert.equal((noImage.replies[0] as any).interactive.type, "button");
+});

@@ -293,7 +293,9 @@ export const metaCanaryWebhook = onRequest(
           for (const raw of extractBotMessages(payload)) {
             try {
               const session = await loadBotSession(db, raw.waId);
-              const result = runBotEngine(session, { ...raw.inbound, nowMs: Date.now() });
+              const result = runBotEngine(session, { ...raw.inbound, nowMs: Date.now() }, {
+                welcomeMediaId: process.env.HEMAS_META_WELCOME_MEDIA_ID?.trim() || null,
+              });
               for (const reply of result.replies) {
                 await sendGraphMessage(phoneNumberId, token, raw.waId, reply);
               }

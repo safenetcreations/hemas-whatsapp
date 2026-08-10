@@ -342,7 +342,19 @@ export function makeBookingReference(seed: string): string {
 // The engine
 // ---------------------------------------------------------------------------
 
-export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResult {
+export interface BotConfig {
+  readonly welcomeMediaId?: string | null;
+}
+
+function imageMessage(mediaId: string, caption: string): Record<string, unknown> {
+  return { type: "image", image: { id: mediaId, caption } };
+}
+
+export function runBotEngine(
+  previous: BotSession,
+  inbound: BotInbound,
+  config: BotConfig = {},
+): BotResult {
   const stale = inbound.nowMs - previous.updatedAtMs > BOT_SESSION_TTL_MS;
   const session: BotSession = stale ? FRESH_BOT_SESSION : previous;
   const sel = inbound.kind === "selection" ? inbound.selectionId : "";
@@ -370,10 +382,13 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
 
   if (!session.language) {
     const detected = text ? detectScriptLanguage(text) : null;
+    const welcome = config.welcomeMediaId
+      ? [imageMessage(config.welcomeMediaId, "Hemas Connect · Governed WhatsApp care (SafeNet demo)")]
+      : [];
     if (detected) {
-      return done(mainMenu(detected), { language: detected, state: "menu" });
+      return done([...welcome, ...mainMenu(detected)], { language: detected, state: "menu" });
     }
-    return done(languageMenu(), { state: "language" });
+    return done([...welcome, ...languageMenu()], { state: "language" });
   }
 
   const lang = session.language;
