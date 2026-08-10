@@ -111,6 +111,16 @@ const T = {
     ],
   },
   deptHeader: { en: "Choose a department", si: "අංශයක් තෝරන්න", ta: "பிரிவைத் தேர்ந்தெடுக்கவும்" },
+  deptBody: {
+    en: "Which department do you need? Pick from the list:",
+    si: "ඔබට අවශ්‍ය අංශය කුමක්ද? ලැයිස්තුවෙන් තෝරන්න:",
+    ta: "உங்களுக்கு எந்தப் பிரிவு தேவை? பட்டியலில் இருந்து தேர்வு செய்யவும்:",
+  },
+  dayBody: {
+    en: "Which day suits you best?",
+    si: "ඔබට වඩාත් සුදුසු දිනය කුමක්ද?",
+    ta: "உங்களுக்கு எந்த நாள் வசதியாக இருக்கும்?",
+  },
   deptRows: {
     en: [
       { id: "dept_general", title: "General Medicine", description: "Consultations and check-ups" },
@@ -253,7 +263,9 @@ export function detectScriptLanguage(text: string): BotLanguage | null {
   return null;
 }
 
-const MENU_KEYWORDS = /^(menu|start|hi|hello|hey|ayubowan|vanakkam|මෙනුව|ආයුබෝවන්|வணக்கம்|பட்டியல்)\b/i;
+const MENU_KEYWORDS_LATIN = /^(menu|start|hi|hello|hey|ayubowan|vanakkam)\b/i;
+const MENU_KEYWORDS_NATIVE = /^(මෙනුව|ආයුබෝවන්|வணக்கம்|பட்டியல்)/;
+const isMenuKeyword = (t: string) => MENU_KEYWORDS_LATIN.test(t) || MENU_KEYWORDS_NATIVE.test(t);
 const BOOK_KEYWORDS = /(book|appoint|channel|වෙන්|හමුවීම|சந்திப்பு|பதிவு)/i;
 const LAB_KEYWORDS = /(lab|result|report|රසායනාගාර|ප්‍රතිඵල|ஆய்வக|முடிவு)/i;
 
@@ -321,7 +333,7 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
   }
   if (sel === "menu_appointment") {
     return done(
-      [listMessage(T.deptHeader[lang], T.menuBody[lang].split("\n")[0] ?? T.deptHeader[lang], T.menuButton[lang], T.deptRows[lang])],
+      [listMessage(T.deptHeader[lang], T.deptBody[lang], T.menuButton[lang], T.deptRows[lang])],
       { state: "book_department", departmentId: null, dayId: null },
       { purpose: "appointment" },
     );
@@ -339,7 +351,7 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
   // --- booking flow ----------------------------------------------------------
   if (sel.startsWith("dept_")) {
     return done(
-      [listMessage(T.dayHeader[lang], T.dayHeader[lang], T.menuButton[lang], T.dayRows[lang])],
+      [listMessage(T.dayHeader[lang], T.dayBody[lang], T.menuButton[lang], T.dayRows[lang])],
       { state: "book_day", departmentId: sel },
       { purpose: "appointment" },
     );
@@ -373,12 +385,12 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
   if (text) {
     const switched = detectScriptLanguage(text);
     const effective = switched ?? lang;
-    if (MENU_KEYWORDS.test(text)) {
+    if (isMenuKeyword(text)) {
       return done(mainMenu(effective), { language: effective, state: "menu" });
     }
     if (BOOK_KEYWORDS.test(text)) {
       return done(
-        [listMessage(T.deptHeader[effective], T.deptHeader[effective], T.menuButton[effective], T.deptRows[effective])],
+        [listMessage(T.deptHeader[effective], T.deptBody[effective], T.menuButton[effective], T.deptRows[effective])],
         { language: effective, state: "book_department", departmentId: null, dayId: null },
         { purpose: "appointment" },
       );
@@ -388,6 +400,10 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
     }
   }
 
-  // --- fallback: nudge back to the menu ---------------------------------------
-  return done([textMessage(T.fallback[lang]), ...mainMenu(lang)], { state: "menu" });
+  // --- fallback: nudge back to the menu (in the freshest language) ------------
+  const fallbackLang = (text ? detectScriptLanguage(text) : null) ?? lang;
+  return done([textMessage(T.fallback[fallbackLang]), ...mainMenu(fallbackLang)], {
+    language: fallbackLang,
+    state: "menu",
+  });
 }

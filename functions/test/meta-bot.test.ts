@@ -117,3 +117,18 @@ test("booking references are stable per seed", () => {
   assert.equal(makeBookingReference("a:b:c:1"), makeBookingReference("a:b:c:1"));
   assert.notEqual(makeBookingReference("a:b:c:1"), makeBookingReference("a:b:c:2"));
 });
+
+test("native-script greeting mid-session switches the language", () => {
+  const sinhalaSession = { language: "si" as const, state: "book_day" as const, departmentId: "dept_general", dayId: null, updatedAtMs: NOW - 1000 };
+  const r = runBotEngine(sinhalaSession, text("வணக்கம்"));
+  assert.equal(r.session.language, "ta", "should switch to Tamil");
+  const rows = (r.replies[0] as any).interactive.action.sections[0].rows;
+  assert.equal(rows[0].title, "சந்திப்பு பதிவு");
+});
+
+test("unknown native-script text answers in that script", () => {
+  const r = runBotEngine(english, text("මට උදව්වක් ඕන"));
+  const body = (r.replies[0] as any).text.body as string;
+  assert.ok(body.includes("කරුණාකර"), body);
+  assert.equal(r.session.language, "si");
+});
