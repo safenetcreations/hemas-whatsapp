@@ -141,33 +141,25 @@ const T = {
       { id: "dept_cardiology", title: "இதயவியல்", description: "இதய ஆரோக்கியம்" },
     ],
   },
-  dayHeader: { en: "Choose a day", si: "දිනයක් තෝරන්න", ta: "நாளைத் தேர்ந்தெடுக்கவும்" },
-  dayRows: {
-    en: [
-      { id: "day_today", title: "Today" },
-      { id: "day_tomorrow", title: "Tomorrow" },
-      { id: "day_after", title: "Day after tomorrow" },
-    ],
-    si: [
-      { id: "day_today", title: "අද" },
-      { id: "day_tomorrow", title: "හෙට" },
-      { id: "day_after", title: "අනිද්දා" },
-    ],
-    ta: [
-      { id: "day_today", title: "இன்று" },
-      { id: "day_tomorrow", title: "நாளை" },
-      { id: "day_after", title: "நாளை மறுநாள்" },
-    ],
+  dayHeader: { en: "Choose a date", si: "දිනය තෝරන්න", ta: "தேதியைத் தேர்ந்தெடுக்கவும்" },
+  slotHeader: {
+    en: "Choose a time",
+    si: "වේලාව තෝරන්න",
+    ta: "நேரத்தைத் தேர்ந்தெடுக்கவும்",
   },
   slotBody: {
-    en: "Choose a time slot:",
-    si: "වේලාවක් තෝරන්න:",
-    ta: "நேரத்தைத் தேர்ந்தெடுக்கவும்:",
+    en: "Available times (Mon–Sat clinic hours):",
+    si: "ලබාගත හැකි වේලාවන් (සඳු–සෙන):",
+    ta: "கிடைக்கும் நேரங்கள் (திங்கள்–சனி):",
   },
   slots: [
     { id: "slot_0900", title: "9.00 AM" },
+    { id: "slot_1030", title: "10.30 AM" },
+    { id: "slot_1200", title: "12.00 PM" },
     { id: "slot_1400", title: "2.00 PM" },
-    { id: "slot_1730", title: "5.30 PM" },
+    { id: "slot_1530", title: "3.30 PM" },
+    { id: "slot_1700", title: "5.00 PM" },
+    { id: "slot_1830", title: "6.30 PM" },
   ],
   confirm: {
     en: (d: string, day: string, s: string, ref: string) =>
@@ -198,6 +190,65 @@ const T = {
     ta: "கீழேயுள்ள பட்டியலில் இருந்து ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும் 👇",
   },
 } as const;
+
+// ---------------------------------------------------------------------------
+// Rolling calendar (Asia/Colombo, Mon–Sat) — pure functions of nowMs
+// ---------------------------------------------------------------------------
+
+const COLOMBO_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+const WEEKDAYS = {
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  si: ["ඉරිදා", "සඳුදා", "අඟහ", "බදාදා", "බ්‍රහස්", "සිකුරාදා", "සෙනසුරාදා"],
+  ta: ["ஞாயிறு", "திங்கள்", "செவ்வாய்", "புதன்", "வியாழன்", "வெள்ளி", "சனி"],
+} as const;
+
+const MONTHS = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  si: ["ජන", "පෙබ", "මාර්තු", "අප්‍රේල්", "මැයි", "ජූනි", "ජූලි", "අගෝස්තු", "සැප්", "ඔක්", "නොවැ", "දෙසැ"],
+  ta: ["ஜன", "பிப்", "மார்", "ஏப்", "மே", "ஜூன்", "ஜூலை", "ஆக", "செப்", "அக்", "நவ", "டிச"],
+} as const;
+
+const RELATIVE_DAY = {
+  en: ["Today", "Tomorrow"],
+  si: ["අද", "හෙට"],
+  ta: ["இன்று", "நாளை"],
+} as const;
+
+function colomboDate(nowMs: number, addDays: number): Date {
+  return new Date(nowMs + COLOMBO_OFFSET_MS + addDays * 24 * 60 * 60 * 1000);
+}
+
+function isoOf(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function formatDateLabel(iso: string, lang: BotLanguage): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, d ?? 1));
+  return `${WEEKDAYS[lang][date.getUTCDay()]} · ${date.getUTCDate()} ${MONTHS[lang][date.getUTCMonth()]}`;
+}
+
+/** Next 9 clinic days (Mon–Sat, Sundays skipped) as list rows with real dates. */
+export function buildDayRows(
+  nowMs: number,
+  lang: BotLanguage,
+): { id: string; title: string; description?: string }[] {
+  const rows: { id: string; title: string; description?: string }[] = [];
+  for (let offset = 0; rows.length < 9 && offset < 14; offset++) {
+    const date = colomboDate(nowMs, offset);
+    if (date.getUTCDay() === 0) continue; // clinics closed Sunday
+    const iso = isoOf(date);
+    const dateLabel = formatDateLabel(iso, lang);
+    const relative = offset < 2 ? RELATIVE_DAY[lang][offset] : null;
+    rows.push({
+      id: `day_${iso}`,
+      title: relative ? `${relative} · ${date.getUTCDate()} ${MONTHS[lang][date.getUTCMonth()]}` : dateLabel,
+      ...(relative ? { description: dateLabel } : {}),
+    });
+  }
+  return rows;
+}
 
 // ---------------------------------------------------------------------------
 // WhatsApp payload builders (bodies only — the sender adds `to`)
@@ -351,14 +402,14 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
   // --- booking flow ----------------------------------------------------------
   if (sel.startsWith("dept_")) {
     return done(
-      [listMessage(T.dayHeader[lang], T.dayBody[lang], T.menuButton[lang], T.dayRows[lang])],
+      [listMessage(T.dayHeader[lang], T.dayBody[lang], T.menuButton[lang], buildDayRows(inbound.nowMs, lang))],
       { state: "book_day", departmentId: sel },
       { purpose: "appointment" },
     );
   }
   if (sel.startsWith("day_") && session.departmentId) {
     return done(
-      [buttonMessage(T.slotBody[lang], T.slots)],
+      [listMessage(T.slotHeader[lang], T.slotBody[lang], T.menuButton[lang], T.slots)],
       { state: "book_slot", dayId: sel },
       { purpose: "appointment" },
     );
@@ -368,7 +419,7 @@ export function runBotEngine(previous: BotSession, inbound: BotInbound): BotResu
       departmentId: session.departmentId,
       departmentLabel: label(T.deptRows[lang], session.departmentId),
       dayId: session.dayId,
-      dayLabel: label(T.dayRows[lang], session.dayId),
+      dayLabel: formatDateLabel(session.dayId.replace(/^day_/, ""), lang),
       slotId: sel,
       slotLabel: label(T.slots, sel),
       language: lang,

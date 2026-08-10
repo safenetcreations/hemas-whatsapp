@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BOT_SESSION_TTL_MS,
+  buildDayRows,
+  formatDateLabel,
   FRESH_BOT_SESSION,
   detectScriptLanguage,
   makeBookingReference,
@@ -60,13 +62,14 @@ test("full booking path produces a selections-only booking", () => {
   assert.equal(r.session.state, "book_day");
   assert.equal(r.session.departmentId, "dept_dental");
 
-  r = runBotEngine(r.session, pick("day_tomorrow"));
+  r = runBotEngine(r.session, pick("day_2026-08-12"));
   assert.equal(r.session.state, "book_slot");
 
   r = runBotEngine(r.session, pick("slot_1400"));
   assert.ok(r.booking, "booking expected");
   assert.equal(r.booking?.departmentId, "dept_dental");
-  assert.equal(r.booking?.dayId, "day_tomorrow");
+  assert.equal(r.booking?.dayId, "day_2026-08-12");
+  assert.ok((r.replies[0] as any).text.body.includes("12 Aug"), "confirmation shows real date");
   assert.equal(r.booking?.slotId, "slot_1400");
   assert.match(r.booking?.reference ?? "", /^HC-\d{5}$/);
   assert.equal(r.purpose, "appointment");
@@ -80,7 +83,7 @@ test("sinhala and tamil booking confirmations render in-language", () => {
     let r = runBotEngine(FRESH_BOT_SESSION, pick(langBtn));
     r = runBotEngine(r.session, pick("menu_appointment"));
     r = runBotEngine(r.session, pick("dept_general"));
-    r = runBotEngine(r.session, pick("day_today"));
+    r = runBotEngine(r.session, pick("day_2026-08-15"));
     r = runBotEngine(r.session, pick("slot_0900"));
     const body = (r.replies[0] as any).text.body as string;
     assert.ok(body.includes(marker), `expected ${marker} in ${body.slice(0, 60)}`);
@@ -131,4 +134,17 @@ test("unknown native-script text answers in that script", () => {
   const body = (r.replies[0] as any).text.body as string;
   assert.ok(body.includes("කරුණාකර"), body);
   assert.equal(r.session.language, "si");
+});
+
+
+test("rolling calendar offers 9 real dates and skips Sundays", () => {
+  const rows = buildDayRows(NOW, "en");
+  assert.equal(rows.length, 9);
+  for (const row of rows) {
+    assert.match(row.id, /^day_\d{4}-\d{2}-\d{2}$/);
+    assert.ok(!row.title.includes("Sun"), `Sunday offered: ${row.title}`);
+  }
+  const si = buildDayRows(NOW, "si");
+  assert.ok(si[0]!.title.startsWith("අද"), si[0]!.title);
+  assert.ok(formatDateLabel("2026-08-12", "ta").includes("ஆக"));
 });
