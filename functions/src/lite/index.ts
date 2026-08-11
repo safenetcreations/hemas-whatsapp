@@ -522,6 +522,7 @@ type LiteCampaignInput = {
   readonly name?: string;
   readonly templateName?: string;
   readonly languageCode?: string;
+  readonly recipients?: readonly string[];
 };
 
 export const liteSendCampaign = onCall(
@@ -545,9 +546,19 @@ export const liteSendCampaign = onCall(
         META_CANARY_DEFAULT_TEMPLATE,
         META_CANARY_DEFAULT_LANGUAGE,
       );
-      const audience = parseRecipientAllowlist(process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS);
+      let audience = parseRecipientAllowlist(process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS);
+      const requested = Array.isArray(request.data?.recipients)
+        ? request.data.recipients.map((r) => String(r).replace(/\D/g, "")).filter(Boolean)
+        : [];
+      if (requested.length > 0) {
+        const wanted = new Set(requested);
+        audience = audience.filter((a) => wanted.has(a.replace(/\D/g, "")));
+      }
       if (audience.length === 0) {
-        throw new LiteCampaignError("empty_audience", "The canary allowlist is empty.");
+        throw new LiteCampaignError(
+          "empty_audience",
+          "No selected contacts are on the governed allowlist.",
+        );
       }
       const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
       if (!/^\d{5,32}$/.test(phoneNumberId)) {

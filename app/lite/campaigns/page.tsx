@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
+import { DEMO_KNOWN_VISITORS } from "@/components/lite/lite-config";
 import {
   liteLaunchCampaign,
   useLiteCampaignSends,
   useLiteCampaigns,
 } from "@/components/lite/lite-data";
+
+const AUDIENCE = Object.values(DEMO_KNOWN_VISITORS).map((label) => ({
+  label,
+  digits: (label.split("\u00b7")[0] ?? "").replace(/\D/g, ""),
+}));
 
 const TEMPLATES = [
   { value: "hemas_canary_hello", label: "hemas_canary_hello · text (en_US)" },
@@ -46,6 +52,7 @@ export default function LiteCampaignsPage() {
 
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<string>(TEMPLATES[0].value);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set(AUDIENCE.map((a) => a.digits)));
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -55,7 +62,7 @@ export default function LiteCampaignsPage() {
     setPending(true);
     setNotice(null);
     try {
-      const result = await liteLaunchCampaign(name.trim(), template);
+      const result = await liteLaunchCampaign(name.trim(), template, [...picked]);
       setNotice(
         `Campaign dispatched ✓ — ${result.sent} sent, ${result.failed} failed, audience ${result.audience} (governed allowlist).`,
       );
@@ -101,15 +108,44 @@ export default function LiteCampaignsPage() {
           </select>
           <button
             type="button"
-            disabled={pending || !canLaunch || name.trim().length < 3}
+            disabled={pending || !canLaunch || name.trim().length < 3 || picked.size === 0}
             onClick={() => void launch()}
             className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
           >
             {pending ? "Sending…" : "Send campaign"}
           </button>
         </div>
+        <div className="mt-3">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Audience — pick contacts ({picked.size} selected)
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {AUDIENCE.map((a) => {
+              const on = picked.has(a.digits);
+              return (
+                <button
+                  key={a.digits}
+                  type="button"
+                  onClick={() => {
+                    const next = new Set(picked);
+                    if (on) next.delete(a.digits); else next.add(a.digits);
+                    setPicked(next);
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    on
+                      ? "bg-emerald-600 text-white"
+                      : "border border-slate-200 text-slate-500 hover:bg-emerald-50"
+                  }`}
+                >
+                  {on ? "\u2713 " : ""}{a.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <p className="mt-2 text-[11px] text-slate-400">
-          Audience: every number on the canary allowlist (max 5). Approved templates only — that
+          Contacts come from the governed test allowlist (max 5) — in the pilot this becomes
+          segments (language, tags, visit history). Approved templates only — that
           is Meta&apos;s rule for business-initiated messages.{" "}
           {!canLaunch ? "Broadcasts need the Supervisor seat — agents handle chats." : ""}
         </p>

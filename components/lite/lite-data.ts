@@ -718,8 +718,13 @@ export interface LiteCampaignLaunchResult {
 export async function liteLaunchCampaign(
   name: string,
   templateName?: string,
+  recipients?: readonly string[],
 ): Promise<LiteCampaignLaunchResult> {
   const callable = httpsCallable(liteFunctions(), "liteSendCampaign", { timeout: 110_000 });
-  const result = await callable({ name, ...(templateName ? { templateName } : {}) });
+  const result = await callable({
+    name,
+    ...(templateName ? { templateName } : {}),
+    ...(recipients && recipients.length > 0 ? { recipients } : {}),
+  });
   return result.data as LiteCampaignLaunchResult;
 }
