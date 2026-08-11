@@ -71,16 +71,14 @@ export function resolveKnownVisitor(maskedLabel: string): string | null {
 /** Indicative Lite plan card (demo values — Phase 5 packaging finalizes). */
 export const LITE_PLAN = {
   name: "Lite",
-  setup: "LKR 150,000 (demo figure)",
-  monthly: "LKR 45,000 / month (demo figure)",
   rows: [
     ["WhatsApp numbers", "1"],
     ["Agent portals", "3 seats"],
     ["AI chatbot", "Included · 3 languages"],
     ["Appointment booking", "Included"],
     ["Contacts", "5,000"],
-    ["Bulk campaigns", "8 / month (Phase 3)"],
-    ["API requests", "10,000 / month (Phase 4 metering)"],
+    ["Bulk campaigns", "8 / month"],
+    ["API requests", "10,000 / month"],
     ["Channels", "WhatsApp"],
     ["Support", "Local · EN / සිංහල / தமிழ்"],
   ],

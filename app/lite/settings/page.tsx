@@ -34,20 +34,18 @@ export default function LiteSettingsPage() {
       <section>
         <h1 className="text-xl font-semibold text-slate-900">Plan & seats</h1>
         <p className="mt-1 text-sm text-slate-500">
-          The Lite plan in one card — what the simple product includes, with demo figures.
+          What is included in the Hemas Lite package.
         </p>
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Hemas Lite plan</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Hemas Lite — what&apos;s included</h2>
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
-              Demo pricing
+              Package
             </span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-blue-700">{LITE_PLAN.monthly}</p>
-          <p className="text-xs text-slate-400">Setup {LITE_PLAN.setup}</p>
           <table className="mt-4 w-full text-sm">
             <tbody>
               {LITE_PLAN.rows.map(([feature, value]) => (
