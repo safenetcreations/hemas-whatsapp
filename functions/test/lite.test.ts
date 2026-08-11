@@ -79,3 +79,11 @@ test("claim actions are strictly claim or release", () => {
   assert.throws(() => assertLiteAction("assign"), LiteError);
   assert.throws(() => assertLiteAction(null), LiteError);
 });
+
+test("metrics day ids roll on Colombo local days", async () => {
+  const { metricsDayId } = await import("../src/lite/metrics.js");
+  // 2026-08-10T21:33:20Z is already 2026-08-11 03:03 in Colombo (+05:30).
+  assert.equal(metricsDayId(1_786_400_000_000), "daily_2026-08-11");
+  // 2026-08-10T18:00:00Z is 2026-08-10 23:30 in Colombo — still the 10th.
+  assert.equal(metricsDayId(Date.UTC(2026, 7, 10, 18, 0, 0)), "daily_2026-08-10");
+});

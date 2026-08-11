@@ -41,6 +41,7 @@ import {
   liveConversationKey,
   resolveAllowlistedWaId,
 } from "./contracts.js";
+import { bumpDailyMetrics } from "./metrics.js";
 
 const SYNTHETIC_DEMO_EMAIL = "demo.admin@synthetic.invalid";
 const LITE_ROLES = ["agent", "supervisor", "tenant_admin"] as const;
@@ -338,6 +339,7 @@ export const liteSendAgentReply = onCall(
         length: text.length,
         hasProviderId: Boolean(providerMessageId),
       });
+      void bumpDailyMetrics(db, LITE_WORKSPACE_ID, Date.now(), { agentReplies: 1 });
       return { sent: true, conversationId, providerMessageId };
     } catch (error) {
       mapLiteError(error);

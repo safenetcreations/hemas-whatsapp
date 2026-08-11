@@ -29,11 +29,13 @@ import {
 import { runBotEngine, type BotInbound } from "../meta-bot/engine.js";
 import { aiReplyMessage, answerWithGuardrails } from "../meta-bot/ai.js";
 import {
+  BRIDGE_WORKSPACE_ID,
   bridgeToInbox,
   loadBotSession,
   saveBooking,
   saveBotSession,
 } from "../meta-bot/bridge.js";
+import { bumpDailyMetrics } from "../lite/metrics.js";
 
 /**
  * Governed Meta WhatsApp CANARY lane.
@@ -232,6 +234,7 @@ export const metaCanaryWebhook = onRequest(
               // answer replaces the fallback nudge; any AI failure keeps the
               // original menu replies. Text stays in memory only.
               let replies: readonly Record<string, unknown>[] = result.replies;
+              let aiAnswered: boolean | null = null;
               if (result.aiQuery && process.env.HEMAS_META_AI_ENABLED === "true") {
                 let aiKey = "";
                 try {
@@ -245,6 +248,7 @@ export const metaCanaryWebhook = onRequest(
                     { text: result.aiQuery, language: result.session.language ?? "en" },
                     { apiKey: aiKey, ...(aiModel ? { model: aiModel } : {}) },
                   );
+                  aiAnswered = Boolean(ai.answer);
                   if (ai.answer) {
                     replies = [aiReplyMessage(ai.answer, result.session.language ?? "en")];
                   }
@@ -288,6 +292,13 @@ export const metaCanaryWebhook = onRequest(
                 replies: replies.length,
                 booked: Boolean(result.booking),
               });
+              void bumpDailyMetrics(db, BRIDGE_WORKSPACE_ID, Date.now(), {
+                botReplies: replies.length,
+                bookings: result.booking ? 1 : 0,
+                staffHandoffs: result.staffHandoff ? 1 : 0,
+                aiAnswers: aiAnswered === true ? 1 : 0,
+                aiFailures: aiAnswered === false ? 1 : 0,
+              });
             } catch (error) {
               logger.warn("meta-bot: handling failed", {
                 reason: error instanceof Error ? error.message : "unknown",
@@ -318,6 +329,9 @@ export const metaCanaryWebhook = onRequest(
       logger.info("meta-canary: stored content-free inbound records", {
         count: records.length,
         kinds: records.map((record) => record.kind),
+      });
+      void bumpDailyMetrics(db, BRIDGE_WORKSPACE_ID, Date.now(), {
+        inboundMessages: records.filter((record) => record.kind === "message").length,
       });
     }
     response.status(200).json({ received: true, stored: records.length });
