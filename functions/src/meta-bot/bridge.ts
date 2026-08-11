@@ -64,7 +64,12 @@ export async function saveBooking(
   waId: string,
   booking: BotBooking,
 ): Promise<void> {
-  const { key, conversationId } = liveIds(waId);
+  const { key, contactId, conversationId } = liveIds(waId);
+  await db
+    .collection("workspaces").doc(BRIDGE_WORKSPACE_ID)
+    .collection("contacts").doc(contactId)
+    .set({ tags: FieldValue.arrayUnion("crm_booked") }, { merge: true })
+    .catch(() => undefined);
   await db
     .collection("workspaces").doc(BRIDGE_WORKSPACE_ID)
     .collection(BOOKINGS).doc(`${booking.reference}-${key}`)
@@ -129,7 +134,13 @@ export async function bridgeToInbox(
       preferredLanguage: language,
       alternateLanguages: [],
       suppression: { status: "none", reasons: [], updatedAt: now },
-      tags: ["live_canary", "menu_bot"],
+      // CRM auto-capture via tags (schema-safe): stage tags accumulate and
+      // the client derives the highest stage (booked > needs_human > engaged).
+      tags: FieldValue.arrayUnion(
+        "live_canary",
+        "menu_bot",
+        input.staffHandoff ? "crm_needs_human" : "crm_engaged",
+      ),
       preferenceRevision: 0,
       synthetic: true,
       liveCanary: true,

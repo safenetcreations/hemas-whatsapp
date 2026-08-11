@@ -20,12 +20,33 @@ export default function LiteContactsPage() {
     <div className="space-y-4">
       <section className="flex flex-wrap items-end gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Contacts</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Contacts · CRM</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Every visitor who has spoken with the line — message bodies are never stored.
+            Every WhatsApp visitor is captured automatically as a lead — stage updates itself
+            (engaged → booked → needs human). Message bodies are never stored.
           </p>
         </div>
         <div className="ml-auto flex gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              const rows = contacts.rows.map((c) => [
+                (c.liveCanary ? resolveKnownVisitor(c.displayLabel) : null) ?? c.displayLabel,
+                c.crmStage,
+                c.preferredLanguage,
+                c.liveCanary ? "live" : "simulated",
+                c.tags.join("|"),
+              ]);
+              const csv = ["name,stage,language,source,tags", ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+              a.download = "hemas-lite-crm-export.csv";
+              a.click();
+            }}
+            className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4]"
+          >
+            ⬇ Export CSV (CRM)
+          </button>
           <button
             type="button"
             onClick={() => setScope("live")}
@@ -73,11 +94,24 @@ export default function LiteContactsPage() {
                   {contact.liveCanary ? "Real WhatsApp visitor" : contact.maskedPhone}
                 </p>
               </div>
-              {contact.liveCanary ? (
-                <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700">
-                  Live
+              <span className="ml-auto flex flex-col items-end gap-1">
+                {contact.liveCanary ? (
+                  <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700">
+                    Live
+                  </span>
+                ) : null}
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                    contact.crmStage === "booked"
+                      ? "bg-[#1863DC] text-white"
+                      : contact.crmStage === "needs_human"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {contact.crmStage.replace("_", " ")}
                 </span>
-              ) : null}
+              </span>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">

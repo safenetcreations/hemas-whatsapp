@@ -60,6 +60,7 @@ export interface LiteMessage {
 
 export interface LiteContact {
   readonly id: string;
+  readonly crmStage: string;
   readonly displayLabel: string;
   readonly maskedPhone: string;
   readonly preferredLanguage: string;
@@ -287,6 +288,12 @@ export function useLiteContacts(
               ? data.tags.filter((tag): tag is string => typeof tag === "string")
               : [],
             liveCanary: data.liveCanary === true,
+            crmStage: (() => {
+              const tags: unknown[] = Array.isArray(data.tags) ? data.tags : [];
+              if (tags.includes("crm_booked")) return "booked";
+              if (tags.includes("crm_needs_human")) return "needs_human";
+              return "engaged";
+            })(),
           } satisfies LiteContact;
         });
         setState({ rows, loading: false, error: null });
