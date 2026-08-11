@@ -588,11 +588,23 @@ export const liteSendCampaign = onCall(
         let providerMessageId: string | null = null;
         let errorCode: string | null = null;
         try {
+          const welcomeMediaId = process.env.HEMAS_META_WELCOME_MEDIA_ID?.trim() ?? "";
           const result = await sendGraphMessage(phoneNumberId, token, digits, {
             type: "template",
             template: {
               name: template.templateName,
               language: { code: template.languageCode },
+              // IMAGE-header templates need the media parameter at send time.
+              ...(template.templateName === "hemas_welcome_visual" && welcomeMediaId
+                ? {
+                    components: [
+                      {
+                        type: "header",
+                        parameters: [{ type: "image", image: { id: welcomeMediaId } }],
+                      },
+                    ],
+                  }
+                : {}),
             },
           });
           providerMessageId = result.providerMessageId;
