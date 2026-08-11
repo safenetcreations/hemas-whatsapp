@@ -4,307 +4,638 @@
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "contacts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "preferredLanguage", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "preferredLanguage",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "consentRecords",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contactId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "capturedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "capturedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "consentRecords",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contactId", "order": "ASCENDING" },
-        { "fieldPath": "purpose", "order": "ASCENDING" },
-        { "fieldPath": "category", "order": "ASCENDING" },
-        { "fieldPath": "capturedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "purpose",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "category",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "capturedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "consentRecords",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "contactId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "purpose", "order": "ASCENDING" },
-        { "fieldPath": "channel", "order": "ASCENDING" },
-        { "fieldPath": "category", "order": "ASCENDING" },
-        { "fieldPath": "capturedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "purpose",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "channel",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "category",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "capturedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "assigneeId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "lastMessageAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "assigneeId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "conversationId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "conversationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "conversationId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "conversationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "internalNotes",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "conversationId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "synthetic", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "conversationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "synthetic",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "templates",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "language", "order": "ASCENDING" },
-        { "fieldPath": "sortKey", "order": "ASCENDING" }
+        {
+          "fieldPath": "language",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sortKey",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "flows",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "language", "order": "ASCENDING" },
-        { "fieldPath": "sortKey", "order": "ASCENDING" }
+        {
+          "fieldPath": "language",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sortKey",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "appointments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "slotStartAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "slotStartAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "appointments",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "slotStartsAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "slotStartsAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "appointmentEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "appointmentId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "appointmentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "labReports",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "labReportEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "labReportId", "order": "ASCENDING" },
-        { "fieldPath": "teamId", "order": "ASCENDING" },
-        { "fieldPath": "locationId", "order": "ASCENDING" },
-        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "labReportId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurredAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "campaigns",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "state", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "audienceSnapshots",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "campaignId", "order": "ASCENDING" },
-        { "fieldPath": "finalizedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "campaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "finalizedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "campaignEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "campaignId", "order": "ASCENDING" },
-        { "fieldPath": "revision", "order": "DESCENDING" }
+        {
+          "fieldPath": "campaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "revision",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "campaignCheckpoints",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "campaignId", "order": "ASCENDING" },
-        { "fieldPath": "batchIndex", "order": "DESCENDING" }
+        {
+          "fieldPath": "campaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "batchIndex",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "campaignRecipients",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "campaignId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "campaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "campaignRecipients",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "campaignId", "order": "ASCENDING" },
-        { "fieldPath": "eligibility", "order": "ASCENDING" },
-        { "fieldPath": "deterministicHmacId", "order": "ASCENDING" }
+        {
+          "fieldPath": "campaignId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "eligibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deterministicHmacId",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "automationRuns",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "state", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "automationDefinitions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "family", "order": "ASCENDING" },
-        { "fieldPath": "version", "order": "DESCENDING" }
+        {
+          "fieldPath": "family",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "version",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "automationDefinitionEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "definitionId", "order": "ASCENDING" },
-        { "fieldPath": "revision", "order": "DESCENDING" }
+        {
+          "fieldPath": "definitionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "revision",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "carePathways",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "family", "order": "ASCENDING" },
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "family",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "carePathwayEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "pathwayId", "order": "ASCENDING" },
-        { "fieldPath": "revision", "order": "DESCENDING" }
+        {
+          "fieldPath": "pathwayId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "revision",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "auditEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "actorUid", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "actorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "auditEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "action", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "action",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "auditEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schemaVersion", "order": "ASCENDING" },
-        { "fieldPath": "synthetic", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "schemaVersion",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "synthetic",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "auditEvents",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "schemaVersion", "order": "ASCENDING" },
-        { "fieldPath": "synthetic", "order": "ASCENDING" },
-        { "fieldPath": "outcome", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "schemaVersion",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "synthetic",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "outcome",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "liveCanary",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],

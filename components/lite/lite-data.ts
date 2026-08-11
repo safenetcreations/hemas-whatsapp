@@ -81,7 +81,10 @@ type ListenerState<T> = {
   readonly error: string | null;
 };
 
-export function useLiteConversations(enabled: boolean): ListenerState<LiteConversation> {
+export function useLiteConversations(
+  enabled: boolean,
+  liveOnly = false,
+): ListenerState<LiteConversation> {
   const [state, setState] = useState<ListenerState<LiteConversation>>({
     rows: [],
     loading: true,
@@ -111,6 +114,7 @@ export function useLiteConversations(enabled: boolean): ListenerState<LiteConver
       collection(db, "workspaces", LITE_WORKSPACE_ID, "conversations"),
       where("teamId", "==", LITE_TEAM_ID),
       where("locationId", "==", LITE_LOCATION_ID),
+      ...(liveOnly ? [where("liveCanary", "==", true)] : []),
       orderBy("lastMessageAt", "desc"),
       limit(50),
     );
@@ -145,7 +149,7 @@ export function useLiteConversations(enabled: boolean): ListenerState<LiteConver
       active = false;
       unsubscribe();
     };
-  }, [enabled]);
+  }, [enabled, liveOnly]);
 
   return state;
 }
@@ -229,7 +233,10 @@ export function useLiteMessages(conversationId: string | null): ListenerState<Li
   return state;
 }
 
-export function useLiteContacts(enabled: boolean): ListenerState<LiteContact> {
+export function useLiteContacts(
+  enabled: boolean,
+  liveOnly = false,
+): ListenerState<LiteContact> {
   const [state, setState] = useState<ListenerState<LiteContact>>({
     rows: [],
     loading: true,
@@ -259,6 +266,7 @@ export function useLiteContacts(enabled: boolean): ListenerState<LiteContact> {
       collection(db, "workspaces", LITE_WORKSPACE_ID, "contacts"),
       where("teamId", "==", LITE_TEAM_ID),
       where("locationId", "==", LITE_LOCATION_ID),
+      ...(liveOnly ? [where("liveCanary", "==", true)] : []),
       limit(60),
     );
     const unsubscribe = onSnapshot(
@@ -291,7 +299,7 @@ export function useLiteContacts(enabled: boolean): ListenerState<LiteContact> {
       active = false;
       unsubscribe();
     };
-  }, [enabled]);
+  }, [enabled, liveOnly]);
 
   return state;
 }

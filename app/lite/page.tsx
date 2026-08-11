@@ -15,20 +15,20 @@ const CAPABILITIES = [
 
 export default function LiteDashboardPage() {
   const { status, user, member } = useLiteAuth();
-  const conversations = useLiteConversations(status === "ready");
+  // Dashboard counts the REAL line only — simulated demo data stays out.
+  const conversations = useLiteConversations(status === "ready", true);
 
   const open = conversations.rows.filter((row) => row.status !== "closed");
   const mine = conversations.rows.filter((row) => row.assigneeId === user?.uid);
   const unassigned = conversations.rows.filter(
     (row) => !row.assigneeId && row.mode !== "automation",
   );
-  const live = conversations.rows.filter((row) => row.liveCanary);
 
   const cards = [
-    { label: "Open conversations", value: open.length, href: "/lite/inbox" },
+    { label: "Live WhatsApp chats", value: conversations.rows.length, href: "/lite/inbox" },
+    { label: "Open right now", value: open.length, href: "/lite/inbox" },
     { label: "Assigned to me", value: mine.length, href: "/lite/inbox" },
     { label: "Waiting for a human", value: unassigned.length, href: "/lite/inbox" },
-    { label: "Live WhatsApp visitors", value: live.length, href: "/lite/inbox" },
   ] as const;
 
   return (

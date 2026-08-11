@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
+import { resolveKnownVisitor } from "@/components/lite/lite-config";
 import {
   liteClaim,
   liteReply,
@@ -42,7 +43,8 @@ type Filter = "all" | "mine" | "unassigned";
 
 export default function LiteInboxPage() {
   const { status, user } = useLiteAuth();
-  const conversations = useLiteConversations(status === "ready");
+  const [scope, setScope] = useState<"live" | "all">("live");
+  const conversations = useLiteConversations(status === "ready", scope === "live");
   const contacts = useLiteContacts(status === "ready");
   const contactIndex = useLiteContactIndex(contacts.rows);
 
@@ -99,13 +101,42 @@ export default function LiteInboxPage() {
     }
   };
 
-  const label = (conversation: LiteConversation): string =>
-    contactIndex.get(conversation.contactId)?.displayLabel ?? "Visitor";
+  const label = (conversation: LiteConversation): string => {
+    const raw = contactIndex.get(conversation.contactId)?.displayLabel ?? "Visitor";
+    if (conversation.liveCanary) {
+      return resolveKnownVisitor(raw) ?? raw;
+    }
+    return raw;
+  };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
       {/* ------------------------------------------------ conversation list */}
       <section className="rounded-2xl border border-emerald-900/5 bg-white shadow-sm">
+        <div className="flex items-center gap-1 border-b border-slate-100 px-3 pt-3">
+          <button
+            type="button"
+            onClick={() => setScope("live")}
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+              scope === "live"
+                ? "bg-emerald-600 text-white"
+                : "border border-slate-200 text-slate-500 hover:bg-emerald-50"
+            }`}
+          >
+            ● Live WhatsApp line
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope("all")}
+            className={`rounded-full px-3 py-1 text-[11px] font-medium transition ${
+              scope === "all"
+                ? "bg-slate-700 text-white"
+                : "border border-slate-200 text-slate-400 hover:bg-slate-50"
+            }`}
+          >
+            + Simulated
+          </button>
+        </div>
         <div className="flex items-center gap-1 border-b border-slate-100 p-3">
           {(
             [
@@ -141,7 +172,9 @@ export default function LiteInboxPage() {
           ) : null}
           {!conversations.loading && filtered.length === 0 ? (
             <p className="p-4 text-xs text-slate-400">
-              No conversations here yet — message the WhatsApp line to create one.
+              {scope === "live"
+                ? "No live chats yet — WhatsApp the line (+94 70 796 4455) and it appears here in seconds."
+                : "No conversations here yet."}
             </p>
           ) : null}
 
@@ -212,7 +245,9 @@ export default function LiteInboxPage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-900">{label(selected)}</p>
                 <p className="text-[11px] text-slate-400">
-                  {contactIndex.get(selected.contactId)?.maskedPhone ?? "number withheld"}
+                  {selected.liveCanary
+                    ? "Real WhatsApp visitor · governed canary line"
+                    : (contactIndex.get(selected.contactId)?.maskedPhone ?? "number withheld")}
                 </p>
               </div>
               <div className="ml-auto flex items-center gap-2">

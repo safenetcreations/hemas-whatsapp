@@ -40,6 +40,23 @@ export function isLiteEmail(email: string | null | undefined): boolean {
   );
 }
 
+/**
+ * Known live TEST visitors (the governed canary allowlist — Nanthan's own
+ * test phones, max 5). Lets the demo show the real number instead of the
+ * masked label. Patient numbers are never stored or displayed — this map
+ * only covers the explicit allowlisted test numbers.
+ */
+export const DEMO_KNOWN_VISITORS: Readonly<Record<string, string>> = {
+  "7755": "+94 70 566 7755 · your test phone",
+};
+
+/** Swap a masked "···1234" label for the known test number, when allowlisted. */
+export function resolveKnownVisitor(maskedLabel: string): string | null {
+  const match = /···(\d{4})/.exec(maskedLabel);
+  if (!match) return null;
+  return DEMO_KNOWN_VISITORS[match[1] ?? ""] ?? null;
+}
+
 /** Indicative Lite plan card (demo values — Phase 5 packaging finalizes). */
 export const LITE_PLAN = {
   name: "Lite",
