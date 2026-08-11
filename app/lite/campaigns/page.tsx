@@ -21,7 +21,7 @@ const TEMPLATES = [
 
 const STATUS_STYLE: Record<string, string> = {
   sending: "bg-slate-100 text-slate-600",
-  sent: "bg-emerald-100 text-emerald-800",
+  sent: "bg-blue-100 text-blue-800",
   partial: "bg-amber-100 text-amber-800",
   failed: "bg-rose-100 text-rose-700",
 };
@@ -29,8 +29,8 @@ const STATUS_STYLE: Record<string, string> = {
 const SEND_STATUS_STYLE: Record<string, string> = {
   queued: "bg-slate-100 text-slate-500",
   sent: "bg-sky-100 text-sky-700",
-  delivered: "bg-emerald-100 text-emerald-800",
-  read: "bg-emerald-600 text-white",
+  delivered: "bg-blue-100 text-blue-800",
+  read: "bg-[#1863DC] text-white",
   failed: "bg-rose-100 text-rose-700",
 };
 
@@ -85,7 +85,7 @@ export default function LiteCampaignsPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-900">New campaign</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
           <input
@@ -93,12 +93,12 @@ export default function LiteCampaignsPage() {
             onChange={(event) => setName(event.target.value)}
             maxLength={80}
             placeholder="Campaign name — e.g. OPD reminder (Aug)"
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
           />
           <select
             value={template}
             onChange={(event) => setTemplate(event.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
           >
             {TEMPLATES.map((option) => (
               <option key={option.value} value={option.value}>
@@ -110,7 +110,7 @@ export default function LiteCampaignsPage() {
             type="button"
             disabled={pending || !canLaunch || name.trim().length < 3 || picked.size === 0}
             onClick={() => void launch()}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+            className="rounded-xl bg-[#1863DC] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
           >
             {pending ? "Sending…" : "Send campaign"}
           </button>
@@ -133,8 +133,8 @@ export default function LiteCampaignsPage() {
                   }}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                     on
-                      ? "bg-emerald-600 text-white"
-                      : "border border-slate-200 text-slate-500 hover:bg-emerald-50"
+                      ? "bg-[#1863DC] text-white"
+                      : "border border-slate-200 text-slate-500 hover:bg-blue-50"
                   }`}
                 >
                   {on ? "\u2713 " : ""}{a.label}
@@ -150,7 +150,7 @@ export default function LiteCampaignsPage() {
           {!canLaunch ? "Broadcasts need the Supervisor seat — agents handle chats." : ""}
         </p>
         {notice ? (
-          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
             {notice}
           </p>
         ) : null}
@@ -165,7 +165,7 @@ export default function LiteCampaignsPage() {
           <article
             key={campaign.id}
             className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
-              selectedId === campaign.id ? "border-emerald-300" : "border-emerald-900/5"
+              selectedId === campaign.id ? "border-blue-300" : "border-blue-900/5"
             }`}
           >
             <button

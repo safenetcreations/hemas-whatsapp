@@ -39,14 +39,14 @@ export default function LiteSettingsPage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold text-slate-900">Hemas Lite plan</h2>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
               Demo pricing
             </span>
           </div>
-          <p className="mt-3 text-2xl font-semibold text-emerald-700">{LITE_PLAN.monthly}</p>
+          <p className="mt-3 text-2xl font-semibold text-blue-700">{LITE_PLAN.monthly}</p>
           <p className="text-xs text-slate-400">Setup {LITE_PLAN.setup}</p>
           <table className="mt-4 w-full text-sm">
             <tbody>
@@ -66,7 +66,7 @@ export default function LiteSettingsPage() {
         </section>
 
         <section className="space-y-4">
-          <div className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-slate-900">Seats (synthetic demo)</h2>
             <table className="mt-3 w-full text-sm">
               <tbody>
@@ -91,7 +91,7 @@ export default function LiteSettingsPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-slate-900">Provisioning</h2>
             <p className="mt-1 text-xs text-slate-500">
               Creates or repairs the three seat accounts and their workspace memberships.
@@ -101,7 +101,7 @@ export default function LiteSettingsPage() {
               type="button"
               onClick={() => void provision()}
               disabled={pending || !isAdmin}
-              className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+              className="mt-3 rounded-xl bg-[#1863DC] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
             >
               {pending ? "Provisioning…" : "Provision / repair seats"}
             </button>
@@ -111,7 +111,7 @@ export default function LiteSettingsPage() {
               </p>
             ) : null}
             {notice ? (
-              <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+              <p className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
                 {notice}
               </p>
             ) : null}

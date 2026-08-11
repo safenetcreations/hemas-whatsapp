@@ -73,9 +73,9 @@ export default function LiteAnalyticsPage() {
         {cards.map((card) => (
           <div
             key={card.label}
-            className="rounded-2xl border border-emerald-900/5 bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm"
           >
-            <p className="text-2xl font-semibold text-emerald-700">
+            <p className="text-2xl font-semibold text-blue-700">
               {metrics.loading ? "–" : card.value}
             </p>
             <p className="mt-1 text-[11px] font-medium text-slate-500">{card.label}</p>
@@ -83,7 +83,7 @@ export default function LiteAnalyticsPage() {
         ))}
       </section>
 
-      <section className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold text-slate-900">API requests this month</h2>
           <span className="text-xs text-slate-500">
@@ -93,7 +93,7 @@ export default function LiteAnalyticsPage() {
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
           <div
             className={`h-full rounded-full transition-all ${
-              quotaPct > 90 ? "bg-rose-500" : quotaPct > 70 ? "bg-amber-500" : "bg-emerald-500"
+              quotaPct > 90 ? "bg-rose-500" : quotaPct > 70 ? "bg-amber-500" : "bg-blue-500"
             }`}
             style={{ width: `${Math.max(2, quotaPct)}%` }}
           />
@@ -104,7 +104,7 @@ export default function LiteAnalyticsPage() {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-900">Last 14 days — conversation volume</h2>
         <div className="mt-4 flex h-36 items-end gap-1.5">
           {last14.length === 0 ? (
@@ -115,7 +115,7 @@ export default function LiteAnalyticsPage() {
               return (
                 <div key={row.id} className="group flex flex-1 flex-col items-center gap-1">
                   <div
-                    className="w-full rounded-t-lg bg-emerald-500/80 transition group-hover:bg-emerald-600"
+                    className="w-full rounded-t-lg bg-blue-500/80 transition group-hover:bg-[#1863DC]"
                     style={{ height: `${Math.max(4, Math.round((volume / maxBar) * 120))}px` }}
                     title={`${row.day}: ${volume} messages`}
                   />

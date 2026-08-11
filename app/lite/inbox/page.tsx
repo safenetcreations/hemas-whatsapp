@@ -112,15 +112,15 @@ export default function LiteInboxPage() {
   return (
     <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
       {/* ------------------------------------------------ conversation list */}
-      <section className="rounded-2xl border border-emerald-900/5 bg-white shadow-sm">
+      <section className="rounded-2xl border border-blue-900/5 bg-white shadow-sm">
         <div className="flex items-center gap-1 border-b border-slate-100 px-3 pt-3">
           <button
             type="button"
             onClick={() => setScope("live")}
             className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
               scope === "live"
-                ? "bg-emerald-600 text-white"
-                : "border border-slate-200 text-slate-500 hover:bg-emerald-50"
+                ? "bg-[#1863DC] text-white"
+                : "border border-slate-200 text-slate-500 hover:bg-blue-50"
             }`}
           >
             ● Live WhatsApp line
@@ -151,8 +151,8 @@ export default function LiteInboxPage() {
               onClick={() => setFilter(value)}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                 filter === value
-                  ? "bg-emerald-600 text-white"
-                  : "text-slate-500 hover:bg-emerald-50"
+                  ? "bg-[#1863DC] text-white"
+                  : "text-slate-500 hover:bg-blue-50"
               }`}
             >
               {text}
@@ -184,8 +184,8 @@ export default function LiteInboxPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedId(conversation.id)}
-                  className={`w-full border-b border-slate-50 px-4 py-3 text-left transition hover:bg-emerald-50/50 ${
-                    selectedId === conversation.id ? "bg-emerald-50" : ""
+                  className={`w-full border-b border-slate-50 px-4 py-3 text-left transition hover:bg-blue-50/50 ${
+                    selectedId === conversation.id ? "bg-blue-50" : ""
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -193,7 +193,7 @@ export default function LiteInboxPage() {
                       {label(conversation)}
                     </span>
                     {conversation.liveCanary ? (
-                      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700">
+                      <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700">
                         Live
                       </span>
                     ) : null}
@@ -216,7 +216,7 @@ export default function LiteInboxPage() {
                       {conversation.mode === "human_takeover" ? "Human" : "Bot"}
                     </span>
                     {conversation.unreadCount > 0 ? (
-                      <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-bold text-white">
+                      <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1863DC] px-1 text-[9px] font-bold text-white">
                         {conversation.unreadCount}
                       </span>
                     ) : null}
@@ -229,7 +229,7 @@ export default function LiteInboxPage() {
       </section>
 
       {/* ------------------------------------------------ detail pane */}
-      <section className="flex min-h-[70vh] flex-col rounded-2xl border border-emerald-900/5 bg-white shadow-sm">
+      <section className="flex min-h-[70vh] flex-col rounded-2xl border border-blue-900/5 bg-white shadow-sm">
         {!selected ? (
           <div className="grid flex-1 place-items-center p-8 text-center">
             <div>
@@ -255,7 +255,7 @@ export default function LiteInboxPage() {
                   <span
                     className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
                       windowOpen
-                        ? "bg-emerald-100 text-emerald-800"
+                        ? "bg-blue-100 text-blue-800"
                         : "bg-slate-100 text-slate-500"
                     }`}
                   >
@@ -280,7 +280,7 @@ export default function LiteInboxPage() {
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void act("claim")}
-                    className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    className="rounded-full bg-[#1863DC] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-50"
                   >
                     {busy === "claim" ? "Claiming…" : "Claim chat"}
                   </button>
@@ -302,8 +302,8 @@ export default function LiteInboxPage() {
                     className={`max-w-[75%] rounded-2xl px-3 py-2 text-xs shadow-sm ${
                       message.direction === "outbound"
                         ? message.agentReply
-                          ? "bg-emerald-600 text-white"
-                          : "bg-emerald-50 text-emerald-900"
+                          ? "bg-[#1863DC] text-white"
+                          : "bg-blue-50 text-blue-900"
                         : "bg-slate-100 text-slate-700"
                     }`}
                   >
@@ -317,7 +317,7 @@ export default function LiteInboxPage() {
                     <p
                       className={`mt-0.5 text-[10px] ${
                         message.direction === "outbound" && message.agentReply
-                          ? "text-emerald-100"
+                          ? "text-blue-100"
                           : "text-slate-400"
                       }`}
                     >
@@ -330,7 +330,7 @@ export default function LiteInboxPage() {
 
             <footer className="border-t border-slate-100 p-3">
               {notice ? (
-                <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-[11px] text-emerald-800">
+                <p className="mb-2 rounded-lg bg-blue-50 px-3 py-1.5 text-[11px] text-blue-800">
                   {notice}
                 </p>
               ) : null}
@@ -342,13 +342,13 @@ export default function LiteInboxPage() {
                     rows={2}
                     maxLength={1024}
                     placeholder="Type a live WhatsApp reply… (EN / සිංහල / தமிழ்)"
-                    className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
                   />
                   <button
                     type="button"
                     disabled={busy !== null || draft.trim().length === 0}
                     onClick={() => void act("reply")}
-                    className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    className="rounded-xl bg-[#1863DC] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-50"
                   >
                     {busy === "reply" ? "Sending…" : "Send"}
                   </button>

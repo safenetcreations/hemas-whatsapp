@@ -46,19 +46,17 @@ function LiteLogin() {
   };
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f2f8f4] px-4 py-10">
+    <main className="grid min-h-screen place-items-center bg-[#f0f5fc] px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-xl font-bold text-white shadow-lg shadow-emerald-600/25">
-            HL
-          </div>
+          <img src="/hemas-logo.png" alt="Hemas Hospitals" className="mx-auto mb-3 h-16 w-auto" />
           <h1 className="text-2xl font-semibold text-slate-900">{LITE_BRAND.name}</h1>
           <p className="mt-1 text-sm text-slate-500">{LITE_BRAND.tagline}</p>
         </div>
 
         <form
           onSubmit={submit}
-          className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl shadow-emerald-900/5"
+          className="rounded-3xl border border-blue-100 bg-white p-6 shadow-xl shadow-blue-900/5"
         >
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
             Seat email
@@ -67,7 +65,7 @@ function LiteLogin() {
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               autoComplete="username"
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500"
               placeholder="agent1@lite.synthetic.invalid"
             />
           </label>
@@ -78,7 +76,7 @@ function LiteLogin() {
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               autoComplete="current-password"
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500"
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500"
               placeholder="••••••••••••"
             />
           </label>
@@ -86,7 +84,7 @@ function LiteLogin() {
           <button
             type="submit"
             disabled={pending || status === "checking"}
-            className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+            className="mt-5 w-full rounded-xl bg-[#1863DC] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0F56C4] disabled:opacity-50"
           >
             {pending ? "Signing in…" : "Sign in to Lite"}
           </button>
@@ -110,7 +108,7 @@ function LiteLogin() {
                     setEmail(seat.email);
                     setPassword(seat.password);
                   }}
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100"
+                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800 transition hover:bg-blue-100"
                 >
                   {seat.label}
                 </button>
@@ -133,7 +131,7 @@ export function LiteShell({ children }: { children: ReactNode }) {
 
   if (status === "checking") {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f2f8f4]">
+      <main className="grid min-h-screen place-items-center bg-[#f0f5fc]">
         <p className="text-sm text-slate-500">Starting Hemas Lite…</p>
       </main>
     );
@@ -141,7 +139,7 @@ export function LiteShell({ children }: { children: ReactNode }) {
 
   if (status === "error") {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f2f8f4] px-6">
+      <main className="grid min-h-screen place-items-center bg-[#f0f5fc] px-6">
         <div className="max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
           <p className="font-semibold">Lite cannot start here</p>
           <p className="mt-1 text-xs leading-relaxed">{message}</p>
@@ -155,13 +153,11 @@ export function LiteShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f2f8f4]">
-      <header className="sticky top-0 z-20 border-b border-emerald-900/5 bg-white/90 backdrop-blur">
+    <div className="min-h-screen bg-[#f0f5fc]">
+      <header className="sticky top-0 z-20 border-b border-blue-900/5 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Link href="/lite" className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-sm font-bold text-white">
-              HL
-            </span>
+            <img src="/hemas-logo.png" alt="Hemas Hospitals" className="h-9 w-auto" />
             <span>
               <span className="block text-sm font-semibold leading-tight text-slate-900">
                 {LITE_BRAND.name}
@@ -182,8 +178,8 @@ export function LiteShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
                     active
-                      ? "bg-emerald-600 text-white"
-                      : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
+                      ? "bg-[#1863DC] text-white"
+                      : "text-slate-600 hover:bg-blue-50 hover:text-blue-800"
                   }`}
                 >
                   {item.label}
@@ -197,7 +193,7 @@ export function LiteShell({ children }: { children: ReactNode }) {
               <span className="block text-xs font-semibold text-slate-800">
                 {member?.displayLabel ?? user?.email ?? "Seat"}
               </span>
-              <span className="block text-[10px] uppercase tracking-wide text-emerald-700">
+              <span className="block text-[10px] uppercase tracking-wide text-blue-700">
                 {member?.role ?? "no seat yet"}
               </span>
             </span>
@@ -219,7 +215,7 @@ export function LiteShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium ${
-                  active ? "bg-emerald-600 text-white" : "text-slate-600"
+                  active ? "bg-[#1863DC] text-white" : "text-slate-600"
                 }`}
               >
                 {item.label}

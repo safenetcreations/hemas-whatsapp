@@ -53,9 +53,9 @@ export default function LiteDashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-2xl border border-emerald-900/5 bg-white p-4 shadow-sm transition hover:shadow-md"
+            className="rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm transition hover:shadow-md"
           >
-            <p className="text-3xl font-semibold text-emerald-700">
+            <p className="text-3xl font-semibold text-blue-700">
               {conversations.loading ? "–" : card.value}
             </p>
             <p className="mt-1 text-xs font-medium text-slate-500">{card.label}</p>
@@ -64,7 +64,7 @@ export default function LiteDashboardPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">What&apos;s live in this demo</h2>
           <ul className="mt-3 space-y-2">
             {CAPABILITIES.map((capability) => (
@@ -72,7 +72,7 @@ export default function LiteDashboardPage() {
                 <span
                   className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-semibold uppercase tracking-wide ${
                     capability.state === "live"
-                      ? "bg-emerald-100 text-emerald-800"
+                      ? "bg-blue-100 text-blue-800"
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
@@ -84,7 +84,7 @@ export default function LiteDashboardPage() {
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-emerald-900/5 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-900">Agent seats</h2>
           <ul className="mt-3 space-y-2">
             {LITE_SEAT_HINTS.map((seat) => (
@@ -93,7 +93,7 @@ export default function LiteDashboardPage() {
                 className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
               >
                 <span className="text-sm text-slate-700">{seat.label}</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
                   {seat.role}
                 </span>
               </li>

@@ -17,7 +17,7 @@ const SLOT: Record<string, string> = {
 const LANG: Record<string, string> = { en: "EN", si: "සිං", ta: "தமி" };
 const STATUS_STYLE: Record<string, string> = {
   requested: "bg-amber-100 text-amber-800",
-  confirmed: "bg-emerald-600 text-white",
+  confirmed: "bg-[#1863DC] text-white",
   cancelled: "bg-slate-200 text-slate-500",
 };
 
@@ -62,7 +62,7 @@ export default function LiteAppointmentsPage() {
       </section>
 
       {notice ? (
-        <p className="rounded-xl bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">{notice}</p>
+        <p className="rounded-xl bg-blue-50 px-4 py-2.5 text-xs text-blue-800">{notice}</p>
       ) : null}
       {bookings.error ? (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{bookings.error}</p>
@@ -77,7 +77,7 @@ export default function LiteAppointmentsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {days.map((day) => (
-          <section key={day} className="rounded-2xl border border-emerald-900/5 bg-white shadow-sm">
+          <section key={day} className="rounded-2xl border border-blue-900/5 bg-white shadow-sm">
             <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
               <span className="text-sm font-semibold text-slate-800">
                 {new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
@@ -92,7 +92,7 @@ export default function LiteAppointmentsPage() {
               {(byDay.get(day) ?? []).map((b) => (
                 <li key={b.id} className="border-b border-slate-50 px-4 py-3 last:border-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-emerald-700">{SLOT[b.slotId] ?? b.slotId}</span>
+                    <span className="text-sm font-semibold text-blue-700">{SLOT[b.slotId] ?? b.slotId}</span>
                     <span className="text-sm text-slate-700">{DEPT[b.departmentId] ?? b.departmentId}</span>
                     <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold">{LANG[b.language] ?? b.language}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${STATUS_STYLE[b.status] ?? STATUS_STYLE.requested}`}>
@@ -110,7 +110,7 @@ export default function LiteAppointmentsPage() {
                           type="button"
                           disabled={busy !== null}
                           onClick={() => void act(b.id, "confirmed")}
-                          className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                          className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
                         >
                           {busy === b.id + "confirmed" ? "…" : "Confirm"}
                         </button>

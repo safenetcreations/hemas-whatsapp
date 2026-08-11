@@ -31,7 +31,7 @@ export default function LiteContactsPage() {
             onClick={() => setScope("live")}
             className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
               scope === "live"
-                ? "bg-emerald-600 text-white"
+                ? "bg-[#1863DC] text-white"
                 : "border border-slate-200 text-slate-500"
             }`}
           >
@@ -58,10 +58,10 @@ export default function LiteContactsPage() {
         {contacts.rows.map((contact) => (
           <article
             key={contact.id}
-            className="rounded-2xl border border-emerald-900/5 bg-white p-4 shadow-sm"
+            className="rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm"
           >
             <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
                 {contact.displayLabel.slice(0, 1).toUpperCase()}
               </span>
               <div className="min-w-0">
@@ -74,7 +74,7 @@ export default function LiteContactsPage() {
                 </p>
               </div>
               {contact.liveCanary ? (
-                <span className="ml-auto rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-700">
+                <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-blue-700">
                   Live
                 </span>
               ) : null}
@@ -86,7 +86,7 @@ export default function LiteContactsPage() {
               {contact.tags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                  className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
                 >
                   {tag}
                 </span>

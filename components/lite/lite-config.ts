@@ -12,8 +12,8 @@ export const LITE_TEAM_ID = "team_demo_general";
 export const LITE_LOCATION_ID = "location_demo_wattala";
 
 export const LITE_BRAND = {
-  name: "Hemas Lite",
-  tagline: "Simple WhatsApp helpdesk for clinics",
+  name: "Hemas Hospitals — Lite",
+  tagline: "WhatsApp patient helpdesk · Wattala & Thalawathugoda",
   demoNote: "Governed demo · synthetic data only · runs on the Hemas Connect engine",
 } as const;
 
