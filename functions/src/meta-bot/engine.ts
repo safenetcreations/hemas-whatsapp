@@ -336,6 +336,20 @@ export function detectScriptLanguage(text: string): BotLanguage | null {
 const MENU_KEYWORDS_LATIN = /^(menu|start|hi|hello|hey|ayubowan|vanakkam)\b/i;
 const MENU_KEYWORDS_NATIVE = /^(මෙනුව|ආයුබෝවන්|வணக்கம்|பட்டியல்)/;
 const isMenuKeyword = (t: string) => MENU_KEYWORDS_LATIN.test(t) || MENU_KEYWORDS_NATIVE.test(t);
+
+/** Typed language requests switch instantly — no AI round-trip needed. */
+const LANG_SWITCH: ReadonlyArray<readonly [RegExp, BotLanguage]> = [
+  [/^(english|eng)\b/i, "en"],
+  [/^(sinhala|සිංහල|සිංහලෙන්)/i, "si"],
+  [/^(tamil|தமிழ்|தமிழில்)/i, "ta"],
+];
+
+function requestedLanguage(text: string): BotLanguage | null {
+  for (const [pattern, lang] of LANG_SWITCH) {
+    if (pattern.test(text)) return lang;
+  }
+  return null;
+}
 const BOOK_KEYWORDS = /(book|appoint|channel|වෙන්|හමුවීම|சந்திப்பு|பதிவு)/i;
 const LAB_KEYWORDS = /(lab|result|report|රසායනාගාර|ප්‍රතිඵල|ஆய்வக|முடிவு)/i;
 
@@ -401,7 +415,7 @@ export function runBotEngine(
   }
 
   if (!session.language) {
-    const detected = text ? detectScriptLanguage(text) : null;
+    const detected = text ? (requestedLanguage(text) ?? detectScriptLanguage(text)) : null;
     const welcome = config.welcomeMediaId
       ? [imageMessage(config.welcomeMediaId, "Hemas Connect · Governed WhatsApp care (SafeNet demo)")]
       : [];
@@ -469,6 +483,10 @@ export function runBotEngine(
 
   // --- free-text intents ------------------------------------------------------
   if (text) {
+    const wanted = requestedLanguage(text);
+    if (wanted) {
+      return done(mainMenu(wanted), { language: wanted, state: "menu" });
+    }
     const switched = detectScriptLanguage(text);
     const effective = switched ?? lang;
     if (isMenuKeyword(text)) {

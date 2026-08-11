@@ -47,7 +47,65 @@ test("system prompt carries language, guardrails and knowledge base", () => {
   assert.ok(si.includes("NEVER give medical advice"));
   assert.ok(si.includes("1990"));
   assert.ok(si.includes("KNOWLEDGE BASE"));
+  assert.ok(si.includes("SAME language the user wrote in"));
   assert.ok(buildAiSystemPrompt("ta").includes("Tamil"));
+});
+
+test("thinking config maps per model family", async () => {
+  const { DEFAULT_AI_MODEL, thinkingConfigFor } = await import("../src/meta-bot/ai.js");
+  assert.equal(DEFAULT_AI_MODEL, "gemini-3.6-flash");
+  assert.deepEqual(thinkingConfigFor("gemini-2.5-flash"), { thinkingBudget: 0 });
+  assert.deepEqual(thinkingConfigFor("gemini-3.6-flash"), { thinkingLevel: "minimal" });
+  assert.deepEqual(thinkingConfigFor("gemini-3-flash-preview"), { thinkingLevel: "minimal" });
+  assert.deepEqual(thinkingConfigFor("gemini-flash-latest"), { thinkingLevel: "minimal" });
+  assert.equal(thinkingConfigFor("some-future-model"), null);
+});
+
+test("a 400 on the thinking config retries once without it", async () => {
+  let calls = 0;
+  const fetchImpl = (async (_url: unknown, init?: { body?: string }) => {
+    calls += 1;
+    const body = JSON.parse(init?.body ?? "{}") as {
+      generationConfig?: { thinkingConfig?: unknown };
+    };
+    if (body.generationConfig?.thinkingConfig) {
+      return new Response(JSON.stringify({}), { status: 400 });
+    }
+    return new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: "Recovered." }] } }] }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }) as unknown as typeof fetch;
+  const outcome = await answerWithGuardrails(
+    { text: "x", language: "en" },
+    { apiKey: "k", fetchImpl },
+  );
+  assert.equal(calls, 2);
+  assert.equal(outcome.answer, "Recovered.");
+});
+
+test("typed language requests switch instantly without AI", () => {
+  const sinhalaSession: BotSession = {
+    language: "si",
+    state: "menu",
+    departmentId: null,
+    dayId: null,
+    updatedAtMs: NOW - 1000,
+  };
+  const toEnglish = runBotEngine(sinhalaSession, text("english"));
+  assert.equal(toEnglish.session.language, "en");
+  assert.equal(toEnglish.aiQuery, null, "no AI round-trip for a language switch");
+  const rows = (toEnglish.replies[0] as { interactive: { action: { sections: Array<{ rows: Array<{ title: string }> }> } } })
+    .interactive.action.sections[0]!.rows;
+  assert.equal(rows[0]!.title, "Book appointment");
+
+  const toTamil = runBotEngine(english, text("tamil please"));
+  assert.equal(toTamil.session.language, "ta");
+  const fresh = runBotEngine(
+    { language: null, state: "language", departmentId: null, dayId: null, updatedAtMs: NOW - 1000 },
+    text("english"),
+  );
+  assert.equal(fresh.session.language, "en", "first contact can type a language too");
 });
 
 test("answerWithGuardrails returns a sanitised answer on success", async () => {

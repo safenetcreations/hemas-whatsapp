@@ -44,9 +44,22 @@ export interface AiAnswerOutcome {
   readonly latencyMs: number;
 }
 
-export const DEFAULT_AI_MODEL = "gemini-2.5-flash";
+export const DEFAULT_AI_MODEL = "gemini-3.6-flash";
 const DEFAULT_TIMEOUT_MS = 8_000;
 const MAX_ANSWER_CHARS = 900;
+
+/**
+ * Thinking configuration differs per model family: Gemini 2.5 takes
+ * `thinkingBudget: 0`, Gemini 3.x takes `thinkingLevel: "minimal"`.
+ * Unknown families get none (and a 400 triggers one retry without it).
+ */
+export function thinkingConfigFor(model: string): Record<string, unknown> | null {
+  if (/^gemini-2\./.test(model)) return { thinkingBudget: 0 };
+  if (/^gemini-3/.test(model) || /^gemini-(flash|pro)/.test(model)) {
+    return { thinkingLevel: "minimal" };
+  }
+  return null;
+}
 
 const LANGUAGE_NAMES: Record<BotLanguage, string> = {
   en: "English",
@@ -84,7 +97,7 @@ export function buildAiSystemPrompt(language: BotLanguage): string {
     "1. Answer ONLY from the knowledge base below. If the answer is not there, say you do not have that information and offer the hotline 0117 888 888 or the care team (reply MENU, then 'Talk to our team').",
     "2. NEVER give medical advice, diagnosis, medication guidance, or dosages. For any symptom or medical question, kindly say a doctor should look at it and suggest booking an appointment (reply MENU, then 'Book appointment').",
     "3. If the message suggests an emergency (chest pain, trouble breathing, heavy bleeding, unconsciousness, poisoning), tell them to call 0117 888 888 (Hemas emergency) or 1990 (Suwa Seriya ambulance) immediately.",
-    `4. Reply in ${LANGUAGE_NAMES[language]}. If the user clearly wrote in romanized Sinhala or Tamil, you may reply in that language instead.`,
+    `4. Reply in the SAME language the user wrote in — English, Sinhala, or Tamil (romanized Sinhala/Tamil counts as that language). Only when the language is unclear, reply in ${LANGUAGE_NAMES[language]}. Never refuse to switch languages.`,
     "5. Maximum 3 short sentences, in a warm, respectful tone. Plain WhatsApp text only — no lists, no headings, no code.",
     "6. Never ask for personal, medical, or payment details. Never invent services, prices, hours, or facts that are not in the knowledge base — for prices and hours, point to 0117 888 888.",
     "7. The facts below come from the public Hemas Hospitals website; the pilot itself is a demonstration service.",
@@ -135,27 +148,32 @@ export async function answerWithGuardrails(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    const response = await doFetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": config.apiKey,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildAiSystemPrompt(request.language) }] },
-          contents: [{ role: "user", parts: [{ text: request.text }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 512,
-            thinkingConfig: { thinkingBudget: 0 },
-          },
-        }),
+  const attempt = (thinking: Record<string, unknown> | null) =>
+    doFetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.apiKey,
       },
-    );
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: buildAiSystemPrompt(request.language) }] },
+        contents: [{ role: "user", parts: [{ text: request.text }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 512,
+          ...(thinking ? { thinkingConfig: thinking } : {}),
+        },
+      }),
+    });
+
+  try {
+    const thinking = thinkingConfigFor(model);
+    let response = await attempt(thinking);
+    if (response.status === 400 && thinking) {
+      // Model rejected the thinking config (family drift) — retry bare.
+      response = await attempt(null);
+    }
 
     if (!response.ok) {
       return {

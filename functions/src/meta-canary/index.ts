@@ -26,7 +26,7 @@ import {
   verifyMetaSignature,
   verifyMetaWebhookChallenge,
 } from "./contracts.js";
-import { runBotEngine, type BotInbound } from "../meta-bot/engine.js";
+import { detectScriptLanguage, runBotEngine, type BotInbound } from "../meta-bot/engine.js";
 import { aiReplyMessage, answerWithGuardrails } from "../meta-bot/ai.js";
 import {
   BRIDGE_WORKSPACE_ID,
@@ -284,7 +284,10 @@ export const metaCanaryWebhook = onRequest(
                   );
                   aiAnswered = Boolean(ai.answer);
                   if (ai.answer) {
-                    replies = [aiReplyMessage(ai.answer, result.session.language ?? "en")];
+                    // Footer language follows the ANSWER's script (the model
+                    // replies in the user's language), not the stale session.
+                    const suffixLanguage = detectScriptLanguage(ai.answer) ?? "en";
+                    replies = [aiReplyMessage(ai.answer, suffixLanguage)];
                   }
                   logger.info("meta-bot: ai answer", {
                     answered: Boolean(ai.answer),
