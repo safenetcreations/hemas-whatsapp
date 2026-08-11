@@ -16,7 +16,7 @@
  *                         is content-free: hash + length, never the body.
  */
 
-import { getApp, getApps, initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {
   FieldValue,
@@ -46,9 +46,15 @@ import { bumpDailyMetrics } from "./metrics.js";
 const SYNTHETIC_DEMO_EMAIL = "demo.admin@synthetic.invalid";
 const LITE_ROLES = ["agent", "supervisor", "tenant_admin"] as const;
 
+function liteAdminApp(projectId: string): App {
+  // Never call getApp() blind: some runtime states report registered apps
+  // without a default one. Find the default explicitly or create it.
+  const existing = getApps().find((candidate) => candidate.name === "[DEFAULT]");
+  return existing ?? initializeApp({ projectId });
+}
+
 function liteFirestore(projectId: string): Firestore {
-  const app = getApps().length > 0 ? getApp() : initializeApp({ projectId });
-  return getFirestore(app);
+  return getFirestore(liteAdminApp(projectId));
 }
 
 function boundaryOrThrow(): { projectId: string } {
@@ -120,7 +126,7 @@ export const liteDemoSetup = onCall(
     }
 
     const db = liteFirestore(boundary.projectId);
-    const auth = getAuth();
+    const auth = getAuth(liteAdminApp(boundary.projectId));
     const seats: Array<{ email: string; displayLabel: string; role: string; uid: string }> = [];
 
     for (const seat of LITE_SEATS) {

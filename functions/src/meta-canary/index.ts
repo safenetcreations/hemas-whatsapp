@@ -1,4 +1,4 @@
-import { getApp, getApps, initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError, onCall, onRequest, type CallableRequest } from "firebase-functions/v2/https";
@@ -55,7 +55,9 @@ import { bumpDailyMetrics } from "../lite/metrics.js";
 const SYNTHETIC_DEMO_EMAIL = "demo.admin@synthetic.invalid";
 
 function getCanaryFirestore(projectId: string): Firestore {
-  const app = getApps().length > 0 ? getApp() : initializeApp({ projectId });
+  const app =
+    getApps().find((candidate) => candidate.name === "[DEFAULT]") ??
+    initializeApp({ projectId });
   return getFirestore(app);
 }
 
