@@ -24,6 +24,7 @@ import {
   verifyMetaWebhookChallenge,
 } from "./contracts.js";
 import { runBotEngine, type BotInbound } from "../meta-bot/engine.js";
+import { aiReplyMessage, answerWithGuardrails } from "../meta-bot/ai.js";
 import {
   bridgeToInbox,
   loadBotSession,
@@ -49,6 +50,7 @@ import {
 const metaAccessToken = defineSecret("HEMAS_META_ACCESS_TOKEN");
 const metaAppSecret = defineSecret("HEMAS_META_APP_SECRET");
 const metaVerifyToken = defineSecret("HEMAS_META_VERIFY_TOKEN");
+const geminiApiKey = defineSecret("HEMAS_GEMINI_API_KEY");
 
 const SYNTHETIC_DEMO_EMAIL = "demo.admin@synthetic.invalid";
 
@@ -194,7 +196,7 @@ export const metaCanaryWebhook = onRequest(
     timeoutSeconds: 30,
     maxInstances: 3,
     concurrency: 40,
-    secrets: [metaAppSecret, metaVerifyToken, metaAccessToken],
+    secrets: [metaAppSecret, metaVerifyToken, metaAccessToken, geminiApiKey],
   },
   async (request, response) => {
     const boundary = canaryBoundaryOrNull();
@@ -296,7 +298,37 @@ export const metaCanaryWebhook = onRequest(
               const result = runBotEngine(session, { ...raw.inbound, nowMs: Date.now() }, {
                 welcomeMediaId: process.env.HEMAS_META_WELCOME_MEDIA_ID?.trim() || null,
               });
-              for (const reply of result.replies) {
+
+              // Governed AI answers: when the menu engine could not route the
+              // text, ask Gemini (guard-railed, knowledge-base-only). The
+              // answer replaces the fallback nudge; any AI failure keeps the
+              // original menu replies. Text stays in memory only.
+              let replies: readonly Record<string, unknown>[] = result.replies;
+              if (result.aiQuery && process.env.HEMAS_META_AI_ENABLED === "true") {
+                let aiKey = "";
+                try {
+                  aiKey = geminiApiKey.value().trim();
+                } catch {
+                  aiKey = "";
+                }
+                if (aiKey) {
+                  const aiModel = process.env.HEMAS_GEMINI_MODEL?.trim();
+                  const ai = await answerWithGuardrails(
+                    { text: result.aiQuery, language: result.session.language ?? "en" },
+                    { apiKey: aiKey, ...(aiModel ? { model: aiModel } : {}) },
+                  );
+                  if (ai.answer) {
+                    replies = [aiReplyMessage(ai.answer, result.session.language ?? "en")];
+                  }
+                  logger.info("meta-bot: ai answer", {
+                    answered: Boolean(ai.answer),
+                    failureCode: ai.failureCode,
+                    latencyMs: ai.latencyMs,
+                  });
+                }
+              }
+
+              for (const reply of replies) {
                 await sendGraphMessage(phoneNumberId, token, raw.waId, reply);
               }
               await saveBotSession(db, raw.waId, result.session);
@@ -319,13 +351,13 @@ export const metaCanaryWebhook = onRequest(
                 ...bridgeBase,
                 direction: "outbound",
                 waMessageId: `${raw.waMessageId}:reply`,
-                messageType: typeof result.replies[0]?.type === "string" ? String(result.replies[0].type) : "text",
+                messageType: typeof replies[0]?.type === "string" ? String(replies[0].type) : "text",
               });
               logger.info("meta-bot: handled inbound", {
                 kind: raw.inbound.kind,
                 state: result.session.state,
                 language: result.session.language,
-                replies: result.replies.length,
+                replies: replies.length,
                 booked: Boolean(result.booking),
               });
             } catch (error) {

@@ -66,6 +66,12 @@ export interface BotResult {
   /** Conversation purpose hint for the inbox bridge. */
   readonly purpose: "general_support" | "appointment" | "laboratory";
   readonly staffHandoff: boolean;
+  /**
+   * Free text the menu engine could not route (the fallback path). The
+   * webhook may hand it to the governed AI layer for a real answer; it is
+   * never stored — same in-memory-only discipline as keyword matching.
+   */
+  readonly aiQuery: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -363,13 +369,14 @@ export function runBotEngine(
   const done = (
     replies: Record<string, unknown>[],
     next: Partial<BotSession>,
-    extra?: Partial<Pick<BotResult, "booking" | "purpose" | "staffHandoff">>,
+    extra?: Partial<Pick<BotResult, "booking" | "purpose" | "staffHandoff" | "aiQuery">>,
   ): BotResult => ({
     replies,
     session: { ...session, ...next, updatedAtMs: inbound.nowMs },
     booking: extra?.booking ?? null,
     purpose: extra?.purpose ?? "general_support",
     staffHandoff: extra?.staffHandoff ?? false,
+    aiQuery: extra?.aiQuery ?? null,
   });
 
   // --- language selection (or first contact) -------------------------------
@@ -467,9 +474,12 @@ export function runBotEngine(
   }
 
   // --- fallback: nudge back to the menu (in the freshest language) ------------
+  // Real free text is surfaced as `aiQuery` so the webhook can substitute a
+  // governed AI answer; without AI the replies below stand as-is.
   const fallbackLang = (text ? detectScriptLanguage(text) : null) ?? lang;
-  return done([textMessage(T.fallback[fallbackLang]), ...mainMenu(fallbackLang)], {
-    language: fallbackLang,
-    state: "menu",
-  });
+  return done(
+    [textMessage(T.fallback[fallbackLang]), ...mainMenu(fallbackLang)],
+    { language: fallbackLang, state: "menu" },
+    { aiQuery: text || null },
+  );
 }
