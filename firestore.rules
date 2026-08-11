@@ -2614,6 +2614,39 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
+      // --- Live canary read models (content-free by construction) ---------
+      // Daily usage counters, campaign summaries and per-recipient delivery
+      // states carry counters/status only — no bodies, no identifiers beyond
+      // masked last4. Written exclusively by trusted backend writers; any
+      // active workspace member may read them (Analytics / Campaigns pages).
+
+      match /canary_metrics/{metricId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == metricId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /canary_campaigns/{campaignId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == campaignId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /canary_campaign_sends/{sendId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == sendId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
       match /whatsappConnections/{connectionId} {
         allow get: if canReadDemoConnectionCentre(workspaceId) &&
           connectionId == 'connection_demo_simulator' &&

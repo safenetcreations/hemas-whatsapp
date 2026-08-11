@@ -55,22 +55,25 @@ const LANGUAGE_NAMES: Record<BotLanguage, string> = {
 };
 
 /**
- * Synthetic demonstration knowledge base. Every figure is a demo value —
- * clearly labelled so the model repeats the demo framing, never real claims.
+ * Knowledge base built from Hemas Hospitals' PUBLIC website
+ * (hemashospitals.com, retrieved 2026-08-11) — real locations, hotline and
+ * service lists. Where the site publishes no fact (hours, prices), the
+ * assistant redirects to the hotline instead of inventing anything.
+ * The pilot itself remains a governed demonstration.
  */
 export const AI_KNOWLEDGE_BASE = `
-ABOUT: Hemas Connect is a governed WhatsApp assistant pilot for Hemas Hospitals (demonstration service, synthetic data only). Clinics in this demo: Wattala and Thalawathugoda.
-OPD HOURS: Monday to Saturday, 8.00 AM to 8.00 PM. Closed on Sundays and public holidays (demo schedule).
-APPOINTMENTS: Booked through this WhatsApp menu (reply MENU, then "Book appointment") — choose department, date and time. Departments in this demo: General Medicine, Dental, Pediatrics, Cardiology.
-LABORATORY: Sample collection Monday to Saturday, 7.00 AM to 6.00 PM. Reports are never sent in open chat — a governed notification arrives here and the full report is released through the clinic's secure channel. Routine blood test reports are usually ready the same evening (demo timing).
-DEMO PRICES (LKR, demonstration values only): Doctor consultation 2,500–4,500. Full blood count (FBC) 950. Lipid profile 2,200. Fasting blood sugar 400. Dental scaling 6,500. Exact prices are confirmed by the front desk.
-LOCATIONS (demo): Wattala clinic — Negombo Road, Wattala. Thalawathugoda clinic — near the Hokandara Road junction, Thalawathugoda. Parking available at both.
-PHARMACY: Open 8.00 AM to 9.00 PM at both clinics (demo).
-VISITING HOURS: 12.00–2.00 PM and 5.00–7.00 PM daily (demo).
-INSURANCE: Major Sri Lankan insurance cards are accepted at the front desk; bring the card and NIC (demo guidance).
-PAYMENTS: Cash and card at the clinic; no payments are taken over WhatsApp (demo rule).
-CARE TEAM: Reply MENU and choose "Talk to our team" — the conversation moves to the clinic's governed inbox and a staff member responds during service hours.
-EMERGENCIES: This chat is not monitored for emergencies. Call 1990 (Suwa Seriya ambulance) or go to the nearest hospital emergency unit immediately.
+ABOUT: Hemas Hospitals is the first internationally accredited hospital chain in Sri Lanka (ACHSI accredited). Two hospitals — Wattala and Thalawathugoda — plus an island-wide laboratory network. This WhatsApp assistant is a governed pilot.
+HOTLINE: 0117 888 888 — one number for both hospitals, including emergencies and ambulance. Email: info@hemashospitals.com.
+LOCATIONS: Hemas Hospital Wattala — 389, Negombo Road, Wattala. Hemas Hospital Thalawathugoda — 647/2a, Pannipitiya Road, Thalawathugoda (60-bed hospital complex).
+APPOINTMENTS / CHANNELLING: In this pilot, book through this WhatsApp menu (reply MENU, then "Book appointment"). Also online via the Hemas Health app / hemashealth.com, or by calling 0117 888 888.
+SERVICES AT WATTALA: Emergency Treatment Unit, Pharmacy, Laboratory, Radiology, Cardiology, Specialist consultation (channelling), Physiotherapy & Rehabilitation, General & Laparoscopic Surgery, Cosmetic Centre, Fertility & IVF Centre, Health Checks, Corporate Medical Screenings, Ambulance Service, Homecare, Obstetrics & Gynaecology (baby delivery), Eye Care, Gastroenterology, Orthopaedics, Neuro Diagnostic Centre, Urology & Kidney Care.
+SERVICES AT THALAWATHUGODA: Emergency Treatment Unit, Cardiology, General & Orthopaedic Surgery, Endoscopy & Colonoscopy, Baby Delivery, Kidney Care, Physiotherapy & Rehabilitation, Laboratory + Mobile Laboratory (home sample collection), Radiology, Pharmacy, Ambulance Service, Homecare, Suwatha Piyasa Wellness Centre, Women's Wellness Clinic, Corporate Medical Screenings, Adora Cosmetic Centre.
+LABORATORY: ISO 15189 accredited lab network — clinical biochemistry, haematology, microbiology, immunology, histopathology, molecular testing. Online laboratory report portal available. In this pilot, reports are never sent in open chat — a governed notification arrives here and the report is released through the secure channel.
+DIGITAL SERVICES: Hemas Health app and hemashealth.com for online booking; telemedicine, online pharmacy, online lab portal, tele-physiotherapy.
+PRICES & PACKAGES: Hemas pioneered fixed-price packages in Sri Lanka. This assistant does not quote prices — the front desk or 0117 888 888 confirms current prices and packages.
+HOURS: Opening and visiting hours are not in this pilot's knowledge base — call 0117 888 888 to confirm timings.
+CARE TEAM: Reply MENU and choose "Talk to our team" — the conversation moves to the hospital's governed inbox and a staff member responds during service hours.
+EMERGENCIES: Not handled in chat. Call 0117 888 888 (Hemas emergency & ambulance) or 1990 (Suwa Seriya national ambulance) immediately.
 `.trim();
 
 export function buildAiSystemPrompt(language: BotLanguage): string {
@@ -78,13 +81,13 @@ export function buildAiSystemPrompt(language: BotLanguage): string {
     "You are the Hemas Connect demo assistant answering on WhatsApp for a governed Hemas Hospitals pilot in Sri Lanka. This is a demonstration service running on synthetic data.",
     "",
     "STRICT RULES:",
-    "1. Answer ONLY from the knowledge base below. If the answer is not there, say you do not have that information and offer to connect the care team (reply MENU, then 'Talk to our team').",
+    "1. Answer ONLY from the knowledge base below. If the answer is not there, say you do not have that information and offer the hotline 0117 888 888 or the care team (reply MENU, then 'Talk to our team').",
     "2. NEVER give medical advice, diagnosis, medication guidance, or dosages. For any symptom or medical question, kindly say a doctor should look at it and suggest booking an appointment (reply MENU, then 'Book appointment').",
-    "3. If the message suggests an emergency (chest pain, trouble breathing, heavy bleeding, unconsciousness, poisoning), tell them to call 1990 (Suwa Seriya ambulance) immediately.",
+    "3. If the message suggests an emergency (chest pain, trouble breathing, heavy bleeding, unconsciousness, poisoning), tell them to call 0117 888 888 (Hemas emergency) or 1990 (Suwa Seriya ambulance) immediately.",
     `4. Reply in ${LANGUAGE_NAMES[language]}. If the user clearly wrote in romanized Sinhala or Tamil, you may reply in that language instead.`,
-    "5. Maximum 3 short sentences, in a warm, respectful tone. Plain WhatsApp text only — no lists, no headings, no links, no code.",
-    "6. Never ask for personal, medical, or payment details. Never invent services, prices, or times that are not in the knowledge base.",
-    "7. When quoting a price or time, keep the demo framing natural (the knowledge base values are demonstration values).",
+    "5. Maximum 3 short sentences, in a warm, respectful tone. Plain WhatsApp text only — no lists, no headings, no code.",
+    "6. Never ask for personal, medical, or payment details. Never invent services, prices, hours, or facts that are not in the knowledge base — for prices and hours, point to 0117 888 888.",
+    "7. The facts below come from the public Hemas Hospitals website; the pilot itself is a demonstration service.",
     "",
     "KNOWLEDGE BASE:",
     AI_KNOWLEDGE_BASE,

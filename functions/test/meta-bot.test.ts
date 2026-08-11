@@ -58,16 +58,16 @@ test("full booking path produces a selections-only booking", () => {
   let r = runBotEngine(session, pick("menu_appointment"));
   assert.equal(r.session.state, "book_department");
 
-  r = runBotEngine(r.session, pick("dept_dental"));
+  r = runBotEngine(r.session, pick("dept_ortho"));
   assert.equal(r.session.state, "book_day");
-  assert.equal(r.session.departmentId, "dept_dental");
+  assert.equal(r.session.departmentId, "dept_ortho");
 
   r = runBotEngine(r.session, pick("day_2026-08-12"));
   assert.equal(r.session.state, "book_slot");
 
   r = runBotEngine(r.session, pick("slot_1400"));
   assert.ok(r.booking, "booking expected");
-  assert.equal(r.booking?.departmentId, "dept_dental");
+  assert.equal(r.booking?.departmentId, "dept_ortho");
   assert.equal(r.booking?.dayId, "day_2026-08-12");
   assert.ok((r.replies[0] as any).text.body.includes("12 Aug"), "confirmation shows real date");
   assert.equal(r.booking?.slotId, "slot_1400");
