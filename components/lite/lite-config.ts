@@ -47,7 +47,9 @@ export function isLiteEmail(email: string | null | undefined): boolean {
  * only covers the explicit allowlisted test numbers.
  */
 export const DEMO_KNOWN_VISITORS: Readonly<Record<string, string>> = {
-  "7755": "+94 70 566 7755 · your test phone",
+  "7755": "+94 70 566 7755 · test phone 1",
+  "1999": "+94 77 772 1999 · test phone 2",
+  "6555": "+94 70 373 6555 · test phone 3",
 };
 
 /** Swap a masked "···1234" label for the known test number, when allowlisted. */
