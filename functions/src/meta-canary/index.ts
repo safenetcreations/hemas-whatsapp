@@ -1,14 +1,17 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest, type CallableRequest } from "firebase-functions/v2/https";
 import { sha256Hex } from "../deterministic.js";
 import {
-  CLOUD_DEMO_PROJECT_ID,
-  assertGovernedDemoProjectBoundary,
-  isCloudDemoEnabled,
-} from "../governed-project.js";
+  canaryBoundaryOrNull,
+  geminiApiKey,
+  graphVersion,
+  metaAccessToken,
+  metaAppSecret,
+  metaVerifyToken,
+  sendGraphMessage,
+} from "./graph.js";
 import {
   META_CANARY_DEFAULT_LANGUAGE,
   META_CANARY_DEFAULT_TEMPLATE,
@@ -47,42 +50,11 @@ import {
  * - No patient data, no contact-graph joins, no automation triggers.
  */
 
-const metaAccessToken = defineSecret("HEMAS_META_ACCESS_TOKEN");
-const metaAppSecret = defineSecret("HEMAS_META_APP_SECRET");
-const metaVerifyToken = defineSecret("HEMAS_META_VERIFY_TOKEN");
-const geminiApiKey = defineSecret("HEMAS_GEMINI_API_KEY");
-
 const SYNTHETIC_DEMO_EMAIL = "demo.admin@synthetic.invalid";
-
-function canaryBoundaryOrNull(): { projectId: string } | null {
-  const projectId = process.env.GCLOUD_PROJECT ?? "";
-  if (
-    process.env.HEMAS_META_CANARY_ENABLED !== "true" ||
-    !isCloudDemoEnabled() ||
-    projectId !== CLOUD_DEMO_PROJECT_ID ||
-    process.env.FIRESTORE_EMULATOR_HOST
-  ) {
-    return null;
-  }
-  try {
-    const mode = assertGovernedDemoProjectBoundary({
-      projectId,
-      firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
-    });
-    return mode === "cloud" ? { projectId } : null;
-  } catch {
-    return null;
-  }
-}
 
 function getCanaryFirestore(projectId: string): Firestore {
   const app = getApps().length > 0 ? getApp() : initializeApp({ projectId });
   return getFirestore(app);
-}
-
-function graphVersion(): string {
-  const raw = process.env.HEMAS_META_GRAPH_VERSION?.trim() ?? "";
-  return /^v\d{1,3}\.\d{1,2}$/.test(raw) ? raw : "v23.0";
 }
 
 const AUTO_REPLY_TEXT =
@@ -134,59 +106,15 @@ function extractBotMessages(payload: unknown): RawBotMessage[] {
   return out;
 }
 
-async function sendGraphMessage(
-  phoneNumberId: string,
-  token: string,
-  to: string,
-  body: Record<string, unknown>,
-): Promise<void> {
-  const url = `https://graph.facebook.com/${graphVersion()}/${phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to,
-      ...body,
-    }),
-  });
-  if (!response.ok) {
-    const detail = (await response.json().catch(() => null)) as
-      | { error?: { code?: number; message?: string } }
-      | null;
-    throw new Error(`graph ${response.status}${detail?.error?.code ? ` code ${detail.error.code}` : ""}`);
-  }
-}
-
 async function sendAutoReply(
   toNumber: string,
   phoneNumberId: string,
   token: string,
 ): Promise<void> {
-  const url = `https://graph.facebook.com/${graphVersion()}/${phoneNumberId}/messages`;
-  const providerResponse = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: toNumber,
-      type: "text",
-      text: { preview_url: false, body: AUTO_REPLY_TEXT },
-    }),
+  await sendGraphMessage(phoneNumberId, token, toNumber, {
+    type: "text",
+    text: { preview_url: false, body: AUTO_REPLY_TEXT },
   });
-  if (!providerResponse.ok) {
-    const detail = (await providerResponse.json().catch(() => null)) as
-      | { error?: { code?: number; message?: string } }
-      | null;
-    throw new Error(
-      `provider ${providerResponse.status}${detail?.error?.code ? ` code ${detail.error.code}` : ""}`,
-    );
-  }
 }
 
 export const metaCanaryWebhook = onRequest(
