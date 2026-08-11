@@ -22,7 +22,12 @@ export { demoRecordSyntheticAiRetrospective } from "./ai-governance/index.js";
 export { demoAppendInternalNote } from "./demo-services.js";
 export { syntheticInboundWebhook } from "./ingress/index.js";
 export { demoSendMetaCanaryTemplate, metaCanaryWebhook } from "./meta-canary/index.js";
-export { liteClaimConversation, liteDemoSetup, liteSendAgentReply } from "./lite/index.js";
+export {
+  liteClaimConversation,
+  liteDemoSetup,
+  liteSendAgentReply,
+  liteSendCampaign,
+} from "./lite/index.js";
 export {
   assertWorkspaceAuthorization,
   executeAuditedWorkspaceMutation,

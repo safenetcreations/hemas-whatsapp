@@ -27,8 +27,22 @@ import {
 import { logger } from "firebase-functions";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { sha256Hex } from "../deterministic.js";
-import { parseRecipientAllowlist } from "../meta-canary/contracts.js";
+import {
+  META_CANARY_DEFAULT_LANGUAGE,
+  META_CANARY_DEFAULT_TEMPLATE,
+  parseRecipientAllowlist,
+} from "../meta-canary/contracts.js";
 import { canaryBoundaryOrNull, metaAccessToken, sendGraphMessage } from "../meta-canary/graph.js";
+import {
+  LITE_CAMPAIGNS_COLLECTION,
+  LITE_CAMPAIGN_SENDS_COLLECTION,
+  LiteCampaignError,
+  assertTemplateSelection,
+  assertValidCampaignName,
+  campaignId,
+  sendDocIdForFailure,
+  sendDocIdForWamid,
+} from "./campaigns.js";
 import {
   LITE_AGENT_REPLIES_COLLECTION,
   LITE_SEATS,
@@ -108,6 +122,12 @@ function mapLiteError(error: unknown): never {
       error.code === "window_expired" || error.code === "not_live" ? "failed-precondition" :
       "invalid-argument";
     throw new HttpsError(code, error.message);
+  }
+  if (error instanceof LiteCampaignError) {
+    throw new HttpsError(
+      error.code === "empty_audience" ? "failed-precondition" : "invalid-argument",
+      error.message,
+    );
   }
   if (error instanceof HttpsError) throw error;
   throw new HttpsError("internal", "The Lite lane could not complete the request.");
@@ -347,6 +367,140 @@ export const liteSendAgentReply = onCall(
       });
       void bumpDailyMetrics(db, LITE_WORKSPACE_ID, Date.now(), { agentReplies: 1 });
       return { sent: true, conversationId, providerMessageId };
+    } catch (error) {
+      mapLiteError(error);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Live bulk campaigns (template blast to the governed allowlist)
+// ---------------------------------------------------------------------------
+
+type LiteCampaignInput = {
+  readonly name?: string;
+  readonly templateName?: string;
+  readonly languageCode?: string;
+};
+
+export const liteSendCampaign = onCall(
+  { memory: "256MiB", timeoutSeconds: 120, maxInstances: 2, secrets: [metaAccessToken] },
+  async (request: CallableRequest<LiteCampaignInput>) => {
+    const boundary = boundaryOrThrow();
+    const db = liteFirestore(boundary.projectId);
+    const member = await requireLiteMember(db, request);
+    if (member.role !== "supervisor" && member.role !== "tenant_admin") {
+      throw new HttpsError(
+        "permission-denied",
+        "Campaigns need a supervisor or admin seat — agents handle chats, not broadcasts.",
+      );
+    }
+
+    try {
+      const name = assertValidCampaignName(request.data?.name);
+      const template = assertTemplateSelection(
+        request.data?.templateName,
+        request.data?.languageCode,
+        META_CANARY_DEFAULT_TEMPLATE,
+        META_CANARY_DEFAULT_LANGUAGE,
+      );
+      const audience = parseRecipientAllowlist(process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS);
+      if (audience.length === 0) {
+        throw new LiteCampaignError("empty_audience", "The canary allowlist is empty.");
+      }
+      const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
+      if (!/^\d{5,32}$/.test(phoneNumberId)) {
+        throw new HttpsError("failed-precondition", "The canary phone number is not configured.");
+      }
+
+      const nowMs = Date.now();
+      const id = campaignId(name, nowMs, sha256Hex);
+      const ws = db.collection("workspaces").doc(LITE_WORKSPACE_ID);
+      const campaignRef = ws.collection(LITE_CAMPAIGNS_COLLECTION).doc(id);
+
+      await campaignRef.create({
+        id,
+        workspaceId: LITE_WORKSPACE_ID,
+        name,
+        templateName: template.templateName,
+        languageCode: template.languageCode,
+        status: "sending",
+        audienceCount: audience.length,
+        sentCount: 0,
+        failedCount: 0,
+        actorUid: member.uid,
+        allowlistOnly: true,
+        canary: true,
+        liveCanary: true,
+        synthetic: true,
+        containsMessageContent: false,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        schemaVersion: 1,
+      });
+
+      const token = metaAccessToken.value();
+      let sent = 0;
+      let failed = 0;
+      for (const recipient of audience) {
+        const digits = recipient.replace(/\D/g, "");
+        let providerMessageId: string | null = null;
+        let errorCode: string | null = null;
+        try {
+          const result = await sendGraphMessage(phoneNumberId, token, digits, {
+            type: "template",
+            template: {
+              name: template.templateName,
+              language: { code: template.languageCode },
+            },
+          });
+          providerMessageId = result.providerMessageId;
+          sent += 1;
+        } catch (error) {
+          failed += 1;
+          errorCode = error instanceof Error ? error.message.slice(0, 60) : "unknown";
+        }
+        const sendId = providerMessageId
+          ? sendDocIdForWamid(providerMessageId, sha256Hex)
+          : sendDocIdForFailure(id, digits, sha256Hex);
+        await ws.collection(LITE_CAMPAIGN_SENDS_COLLECTION).doc(sendId).set({
+          id: sendId,
+          workspaceId: LITE_WORKSPACE_ID,
+          campaignId: id,
+          toNumberSha256: sha256Hex(digits),
+          toNumberLast4: digits.slice(-4),
+          status: providerMessageId ? "sent" : "failed",
+          errorCode,
+          providerMessageId,
+          canary: true,
+          liveCanary: true,
+          synthetic: true,
+          containsMessageContent: false,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          schemaVersion: 1,
+        });
+      }
+
+      await campaignRef.set(
+        {
+          status: failed === 0 ? "sent" : sent > 0 ? "partial" : "failed",
+          sentCount: sent,
+          failedCount: failed,
+          completedAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        },
+        { merge: true },
+      );
+      void bumpDailyMetrics(db, LITE_WORKSPACE_ID, nowMs, { campaignSends: sent });
+
+      logger.info("lite: campaign dispatched", {
+        audience: audience.length,
+        sent,
+        failed,
+        template: template.templateName,
+      });
+      return { campaignId: id, audience: audience.length, sent, failed };
     } catch (error) {
       mapLiteError(error);
     }

@@ -308,6 +308,246 @@ export function useLiteContactIndex(
 }
 
 // ---------------------------------------------------------------------------
+// Campaigns (content-free summaries + per-recipient delivery states)
+// ---------------------------------------------------------------------------
+
+export interface LiteCampaign {
+  readonly id: string;
+  readonly name: string;
+  readonly templateName: string;
+  readonly status: string;
+  readonly audienceCount: number;
+  readonly sentCount: number;
+  readonly failedCount: number;
+  readonly createdAtMs: number;
+}
+
+export function useLiteCampaigns(enabled: boolean): ListenerState<LiteCampaign> {
+  const [state, setState] = useState<ListenerState<LiteCampaign>>({
+    rows: [],
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    let db;
+    try {
+      db = getFirebaseServices().db;
+    } catch (error) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setState({
+          rows: [],
+          loading: false,
+          error: error instanceof Error ? error.message : "Firebase unavailable.",
+        });
+      });
+      return () => {
+        active = false;
+      };
+    }
+    const q = query(
+      collection(db, "workspaces", LITE_WORKSPACE_ID, "canary_campaigns"),
+      orderBy("createdAt", "desc"),
+      limit(20),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!active) return;
+        const rows = snapshot.docs.map((record) => {
+          const data = record.data();
+          return {
+            id: record.id,
+            name: typeof data.name === "string" ? data.name : record.id,
+            templateName: typeof data.templateName === "string" ? data.templateName : "",
+            status: typeof data.status === "string" ? data.status : "sending",
+            audienceCount: typeof data.audienceCount === "number" ? data.audienceCount : 0,
+            sentCount: typeof data.sentCount === "number" ? data.sentCount : 0,
+            failedCount: typeof data.failedCount === "number" ? data.failedCount : 0,
+            createdAtMs: toMillis(data.createdAt),
+          } satisfies LiteCampaign;
+        });
+        setState({ rows, loading: false, error: null });
+      },
+      (error) => {
+        if (active) setState({ rows: [], loading: false, error: error.message });
+      },
+    );
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [enabled]);
+
+  return state;
+}
+
+export interface LiteCampaignSend {
+  readonly id: string;
+  readonly toNumberLast4: string;
+  readonly status: string;
+  readonly errorCode: string | null;
+}
+
+export function useLiteCampaignSends(campaignId: string | null): ListenerState<LiteCampaignSend> {
+  const [state, setState] = useState<ListenerState<LiteCampaignSend>>({
+    rows: [],
+    loading: false,
+    error: null,
+  });
+
+  useEffect(() => {
+    let active = true;
+    if (!campaignId) {
+      queueMicrotask(() => {
+        if (active) setState({ rows: [], loading: false, error: null });
+      });
+      return () => {
+        active = false;
+      };
+    }
+    let db;
+    try {
+      db = getFirebaseServices().db;
+    } catch (error) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setState({
+          rows: [],
+          loading: false,
+          error: error instanceof Error ? error.message : "Firebase unavailable.",
+        });
+      });
+      return () => {
+        active = false;
+      };
+    }
+    queueMicrotask(() => {
+      if (active) setState({ rows: [], loading: true, error: null });
+    });
+    const q = query(
+      collection(db, "workspaces", LITE_WORKSPACE_ID, "canary_campaign_sends"),
+      where("campaignId", "==", campaignId),
+      limit(25),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!active) return;
+        const rows = snapshot.docs.map((record) => {
+          const data = record.data();
+          return {
+            id: record.id,
+            toNumberLast4: typeof data.toNumberLast4 === "string" ? data.toNumberLast4 : "····",
+            status: typeof data.status === "string" ? data.status : "sent",
+            errorCode: typeof data.errorCode === "string" ? data.errorCode : null,
+          } satisfies LiteCampaignSend;
+        });
+        setState({ rows, loading: false, error: null });
+      },
+      (error) => {
+        if (active) setState({ rows: [], loading: false, error: error.message });
+      },
+    );
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [campaignId]);
+
+  return state;
+}
+
+// ---------------------------------------------------------------------------
+// Daily metrics (content-free counters for Analytics + quotas)
+// ---------------------------------------------------------------------------
+
+export interface LiteDailyMetrics {
+  readonly id: string;
+  readonly day: string;
+  readonly inboundMessages: number;
+  readonly botReplies: number;
+  readonly aiAnswers: number;
+  readonly bookings: number;
+  readonly staffHandoffs: number;
+  readonly agentReplies: number;
+  readonly campaignSends: number;
+  readonly apiRequests: number;
+}
+
+function metricNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+export function useLiteMetrics(enabled: boolean): ListenerState<LiteDailyMetrics> {
+  const [state, setState] = useState<ListenerState<LiteDailyMetrics>>({
+    rows: [],
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    let db;
+    try {
+      db = getFirebaseServices().db;
+    } catch (error) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setState({
+          rows: [],
+          loading: false,
+          error: error instanceof Error ? error.message : "Firebase unavailable.",
+        });
+      });
+      return () => {
+        active = false;
+      };
+    }
+    const q = query(
+      collection(db, "workspaces", LITE_WORKSPACE_ID, "canary_metrics"),
+      orderBy("day", "desc"),
+      limit(31),
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!active) return;
+        const rows = snapshot.docs.map((record) => {
+          const data = record.data();
+          return {
+            id: record.id,
+            day: typeof data.day === "string" ? data.day : "",
+            inboundMessages: metricNumber(data.inboundMessages),
+            botReplies: metricNumber(data.botReplies),
+            aiAnswers: metricNumber(data.aiAnswers),
+            bookings: metricNumber(data.bookings),
+            staffHandoffs: metricNumber(data.staffHandoffs),
+            agentReplies: metricNumber(data.agentReplies),
+            campaignSends: metricNumber(data.campaignSends),
+            apiRequests: metricNumber(data.apiRequests),
+          } satisfies LiteDailyMetrics;
+        });
+        setState({ rows, loading: false, error: null });
+      },
+      (error) => {
+        if (active) setState({ rows: [], loading: false, error: error.message });
+      },
+    );
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [enabled]);
+
+  return state;
+}
+
+// ---------------------------------------------------------------------------
 // Callables
 // ---------------------------------------------------------------------------
 
@@ -350,4 +590,20 @@ export async function liteSetupSeats(): Promise<unknown> {
   const callable = httpsCallable(liteFunctions(), "liteDemoSetup", { timeout: 45_000 });
   const result = await callable({});
   return result.data;
+}
+
+export interface LiteCampaignLaunchResult {
+  readonly campaignId: string;
+  readonly audience: number;
+  readonly sent: number;
+  readonly failed: number;
+}
+
+export async function liteLaunchCampaign(
+  name: string,
+  templateName?: string,
+): Promise<LiteCampaignLaunchResult> {
+  const callable = httpsCallable(liteFunctions(), "liteSendCampaign", { timeout: 110_000 });
+  const result = await callable({ name, ...(templateName ? { templateName } : {}) });
+  return result.data as LiteCampaignLaunchResult;
 }

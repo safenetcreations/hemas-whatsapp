@@ -80,6 +80,61 @@ test("claim actions are strictly claim or release", () => {
   assert.throws(() => assertLiteAction(null), LiteError);
 });
 
+test("campaign contracts: names, templates, ids, status ordering", async () => {
+  const {
+    LiteCampaignError,
+    assertTemplateSelection,
+    assertValidCampaignName,
+    campaignId,
+    extractDeliveryStatusEvents,
+    sendDocIdForWamid,
+    shouldAdvanceSendStatus,
+  } = await import("../src/lite/campaigns.js");
+
+  assert.equal(assertValidCampaignName("  OPD  reminder (Aug) "), "OPD reminder (Aug)");
+  assert.throws(() => assertValidCampaignName("ab"), LiteCampaignError);
+  assert.throws(() => assertValidCampaignName("<script>"), LiteCampaignError);
+
+  assert.deepEqual(assertTemplateSelection(undefined, undefined, "hello_world", "en_US"), {
+    templateName: "hello_world",
+    languageCode: "en_US",
+  });
+  assert.deepEqual(assertTemplateSelection("hemas_canary_hello", "en_US", "x", "y"), {
+    templateName: "hemas_canary_hello",
+    languageCode: "en_US",
+  });
+  assert.throws(() => assertTemplateSelection("Bad Name!", "en_US", "x", "en_US"), LiteCampaignError);
+
+  assert.equal(campaignId("A", 1, sha256Hex), campaignId("A", 1, sha256Hex));
+  assert.notEqual(campaignId("A", 1, sha256Hex), campaignId("A", 2, sha256Hex));
+  assert.match(sendDocIdForWamid("wamid.X", sha256Hex), /^send_[0-9a-f]{32}$/);
+
+  assert.equal(shouldAdvanceSendStatus(undefined, "sent"), true);
+  assert.equal(shouldAdvanceSendStatus("sent", "delivered"), true);
+  assert.equal(shouldAdvanceSendStatus("read", "delivered"), false);
+  assert.equal(shouldAdvanceSendStatus("delivered", "failed"), true);
+  assert.equal(shouldAdvanceSendStatus("sent", "bogus"), false);
+
+  const events = extractDeliveryStatusEvents({
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              statuses: [
+                { id: "wamid.A", status: "delivered" },
+                { id: "wamid.B", status: "unknown_state" },
+                { status: "read" },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  });
+  assert.deepEqual(events, [{ wamid: "wamid.A", status: "delivered" }]);
+});
+
 test("metrics day ids roll on Colombo local days", async () => {
   const { metricsDayId } = await import("../src/lite/metrics.js");
   // 2026-08-10T21:33:20Z is already 2026-08-11 03:03 in Colombo (+05:30).

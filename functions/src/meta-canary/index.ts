@@ -36,6 +36,12 @@ import {
   saveBotSession,
 } from "../meta-bot/bridge.js";
 import { bumpDailyMetrics } from "../lite/metrics.js";
+import {
+  LITE_CAMPAIGN_SENDS_COLLECTION,
+  extractDeliveryStatusEvents,
+  sendDocIdForWamid,
+  shouldAdvanceSendStatus,
+} from "../lite/campaigns.js";
 
 /**
  * Governed Meta WhatsApp CANARY lane.
@@ -202,6 +208,32 @@ export const metaCanaryWebhook = onRequest(
     }
 
     const records = extractCanaryInboundRecords(payload, sha256Hex);
+
+    // Campaign delivery tracking: advance content-free send records when
+    // Meta reports sent → delivered → read (or failed). Only existing
+    // records are touched — no orphan docs for bot/agent sends.
+    const statusEvents = extractDeliveryStatusEvents(payload);
+    if (statusEvents.length > 0) {
+      const db = getCanaryFirestore(boundary.projectId);
+      for (const event of statusEvents) {
+        try {
+          const ref = db
+            .collection("workspaces").doc(META_CANARY_WORKSPACE_ID)
+            .collection(LITE_CAMPAIGN_SENDS_COLLECTION)
+            .doc(sendDocIdForWamid(event.wamid, sha256Hex));
+          const snap = await ref.get();
+          if (snap.exists && shouldAdvanceSendStatus(snap.data()?.status, event.status)) {
+            await ref.set(
+              { status: event.status, updatedAt: FieldValue.serverTimestamp() },
+              { merge: true },
+            );
+          }
+        } catch {
+          /* delivery tracking never breaks the webhook */
+        }
+      }
+    }
+
     if (records.length > 0) {
       const db = getCanaryFirestore(boundary.projectId);
       const batch = db.batch();

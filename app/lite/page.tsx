@@ -6,11 +6,11 @@ import { useLiteConversations } from "@/components/lite/lite-data";
 import { LITE_SEAT_HINTS } from "@/components/lite/lite-config";
 
 const CAPABILITIES = [
-  { label: "AI chatbot · EN / සිංහල / தமிழ்", state: "live" },
+  { label: "AI chatbot · EN / සිංහල / தமிழ் · real Hemas data", state: "live" },
   { label: "Appointment booking (real dates & slots)", state: "live" },
-  { label: "Live inbox with agent seats", state: "live" },
-  { label: "Bulk campaigns", state: "Phase 3" },
-  { label: "Live analytics & quotas", state: "Phase 4" },
+  { label: "Live inbox with agent seats & real replies", state: "live" },
+  { label: "Bulk campaigns with delivery tracking", state: "live" },
+  { label: "Live analytics & plan quotas", state: "live" },
 ] as const;
 
 export default function LiteDashboardPage() {
