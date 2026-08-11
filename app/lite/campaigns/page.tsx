@@ -9,8 +9,8 @@ import {
 } from "@/components/lite/lite-data";
 
 const TEMPLATES = [
-  { value: "hemas_canary_hello", label: "hemas_canary_hello · utility (en_US)" },
-  { value: "hello_world", label: "hello_world · sample (en_US)" },
+  { value: "hemas_canary_hello", label: "hemas_canary_hello · text (en_US)" },
+  { value: "hemas_welcome_visual", label: "hemas_welcome_visual · IMAGE header (en_US)" },
 ] as const;
 
 const STATUS_STYLE: Record<string, string> = {

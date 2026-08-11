@@ -600,6 +600,114 @@ export async function liteSetupSeats(): Promise<unknown> {
   return result.data;
 }
 
+// ---------------------------------------------------------------------------
+// Bookings + doctors
+// ---------------------------------------------------------------------------
+
+export interface LiteBooking {
+  readonly id: string;
+  readonly reference: string;
+  readonly departmentId: string;
+  readonly dayId: string;
+  readonly slotId: string;
+  readonly language: string;
+  readonly visitorKey: string;
+  readonly status: string;
+  readonly createdAtMs: number;
+}
+
+export function useLiteBookings(enabled: boolean): ListenerState<LiteBooking> {
+  const [state, setState] = useState<ListenerState<LiteBooking>>({ rows: [], loading: true, error: null });
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    let db;
+    try { db = getFirebaseServices().db; } catch (error) {
+      queueMicrotask(() => { if (active) setState({ rows: [], loading: false, error: error instanceof Error ? error.message : "Firebase unavailable." }); });
+      return () => { active = false; };
+    }
+    const q = query(
+      collection(db, "workspaces", LITE_WORKSPACE_ID, "canary_bookings"),
+      orderBy("createdAt", "desc"),
+      limit(60),
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!active) return;
+      const rows = snapshot.docs.map((record) => {
+        const data = record.data();
+        return {
+          id: record.id,
+          reference: typeof data.reference === "string" ? data.reference : record.id,
+          departmentId: typeof data.departmentId === "string" ? data.departmentId : "",
+          dayId: typeof data.dayId === "string" ? data.dayId : "",
+          slotId: typeof data.slotId === "string" ? data.slotId : "",
+          language: typeof data.language === "string" ? data.language : "en",
+          visitorKey: typeof data.visitorKey === "string" ? data.visitorKey : "",
+          status: typeof data.status === "string" ? data.status : "requested",
+          createdAtMs: toMillis(data.createdAt),
+        } satisfies LiteBooking;
+      });
+      setState({ rows, loading: false, error: null });
+    }, (error) => { if (active) setState({ rows: [], loading: false, error: error.message }); });
+    return () => { active = false; unsubscribe(); };
+  }, [enabled]);
+  return state;
+}
+
+export interface LiteDoctor {
+  readonly id: string;
+  readonly name: string;
+  readonly departmentId: string;
+  readonly hospital: string;
+  readonly active: boolean;
+}
+
+export function useLiteDoctors(enabled: boolean): ListenerState<LiteDoctor> {
+  const [state, setState] = useState<ListenerState<LiteDoctor>>({ rows: [], loading: true, error: null });
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    let db;
+    try { db = getFirebaseServices().db; } catch (error) {
+      queueMicrotask(() => { if (active) setState({ rows: [], loading: false, error: error instanceof Error ? error.message : "Firebase unavailable." }); });
+      return () => { active = false; };
+    }
+    const q = query(
+      collection(db, "workspaces", LITE_WORKSPACE_ID, "lite_doctors"),
+      orderBy("name", "asc"),
+      limit(60),
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!active) return;
+      const rows = snapshot.docs.map((record) => {
+        const data = record.data();
+        return {
+          id: record.id,
+          name: typeof data.name === "string" ? data.name : record.id,
+          departmentId: typeof data.departmentId === "string" ? data.departmentId : "",
+          hospital: typeof data.hospital === "string" ? data.hospital : "Wattala",
+          active: data.active !== false,
+        } satisfies LiteDoctor;
+      });
+      setState({ rows, loading: false, error: null });
+    }, (error) => { if (active) setState({ rows: [], loading: false, error: error.message }); });
+    return () => { active = false; unsubscribe(); };
+  }, [enabled]);
+  return state;
+}
+
+export async function liteSetBooking(bookingId: string, status: "confirmed" | "cancelled"): Promise<{ notified?: boolean }> {
+  const callable = httpsCallable(liteFunctions(), "liteSetBookingStatus", { timeout: 25_000 });
+  return (await callable({ bookingId, status })).data as { notified?: boolean };
+}
+
+export async function liteSaveDoctor(input: {
+  doctorId?: string; name: string; departmentId: string; hospital: string; active?: boolean;
+}): Promise<void> {
+  const callable = httpsCallable(liteFunctions(), "liteUpsertDoctor", { timeout: 25_000 });
+  await callable(input);
+}
+
 export interface LiteCampaignLaunchResult {
   readonly campaignId: string;
   readonly audience: number;

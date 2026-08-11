@@ -27,6 +27,8 @@ export {
   liteDemoSetup,
   liteSendAgentReply,
   liteSendCampaign,
+  liteSetBookingStatus,
+  liteUpsertDoctor,
 } from "./lite/index.js";
 export {
   assertWorkspaceAuthorization,

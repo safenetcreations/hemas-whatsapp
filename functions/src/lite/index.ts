@@ -171,8 +171,149 @@ export const liteDemoSetup = onCall(
       seats.push({ email: seat.email, displayLabel: seat.displayLabel, role: seat.role, uid });
     }
 
+    // Seed the synthetic doctor directory (idempotent, never overwrites edits).
+    const DOCTOR_SEED: ReadonlyArray<readonly [string, string, string, string]> = [
+      ["doc_perera", "Dr. A. Perera (demo)", "dept_general", "Wattala"],
+      ["doc_fernando", "Dr. S. Fernando (demo)", "dept_cardiology", "Wattala"],
+      ["doc_silva", "Dr. R. de Silva (demo)", "dept_ortho", "Thalawathugoda"],
+      ["doc_kumari", "Dr. N. Kumari (demo)", "dept_gyn", "Wattala"],
+      ["doc_raj", "Dr. V. Rajendran (demo)", "dept_urology", "Thalawathugoda"],
+      ["doc_jaya", "Dr. M. Jayasuriya (demo)", "dept_gastro", "Wattala"],
+      ["doc_nathan", "Dr. K. Nathan (demo)", "dept_eye", "Wattala"],
+      ["doc_dias", "Dr. P. Dias (demo)", "dept_physio", "Thalawathugoda"],
+    ];
+    for (const [id, name, departmentId, hospital] of DOCTOR_SEED) {
+      const ref = db
+        .collection("workspaces").doc(LITE_WORKSPACE_ID)
+        .collection("lite_doctors").doc(id);
+      if (!(await ref.get()).exists) {
+        await ref.set({
+          id, workspaceId: LITE_WORKSPACE_ID, name, departmentId, hospital,
+          active: true, synthetic: true, createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+          schemaVersion: 1,
+        });
+      }
+    }
+
     logger.info("lite: seats provisioned", { count: seats.length });
-    return { provisioned: seats.length, seats };
+    return { provisioned: seats.length, seats, doctorsSeeded: DOCTOR_SEED.length };
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Doctor directory management (synthetic demo data only)
+// ---------------------------------------------------------------------------
+
+type LiteDoctorInput = {
+  readonly doctorId?: string;
+  readonly name?: string;
+  readonly departmentId?: string;
+  readonly hospital?: string;
+  readonly active?: boolean;
+};
+
+export const liteUpsertDoctor = onCall(
+  { memory: "256MiB", timeoutSeconds: 30, maxInstances: 3 },
+  async (request: CallableRequest<LiteDoctorInput>) => {
+    const boundary = boundaryOrThrow();
+    const db = liteFirestore(boundary.projectId);
+    const member = await requireLiteMember(db, request);
+    if (member.role !== "supervisor" && member.role !== "tenant_admin") {
+      throw new HttpsError("permission-denied", "Doctor management needs a supervisor or admin seat.");
+    }
+    const name = typeof request.data?.name === "string" ? request.data.name.trim().slice(0, 80) : "";
+    const departmentId = typeof request.data?.departmentId === "string" ? request.data.departmentId.trim() : "";
+    const hospital = request.data?.hospital === "Thalawathugoda" ? "Thalawathugoda" : "Wattala";
+    if (name.length < 3 || !/^dept_[a-z]{2,20}$/.test(departmentId)) {
+      throw new HttpsError("invalid-argument", "Doctor needs a name (3+ chars) and a valid department.");
+    }
+    const id =
+      typeof request.data?.doctorId === "string" && /^doc_[a-z0-9_]{2,40}$/.test(request.data.doctorId)
+        ? request.data.doctorId
+        : `doc_${sha256Hex(`${name}:${Date.now()}`).slice(0, 8)}`;
+    const label = name.toLowerCase().includes("demo") ? name : `${name} (demo)`;
+    await db
+      .collection("workspaces").doc(LITE_WORKSPACE_ID)
+      .collection("lite_doctors").doc(id)
+      .set(
+        {
+          id, workspaceId: LITE_WORKSPACE_ID, name: label, departmentId, hospital,
+          active: request.data?.active !== false, synthetic: true,
+          updatedAt: Timestamp.now(), schemaVersion: 1,
+        },
+        { merge: true },
+      );
+    return { ok: true, doctorId: id };
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Booking status (confirm / cancel) with real WhatsApp notification
+// ---------------------------------------------------------------------------
+
+const BOOKING_NOTIFY: Record<string, Record<string, (ref: string) => string>> = {
+  confirmed: {
+    en: (r) => `✅ Your appointment request ${r} is CONFIRMED by our care team. See you at the hospital! (Demo service)`,
+    si: (r) => `✅ ඔබගේ හමුවීම් ඉල්ලීම ${r} සත්කාර කණ්ඩායම විසින් තහවුරු කරන ලදී. (ආදර්ශන සේවාව)`,
+    ta: (r) => `✅ உங்கள் சந்திப்புக் கோரிக்கை ${r} எங்கள் குழுவால் உறுதிப்படுத்தப்பட்டது. (மாதிரி சேவை)`,
+  },
+  cancelled: {
+    en: (r) => `ℹ️ Your appointment request ${r} was cancelled by the care team. Reply MENU to book again. (Demo service)`,
+    si: (r) => `ℹ️ ඔබගේ හමුවීම් ඉල්ලීම ${r} අවලංගු කරන ලදී. නැවත වෙන්කිරීමට MENU ලියන්න. (ආදර්ශන සේවාව)`,
+    ta: (r) => `ℹ️ உங்கள் சந்திப்புக் கோரிக்கை ${r} ரத்து செய்யப்பட்டது. மீண்டும் பதிவு செய்ய MENU அனுப்பவும். (மாதிரி சேவை)`,
+  },
+};
+
+type LiteBookingStatusInput = { readonly bookingId?: string; readonly status?: string };
+
+export const liteSetBookingStatus = onCall(
+  { memory: "256MiB", timeoutSeconds: 30, maxInstances: 3, secrets: [metaAccessToken] },
+  async (request: CallableRequest<LiteBookingStatusInput>) => {
+    const boundary = boundaryOrThrow();
+    const db = liteFirestore(boundary.projectId);
+    const member = await requireLiteMember(db, request);
+    const status = request.data?.status === "cancelled" ? "cancelled" : "confirmed";
+    const bookingId =
+      typeof request.data?.bookingId === "string" ? request.data.bookingId.trim() : "";
+    if (!/^HC-\d{5}-[0-9a-f]{10}$/.test(bookingId)) {
+      throw new HttpsError("invalid-argument", "Unknown booking id.");
+    }
+    const ref = db
+      .collection("workspaces").doc(LITE_WORKSPACE_ID)
+      .collection("canary_bookings").doc(bookingId);
+    const snap = await ref.get();
+    const booking = snap.data();
+    if (!snap.exists || !booking) throw new HttpsError("not-found", "Unknown booking id.");
+
+    await ref.set(
+      { status, statusActorUid: member.uid, statusUpdatedAt: Timestamp.now() },
+      { merge: true },
+    );
+
+    // Real WhatsApp notification — allowlisted visitors only, free-form
+    // (bookings are recent, so the 24h window is normally open).
+    let notified = false;
+    const visitorKey = typeof booking.visitorKey === "string" ? booking.visitorKey : "";
+    const allowlist = parseRecipientAllowlist(process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS);
+    const waId = resolveAllowlistedWaId(visitorKey, allowlist, sha256Hex);
+    const phoneNumberId = process.env.HEMAS_META_PHONE_NUMBER_ID?.trim() ?? "";
+    if (waId && /^\d{5,32}$/.test(phoneNumberId)) {
+      const language = booking.language === "si" || booking.language === "ta" ? booking.language : "en";
+      const reference = typeof booking.reference === "string" ? booking.reference : bookingId.slice(0, 8);
+      try {
+        await sendGraphMessage(phoneNumberId, metaAccessToken.value(), waId, {
+          type: "text",
+          text: { preview_url: false, body: BOOKING_NOTIFY[status]![language]!(reference) },
+        });
+        notified = true;
+      } catch (error) {
+        logger.warn("lite: booking notify failed", {
+          reason: error instanceof Error ? error.message : "unknown",
+        });
+      }
+    }
+    logger.info("lite: booking status set", { status, notified });
+    return { ok: true, bookingId, status, notified };
   },
 );
 

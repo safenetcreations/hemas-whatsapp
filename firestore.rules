@@ -2647,6 +2647,28 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
+      match /canary_bookings/{bookingId} {
+        // Selections-only appointment requests from the live line — no
+        // names, no numbers (hashed key only). Members may read and the
+        // backend alone writes.
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == bookingId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /lite_doctors/{doctorId} {
+        // Synthetic demo doctor directory (no real practitioner data).
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == doctorId &&
+          resource.data.synthetic == true;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
       match /whatsappConnections/{connectionId} {
         allow get: if canReadDemoConnectionCentre(workspaceId) &&
           connectionId == 'connection_demo_simulator' &&

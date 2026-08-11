@@ -15,6 +15,8 @@ import { useLiteAuth } from "./lite-auth";
 const NAV = [
   { href: "/lite", label: "Dashboard" },
   { href: "/lite/inbox", label: "Inbox" },
+  { href: "/lite/appointments", label: "Appointments" },
+  { href: "/lite/doctors", label: "Doctors" },
   { href: "/lite/campaigns", label: "Campaigns" },
   { href: "/lite/analytics", label: "Analytics" },
   { href: "/lite/contacts", label: "Contacts" },

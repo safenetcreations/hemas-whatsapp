@@ -50,6 +50,15 @@ export const DEMO_KNOWN_VISITORS: Readonly<Record<string, string>> = {
   "7755": "+94 70 566 7755 · test phone 1",
   "1999": "+94 77 772 1999 · test phone 2",
   "6555": "+94 70 373 6555 · test phone 3",
+  "7818": "+94 76 799 7818 · Hemas contact",
+};
+
+/** Booking visitorKey → display label (keys are sha10 of the allowlist). */
+export const DEMO_VISITOR_KEYS: Readonly<Record<string, string>> = {
+  "3ae11fbf9f": "+94 70 566 7755 · test phone 1",
+  ff6bcaf4da: "+94 77 772 1999 · test phone 2",
+  db8e69725f: "+94 70 373 6555 · test phone 3",
+  "2c67bf487c": "+94 76 799 7818 · Hemas contact",
 };
 
 /** Swap a masked "···1234" label for the known test number, when allowlisted. */
