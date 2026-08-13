@@ -1,0 +1,909 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import test from "node:test";
+import { deleteApp, getApps, initializeApp } from "firebase-admin/app";
+import { Timestamp, type Firestore } from "firebase-admin/firestore";
+import { getHemasFirestore } from "../src/firestore-target.js";
+import type {
+  CanaryBotMessage,
+  CanaryInboundRecord,
+} from "../src/meta-canary/contracts.js";
+import { extractCanaryInboundBatch } from "../src/meta-canary/contracts.js";
+import {
+  persistCanaryWebhookBatch,
+} from "../src/meta-canary/index.js";
+import { processCanaryOutboxBatch } from "../src/meta-canary/outbox-runner.js";
+import { META_CANARY_PUBLIC_JOURNAL_TTL_MS } from "../src/meta-canary/outbox.js";
+import {
+  encryptMetaCanaryReturnRoute,
+  metaCanaryReturnRoutePhoneAssetSha256,
+  metaCanaryReturnRouteSenderSha256,
+} from "../src/meta-canary/return-route.js";
+
+const RUN_EMULATOR = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+const PROJECT_ID = "demo-hemas-connect";
+const WORKSPACE_ID = "workspace_safenet_demo";
+const PHONE_ASSET = "123456789012345";
+const PUBLIC_SENDER = "94770000000";
+const IDENTITY_SECRET_BASE64 = Buffer.alloc(32, 0x5a).toString("base64");
+const ENCRYPTION_SECRET_BASE64 = Buffer.alloc(32, 0x6b).toString("base64");
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function publicMessage(
+  id: string,
+  senderSha256: string,
+  providerTimestamp = String(Math.floor(Date.now() / 1_000)),
+  text = "hello",
+  senderE164 = PUBLIC_SENDER,
+): { record: CanaryInboundRecord; message: CanaryBotMessage } {
+  return {
+    record: {
+      id,
+      workspaceId: WORKSPACE_ID,
+      kind: "message",
+      waMessageId: id,
+      fromNumberSha256: senderSha256,
+      fromNumberLast4: null,
+      toPhoneNumberId: PHONE_ASSET,
+      messageType: "text",
+      statusValue: null,
+      bodySha256: null,
+      providerTimestamp,
+      canary: true,
+      containsMessageContent: false,
+      schemaVersion: 2,
+    },
+    message: {
+      waId: senderE164,
+      waMessageId: id,
+      messageType: "text",
+      inbound: { kind: "text", text, selectionId: "" },
+    },
+  };
+}
+
+function returnRoute(input: {
+  readonly senderE164: string;
+  readonly receiptId: string;
+  readonly createdAtMs: number;
+}) {
+  return encryptMetaCanaryReturnRoute({
+    senderE164: input.senderE164,
+    receiptId: input.receiptId,
+    workspaceId: WORKSPACE_ID,
+    phoneNumberAssetSha256: metaCanaryReturnRoutePhoneAssetSha256(PHONE_ASSET),
+    identitySecretBase64: IDENTITY_SECRET_BASE64,
+    encryptionSecretBase64: ENCRYPTION_SECRET_BASE64,
+    keyVersion: 1,
+    createdAtMs: input.createdAtMs,
+    expiresAtMs: input.createdAtMs + 7 * 24 * 60 * 60 * 1_000,
+  });
+}
+
+test(
+  "public inbound persists once, resolves its encrypted route, and avoids portal identity records",
+  { skip: !RUN_EMULATOR },
+  async () => {
+    const app = getApps().find((candidate) => candidate.name === "public-inbound-test") ??
+      initializeApp({ projectId: PROJECT_ID }, "public-inbound-test");
+    const db: Firestore = getHemasFirestore(app);
+    const workspaceRef = db.collection("workspaces").doc(WORKSPACE_ID);
+    await db.recursiveDelete(workspaceRef);
+
+    const nowMs = Date.now();
+    const senderSha256 = metaCanaryReturnRouteSenderSha256(
+      PUBLIC_SENDER,
+      IDENTITY_SECRET_BASE64,
+    );
+    const aiQuestionText = "What services do you offer?";
+    const aiAnswerText = "Synthetic governed answer for the public test.";
+    const { record, message } = publicMessage(
+      "wamid.public-integration-001",
+      senderSha256,
+      String(Math.floor(nowMs / 1_000)),
+      aiQuestionText,
+    );
+    const route = returnRoute({
+      senderE164: PUBLIC_SENDER,
+      receiptId: record.waMessageId,
+      createdAtMs: nowMs,
+    });
+    const persistInput = {
+      db,
+      records: [record],
+      allowlistedMessages: [message],
+      optOuts: [],
+      inboundReturnRoutes: new Map([[record.waMessageId, route]]),
+      publicInboundMessageIds: new Set([record.waMessageId]),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot" as const,
+      occurredAtMs: nowMs,
+    };
+
+    const first = await persistCanaryWebhookBatch(persistInput);
+    assert.equal(first.freshRecords.length, 1);
+    assert.equal(first.botPlanReceiptIds.length, 1);
+    assert.deepEqual(first.aiBudgetReceiptIds, [record.id]);
+
+    const quotaAfterInitialPersist = await workspaceRef
+      .collection("canary_public_quota_counters")
+      .get();
+    assert.equal(quotaAfterInitialPersist.size, 6);
+    for (const counter of quotaAfterInitialPersist.docs) {
+      assert.equal(counter.get("expireAt")?.toMillis(), counter.get("expiresAtMs"));
+    }
+
+    const sentBodies: Array<Record<string, unknown>> = [];
+    const providerReplyIds: string[] = [];
+    let providerSequence = 0;
+    const originalFetch = globalThis.fetch;
+    const providerFetch = (async (_url: unknown, init?: RequestInit) => {
+      const requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      sentBodies.push(requestBody);
+      providerSequence += 1;
+      const providerReplyId = `wamid.synthetic-public-reply-${providerSequence}`;
+      providerReplyIds.push(providerReplyId);
+      return new Response(JSON.stringify({
+        messages: [{ id: providerReplyId }],
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+    globalThis.fetch = providerFetch;
+    try {
+      const processed = await processCanaryOutboxBatch({
+        db,
+        effectIds: first.effectIds,
+        leaseOwner: "http_webhook",
+        phoneNumberId: PHONE_ASSET,
+        accessToken: "emulator-only-token",
+        maxEffects: 20,
+        transientBotOverrides: [{
+          receiptId: record.id,
+          reply: {
+            type: "text",
+            text: { preview_url: false, body: aiAnswerText },
+          },
+        }],
+        publicInboundRoute: {
+          enabled: true,
+          identitySecretBase64: IDENTITY_SECRET_BASE64,
+          currentKeyVersion: 2,
+          encryptionKeysByVersion: new Map([
+            [1, ENCRYPTION_SECRET_BASE64],
+            [2, Buffer.alloc(32, 0x7c).toString("base64")],
+          ]),
+        },
+      });
+      assert.equal(processed.retryable, 0);
+      assert.equal(processed.fatal, 0);
+      assert.equal(sentBodies.length, 1);
+      assert.equal(providerReplyIds.length, sentBodies.length);
+      for (const sentBody of sentBodies) {
+        assert.match(
+          JSON.stringify(sentBody),
+          /Do not send medical, personal, or emergency information/,
+        );
+        assert.match(JSON.stringify(sentBody), /Synthetic governed answer/);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const aiEffects = await workspaceRef
+      .collection("canary_webhook_outbox")
+      .where("receiptId", "==", record.id)
+      .get();
+    const aiGraphEffect = aiEffects.docs.find(
+      (document) => document.get("effectKind") === "graph_bot_reply",
+    );
+    assert.ok(aiGraphEffect);
+    assert.equal(aiGraphEffect.get("state"), "terminal");
+    assert.equal(aiGraphEffect.get("dispatchReplySource"), "ai_transient");
+    const persistedAiState = JSON.stringify(
+      aiEffects.docs.map((document) => document.data()),
+    );
+    assert.equal(persistedAiState.includes(aiQuestionText), false);
+    assert.equal(persistedAiState.includes(aiAnswerText), false);
+
+    const routedReplyId = providerReplyIds[0];
+    assert.ok(routedReplyId);
+    const providerRouteSnapshot = await workspaceRef
+      .collection("canary_provider_message_routes")
+      .where("providerMessageIdSha256", "==", sha256Hex(routedReplyId))
+      .get();
+    assert.equal(providerRouteSnapshot.size, 1);
+    const providerRoute = providerRouteSnapshot.docs[0];
+    assert.equal(providerRoute?.get("publicInboundTest"), true);
+    assert.equal(
+      providerRoute?.get("expireAt")?.toMillis(),
+      providerRoute?.get("expiresAtMs"),
+    );
+
+    const statusReceivedAtMs = Date.now();
+    const statusBatch = extractCanaryInboundBatch({
+      object: "whatsapp_business_account",
+      entry: [{
+        id: "synthetic-business-account",
+        changes: [{
+          field: "messages",
+          value: {
+            metadata: { phone_number_id: PHONE_ASSET },
+            statuses: [
+              {
+                id: routedReplyId,
+                status: "delivered",
+                timestamp: String(Math.floor(statusReceivedAtMs / 1_000)),
+              },
+              {
+                id: routedReplyId,
+                status: "read",
+                timestamp: String(Math.floor((statusReceivedAtMs + 1_000) / 1_000)),
+              },
+            ],
+          },
+        }],
+      }],
+    }, sha256Hex);
+    assert.equal(statusBatch.overflow, false);
+    assert.deepEqual(
+      statusBatch.records.map((record) => record.statusValue),
+      ["delivered", "read"],
+    );
+    const persistedStatuses = await persistCanaryWebhookBatch({
+      db,
+      records: statusBatch.records,
+      allowlistedMessages: [],
+      optOuts: [],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set<string>(),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "none",
+      occurredAtMs: statusReceivedAtMs,
+    });
+    assert.equal(persistedStatuses.freshRecords.length, 2);
+    assert.equal(persistedStatuses.effectIds.length, 2);
+
+    const processedStatuses = await processCanaryOutboxBatch({
+      db,
+      effectIds: persistedStatuses.effectIds,
+      leaseOwner: "http_webhook",
+      phoneNumberId: PHONE_ASSET,
+      accessToken: "emulator-only-token",
+      maxEffects: 20,
+      publicInboundRoute: {
+        enabled: true,
+        identitySecretBase64: IDENTITY_SECRET_BASE64,
+        currentKeyVersion: 2,
+        encryptionKeysByVersion: new Map([
+          [1, ENCRYPTION_SECRET_BASE64],
+          [2, Buffer.alloc(32, 0x7c).toString("base64")],
+        ]),
+      },
+    });
+    assert.equal(processedStatuses.retryable, 0);
+    assert.equal(processedStatuses.fatal, 0);
+
+    for (const statusRecord of statusBatch.records) {
+      const receipt = await workspaceRef
+        .collection("canary_inbound_events")
+        .doc(statusRecord.id)
+        .get();
+      assert.equal(receipt.get("publicInboundTest"), true);
+      assert.equal(
+        receipt.get("expireAt")?.toMillis(),
+        receipt.get("expiresAtMs"),
+      );
+      const effectIds = receipt.get("outboxEffectIds") as unknown;
+      assert.ok(Array.isArray(effectIds));
+      assert.equal(effectIds.length, 1);
+      const statusEffect = await workspaceRef
+        .collection("canary_webhook_outbox")
+        .doc(effectIds[0] as string)
+        .get();
+      assert.equal(statusEffect.get("effectKind"), "campaign_status");
+      assert.equal(statusEffect.get("state"), "terminal");
+      assert.equal(statusEffect.get("publicInboundTest"), true);
+      assert.equal(
+        statusEffect.get("expireAt")?.toMillis(),
+        statusEffect.get("expiresAtMs"),
+      );
+    }
+
+    const routedReplyTarget = await workspaceRef
+      .collection("canary_webhook_outbox")
+      .doc(providerRoute?.get("targetId") as string)
+      .get();
+    assert.equal(routedReplyTarget.get("deliveryStatus"), "read");
+
+    const [
+      contacts,
+      conversations,
+      messages,
+      bookings,
+      publicSessions,
+      publicReceipts,
+      publicOutbox,
+    ] =
+      await Promise.all([
+        workspaceRef.collection("contacts").get(),
+        workspaceRef.collection("conversations").get(),
+        workspaceRef.collection("messages").get(),
+        workspaceRef.collection("canary_bookings").get(),
+        workspaceRef.collection("canary_public_bot_sessions").get(),
+        workspaceRef.collection("canary_inbound_events").get(),
+        workspaceRef.collection("canary_webhook_outbox").get(),
+      ]);
+    assert.equal(contacts.empty, true);
+    assert.equal(conversations.empty, true);
+    assert.equal(messages.empty, true);
+    assert.equal(bookings.empty, true);
+    assert.equal(publicSessions.size, 1);
+    assert.equal(publicSessions.docs[0]?.get("synthetic"), false);
+    assert.equal(
+      publicSessions.docs[0]?.get("expireAt")?.toMillis(),
+      publicSessions.docs[0]?.get("expiresAtMs"),
+    );
+    assert.equal(publicReceipts.size, 1 + statusBatch.records.length);
+    assert.ok(publicOutbox.size >= 3);
+    for (const document of [...publicReceipts.docs, ...publicOutbox.docs]) {
+      assert.equal(document.get("publicInboundTest"), true);
+      assert.equal(
+        document.get("expireAt")?.toMillis(),
+        document.get("expiresAtMs"),
+      );
+    }
+
+    const quotaBeforeReplay = await workspaceRef
+      .collection("canary_public_quota_counters")
+      .get();
+    const replay = await persistCanaryWebhookBatch(persistInput);
+    assert.equal(replay.freshRecords.length, 0);
+    const quotaAfterReplay = await workspaceRef
+      .collection("canary_public_quota_counters")
+      .get();
+    assert.deepEqual(
+      quotaAfterReplay.docs.map((document) => document.get("count")).sort(),
+      quotaBeforeReplay.docs.map((document) => document.get("count")).sort(),
+    );
+
+    let replayNetworkCalls = 0;
+    globalThis.fetch = (async () => {
+      replayNetworkCalls += 1;
+      throw new Error("replay_must_not_send");
+    }) as typeof fetch;
+    try {
+      const replayProcess = await processCanaryOutboxBatch({
+        db,
+        effectIds: replay.effectIds,
+        leaseOwner: "http_webhook",
+        phoneNumberId: PHONE_ASSET,
+        accessToken: "emulator-only-token",
+        maxEffects: 20,
+        publicInboundRoute: {
+          enabled: true,
+          identitySecretBase64: IDENTITY_SECRET_BASE64,
+          currentKeyVersion: 2,
+          encryptionKeysByVersion: new Map([
+            [1, ENCRYPTION_SECRET_BASE64],
+            [2, Buffer.alloc(32, 0x7c).toString("base64")],
+          ]),
+        },
+      });
+      assert.equal(replayProcess.retryable, 0);
+      assert.equal(replayNetworkCalls, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    await db.recursiveDelete(workspaceRef);
+    await deleteApp(app);
+  },
+);
+
+test(
+  "public replay transaction strictly migrates a legacy message and later-timestamp status together",
+  { skip: !RUN_EMULATOR },
+  async () => {
+    const app = getApps().find(
+      (candidate) => candidate.name === "public-legacy-replay-test",
+    ) ?? initializeApp(
+      { projectId: PROJECT_ID },
+      "public-legacy-replay-test",
+    );
+    const db: Firestore = getHemasFirestore(app);
+    const workspaceRef = db.collection("workspaces").doc(WORKSPACE_ID);
+    await db.recursiveDelete(workspaceRef);
+
+    const nowMs = Date.now();
+    const originalBatch = extractCanaryInboundBatch({
+      object: "whatsapp_business_account",
+      entry: [{
+        id: "synthetic-business-account",
+        changes: [{
+          field: "messages",
+          value: {
+            metadata: { phone_number_id: PHONE_ASSET },
+            messages: [{
+              id: "wamid.public-legacy-message",
+              from: PUBLIC_SENDER,
+              type: "text",
+              timestamp: String(Math.floor(nowMs / 1_000)),
+              text: { body: "What services are available?" },
+            }],
+            statuses: [{
+              id: "wamid.public-legacy-reply",
+              status: "delivered",
+              timestamp: String(Math.floor((nowMs - 60_000) / 1_000)),
+            }],
+          },
+        }],
+      }],
+    }, sha256Hex);
+    assert.equal(originalBatch.overflow, false);
+    const originalMessage = originalBatch.records.find(
+      (record) => record.kind === "message",
+    );
+    const originalStatus = originalBatch.records.find(
+      (record) => record.kind === "status",
+    );
+    assert.ok(originalMessage);
+    assert.ok(originalStatus);
+
+    const senderSha256 = metaCanaryReturnRouteSenderSha256(
+      PUBLIC_SENDER,
+      IDENTITY_SECRET_BASE64,
+    );
+    const minimizedMessage: CanaryInboundRecord = {
+      ...originalMessage,
+      fromNumberSha256: senderSha256,
+      fromNumberLast4: null,
+      bodySha256: null,
+    };
+    const laterStatus: CanaryInboundRecord = {
+      ...originalStatus,
+      providerTimestamp: String(Math.floor(nowMs / 1_000)),
+    };
+    const legacyMessageReceipt = {
+      id: originalMessage.id,
+      workspaceId: originalMessage.workspaceId,
+      kind: originalMessage.kind,
+      waMessageId: originalMessage.waMessageId,
+      fromNumber: PUBLIC_SENDER,
+      toPhoneNumberId: originalMessage.toPhoneNumberId,
+      messageType: originalMessage.messageType,
+      statusValue: originalMessage.statusValue,
+      bodySha256: originalMessage.bodySha256,
+      providerTimestamp: originalMessage.providerTimestamp,
+      canary: true,
+      containsMessageContent: false,
+      schemaVersion: 1,
+    };
+    const legacyStatusReceipt = {
+      id: originalStatus.id,
+      workspaceId: originalStatus.workspaceId,
+      kind: originalStatus.kind,
+      waMessageId: originalStatus.waMessageId,
+      fromNumber: null,
+      toPhoneNumberId: originalStatus.toPhoneNumberId,
+      messageType: originalStatus.messageType,
+      statusValue: originalStatus.statusValue,
+      bodySha256: originalStatus.bodySha256,
+      providerTimestamp: originalStatus.providerTimestamp,
+      canary: true,
+      containsMessageContent: false,
+      schemaVersion: 1,
+    };
+    const receipts = workspaceRef.collection("canary_inbound_events");
+    await Promise.all([
+      receipts.doc(originalMessage.id).set(legacyMessageReceipt),
+      receipts.doc(originalStatus.id).set(legacyStatusReceipt),
+    ]);
+
+    const route = returnRoute({
+      senderE164: PUBLIC_SENDER,
+      receiptId: minimizedMessage.waMessageId,
+      createdAtMs: nowMs,
+    });
+    const replay = await persistCanaryWebhookBatch({
+      db,
+      records: [minimizedMessage, laterStatus],
+      strictReplayRecords: [originalMessage, laterStatus],
+      allowlistedMessages: [{
+        waId: PUBLIC_SENDER,
+        waMessageId: minimizedMessage.waMessageId,
+        messageType: "text",
+        inbound: {
+          kind: "text",
+          text: "What services are available?",
+          selectionId: "",
+        },
+      }],
+      optOuts: [],
+      inboundReturnRoutes: new Map([[minimizedMessage.waMessageId, route]]),
+      publicInboundMessageIds: new Set([minimizedMessage.waMessageId]),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot",
+      occurredAtMs: nowMs,
+    });
+    assert.equal(replay.freshRecords.length, 0);
+    assert.equal(replay.effectIds.length, 0);
+    assert.equal(replay.botPlanReceiptIds.length, 0);
+    assert.equal(replay.aiBudgetReceiptIds.length, 0);
+
+    const [migratedMessage, migratedStatus, outbox, routes, quota] =
+      await Promise.all([
+        receipts.doc(originalMessage.id).get(),
+        receipts.doc(originalStatus.id).get(),
+        workspaceRef.collection("canary_webhook_outbox").get(),
+        workspaceRef.collection("canary_inbound_return_routes").get(),
+        workspaceRef.collection("canary_public_quota_counters").get(),
+      ]);
+    assert.equal(migratedMessage.get("schemaVersion"), 2);
+    assert.equal(migratedMessage.get("legacyReceiptNoEffects"), true);
+    assert.equal(migratedMessage.get("fromNumber"), undefined);
+    assert.equal(migratedMessage.get("fromNumberSha256"), senderSha256);
+    assert.equal(migratedMessage.get("fromNumberLast4"), null);
+    assert.equal(migratedMessage.get("bodySha256"), null);
+    assert.deepEqual(migratedMessage.get("outboxEffectIds"), []);
+    assert.equal(migratedMessage.get("publicInboundTest"), true);
+    assert.equal(
+      migratedMessage.get("expiresAtMs"),
+      nowMs + META_CANARY_PUBLIC_JOURNAL_TTL_MS,
+    );
+    assert.equal(
+      (migratedMessage.get("expireAt") as Timestamp).toMillis(),
+      nowMs + META_CANARY_PUBLIC_JOURNAL_TTL_MS,
+    );
+    assert.equal(migratedStatus.get("schemaVersion"), 2);
+    assert.equal(migratedStatus.get("legacyReceiptNoEffects"), true);
+    assert.equal(migratedStatus.get("providerTimestamp"), laterStatus.providerTimestamp);
+    assert.deepEqual(migratedStatus.get("outboxEffectIds"), []);
+    assert.equal(outbox.empty, true);
+    assert.equal(routes.empty, true);
+    assert.equal(quota.empty, true);
+
+    await db.recursiveDelete(workspaceRef);
+    await deleteApp(app);
+  },
+);
+
+test(
+  "public admission is provider-time bounded while STOP remains durable and blocks queued replies",
+  { skip: !RUN_EMULATOR },
+  async () => {
+    const app = getApps().find(
+      (candidate) => candidate.name === "public-inbound-controls-test",
+    ) ?? initializeApp(
+      { projectId: PROJECT_ID },
+      "public-inbound-controls-test",
+    );
+    const db: Firestore = getHemasFirestore(app);
+    const workspaceRef = db.collection("workspaces").doc(WORKSPACE_ID);
+    await db.recursiveDelete(workspaceRef);
+
+    const receivedAtMs = Date.now();
+    const providerOccurredAtMs = Math.floor(receivedAtMs / 60_000) * 60_000;
+    const providerTimestamp = String(providerOccurredAtMs / 1_000);
+    const senderSha256 = metaCanaryReturnRouteSenderSha256(
+      PUBLIC_SENDER,
+      IDENTITY_SECRET_BASE64,
+    );
+    const admittedEntries = Array.from({ length: 6 }, (_, index) =>
+      publicMessage(
+        `wamid.public-quota-${String(index + 1).padStart(3, "0")}`,
+        senderSha256,
+        providerTimestamp,
+      )
+    );
+    const admittedRoutes = new Map(
+      admittedEntries.map(({ record }) => [
+        record.waMessageId,
+        returnRoute({
+          senderE164: PUBLIC_SENDER,
+          receiptId: record.waMessageId,
+          createdAtMs: receivedAtMs,
+        }),
+      ]),
+    );
+    const admitted = await persistCanaryWebhookBatch({
+      db,
+      records: admittedEntries.map(({ record }) => record),
+      allowlistedMessages: admittedEntries.map(({ message }) => message),
+      optOuts: [],
+      inboundReturnRoutes: admittedRoutes,
+      publicInboundMessageIds: new Set(
+        admittedEntries.map(({ record }) => record.waMessageId),
+      ),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot",
+      occurredAtMs: receivedAtMs,
+    });
+    assert.equal(admitted.freshRecords.length, 6);
+    assert.equal(admitted.botPlanReceiptIds.length, 6);
+
+    const countersAtLimit = await workspaceRef
+      .collection("canary_public_quota_counters")
+      .get();
+    assert.equal(countersAtLimit.size, 4);
+    assert.deepEqual(
+      countersAtLimit.docs.map((document) => document.get("count")).sort(),
+      [6, 6, 6, 6],
+    );
+
+    const delayedReceivedAtMs = providerOccurredAtMs + 61_000;
+    const deniedEntry = publicMessage(
+      "wamid.public-quota-denied",
+      senderSha256,
+      providerTimestamp,
+    );
+    const denied = await persistCanaryWebhookBatch({
+      db,
+      records: [deniedEntry.record],
+      allowlistedMessages: [deniedEntry.message],
+      optOuts: [],
+      inboundReturnRoutes: new Map([[
+        deniedEntry.record.waMessageId,
+        returnRoute({
+          senderE164: PUBLIC_SENDER,
+          receiptId: deniedEntry.record.waMessageId,
+          createdAtMs: delayedReceivedAtMs,
+        }),
+      ]]),
+      publicInboundMessageIds: new Set([deniedEntry.record.waMessageId]),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot",
+      occurredAtMs: delayedReceivedAtMs,
+    });
+    assert.equal(denied.freshRecords.length, 0);
+    assert.equal(denied.publicQuotaSuppressed, 1);
+
+    const modeNoneEntry = publicMessage(
+      "wamid.public-mode-none",
+      senderSha256,
+      String(Math.floor(delayedReceivedAtMs / 1_000)),
+    );
+    const modeNone = await persistCanaryWebhookBatch({
+      db,
+      records: [modeNoneEntry.record],
+      allowlistedMessages: [modeNoneEntry.message],
+      optOuts: [],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set([modeNoneEntry.record.waMessageId]),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "none",
+      occurredAtMs: delayedReceivedAtMs,
+    });
+    assert.equal(modeNone.freshRecords.length, 0);
+    assert.equal(modeNone.effectIds.length, 0);
+
+    const invalidTimestampEntries = [
+      publicMessage(
+        "wamid.public-malformed-time",
+        senderSha256,
+        "1.8e9",
+      ),
+      publicMessage(
+        "wamid.public-stale-time",
+        senderSha256,
+        String(Math.floor((delayedReceivedAtMs - 5 * 60_000 - 2_000) / 1_000)),
+      ),
+      publicMessage(
+        "wamid.public-future-time",
+        senderSha256,
+        String(Math.floor((delayedReceivedAtMs + 62_000) / 1_000)),
+      ),
+    ];
+    const invalidTimestamps = await persistCanaryWebhookBatch({
+      db,
+      records: invalidTimestampEntries.map(({ record }) => record),
+      allowlistedMessages: invalidTimestampEntries.map(({ message }) => message),
+      optOuts: [],
+      inboundReturnRoutes: new Map(
+        invalidTimestampEntries.map(({ record }) => [
+          record.waMessageId,
+          returnRoute({
+            senderE164: PUBLIC_SENDER,
+            receiptId: record.waMessageId,
+            createdAtMs: delayedReceivedAtMs,
+          }),
+        ]),
+      ),
+      publicInboundMessageIds: new Set(
+        invalidTimestampEntries.map(({ record }) => record.waMessageId),
+      ),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot",
+      occurredAtMs: delayedReceivedAtMs,
+    });
+    assert.equal(invalidTimestamps.freshRecords.length, 0);
+    assert.equal(invalidTimestamps.effectIds.length, 0);
+
+    const [receiptsBeforeStop, routesBeforeStop, countersBeforeStop] =
+      await Promise.all([
+        workspaceRef.collection("canary_inbound_events").get(),
+        workspaceRef.collection("canary_inbound_return_routes").get(),
+        workspaceRef.collection("canary_public_quota_counters").get(),
+      ]);
+    assert.equal(receiptsBeforeStop.size, 6);
+    assert.equal(routesBeforeStop.size, 6);
+    assert.deepEqual(
+      countersBeforeStop.docs.map((document) => document.get("count")).sort(),
+      [6, 6, 6, 6],
+    );
+
+    const stopEntry = publicMessage(
+      "wamid.public-stop-at-limit",
+      senderSha256,
+      "invalid-but-signed-stop-time",
+      "STOP",
+    );
+    const stopInput = {
+      db,
+      records: [stopEntry.record],
+      allowlistedMessages: [stopEntry.message],
+      optOuts: [{
+        waId: PUBLIC_SENDER,
+        waMessageId: stopEntry.record.waMessageId,
+        keyword: "STOP" as const,
+      }],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set([stopEntry.record.waMessageId]),
+      publicSameEnvelopeSuppressedMessageIds: new Set([
+        stopEntry.record.waMessageId,
+      ]),
+      planMode: "bot" as const,
+      occurredAtMs: delayedReceivedAtMs + 1_000,
+    };
+    const stop = await persistCanaryWebhookBatch(stopInput);
+    assert.equal(stop.freshRecords.length, 0);
+    assert.equal(stop.effectIds.length, 0);
+
+    const suppressionRef = workspaceRef
+      .collection("canary_public_suppressions")
+      .doc(senderSha256);
+    const firstSuppression = await suppressionRef.get();
+    assert.equal(firstSuppression.exists, true);
+    assert.equal(firstSuppression.get("active"), true);
+    assert.match(firstSuppression.get("lastOptOutReceiptSha256"), /^[0-9a-f]{64}$/);
+    assert.equal(
+      firstSuppression.get("expireAt")?.toMillis(),
+      firstSuppression.get("expiresAtMs"),
+    );
+
+    const stopReplay = await persistCanaryWebhookBatch({
+      ...stopInput,
+      occurredAtMs: stopInput.occurredAtMs + 1_000,
+    });
+    assert.equal(stopReplay.freshRecords.length, 0);
+    const replayedSuppression = await suppressionRef.get();
+    assert.equal(
+      replayedSuppression.get("createdAtMs"),
+      firstSuppression.get("createdAtMs"),
+    );
+
+    let networkCallsAfterStop = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      networkCallsAfterStop += 1;
+      throw new Error("suppressed_work_must_not_send");
+    }) as typeof fetch;
+    try {
+      const processedAfterStop = await processCanaryOutboxBatch({
+        db,
+        effectIds: admitted.effectIds,
+        leaseOwner: "http_webhook",
+        phoneNumberId: PHONE_ASSET,
+        accessToken: "emulator-only-token",
+        maxEffects: 20,
+        publicInboundRoute: {
+          enabled: true,
+          identitySecretBase64: IDENTITY_SECRET_BASE64,
+          currentKeyVersion: 2,
+          encryptionKeysByVersion: new Map([
+            [1, ENCRYPTION_SECRET_BASE64],
+            [2, Buffer.alloc(32, 0x7c).toString("base64")],
+          ]),
+        },
+      });
+      assert.equal(processedAfterStop.retryable, 0);
+      assert.equal(networkCallsAfterStop, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    const activeSuppressedEntry = publicMessage(
+      "wamid.public-active-suppression",
+      senderSha256,
+      String(Math.floor((delayedReceivedAtMs + 2_000) / 1_000)),
+    );
+    const activeSuppressed = await persistCanaryWebhookBatch({
+      db,
+      records: [activeSuppressedEntry.record],
+      allowlistedMessages: [activeSuppressedEntry.message],
+      optOuts: [],
+      inboundReturnRoutes: new Map([[
+        activeSuppressedEntry.record.waMessageId,
+        returnRoute({
+          senderE164: PUBLIC_SENDER,
+          receiptId: activeSuppressedEntry.record.waMessageId,
+          createdAtMs: delayedReceivedAtMs + 2_000,
+        }),
+      ]]),
+      publicInboundMessageIds: new Set([
+        activeSuppressedEntry.record.waMessageId,
+      ]),
+      publicSameEnvelopeSuppressedMessageIds: new Set<string>(),
+      planMode: "bot",
+      occurredAtMs: delayedReceivedAtMs + 2_000,
+    });
+    assert.equal(activeSuppressed.freshRecords.length, 0);
+    assert.equal(activeSuppressed.effectIds.length, 0);
+
+    const secondSender = "94770000001";
+    const secondSenderSha256 = metaCanaryReturnRouteSenderSha256(
+      secondSender,
+      IDENTITY_SECRET_BASE64,
+    );
+    const sameEnvelopeNormal = publicMessage(
+      "wamid.public-envelope-normal",
+      secondSenderSha256,
+      providerTimestamp,
+      "hello",
+      secondSender,
+    );
+    const sameEnvelopeStop = publicMessage(
+      "wamid.public-envelope-stop",
+      secondSenderSha256,
+      providerTimestamp,
+      "UNSUBSCRIBE",
+      secondSender,
+    );
+    const sameEnvelope = await persistCanaryWebhookBatch({
+      db,
+      records: [sameEnvelopeNormal.record, sameEnvelopeStop.record],
+      allowlistedMessages: [sameEnvelopeNormal.message, sameEnvelopeStop.message],
+      optOuts: [{
+        waId: secondSender,
+        waMessageId: sameEnvelopeStop.record.waMessageId,
+        keyword: "UNSUBSCRIBE",
+      }],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set([
+        sameEnvelopeNormal.record.waMessageId,
+        sameEnvelopeStop.record.waMessageId,
+      ]),
+      publicSameEnvelopeSuppressedMessageIds: new Set([
+        sameEnvelopeNormal.record.waMessageId,
+        sameEnvelopeStop.record.waMessageId,
+      ]),
+      planMode: "bot",
+      occurredAtMs: delayedReceivedAtMs + 3_000,
+    });
+    assert.equal(sameEnvelope.freshRecords.length, 0);
+    assert.equal(sameEnvelope.effectIds.length, 0);
+    assert.equal(
+      (await workspaceRef.collection("canary_public_suppressions").get()).size,
+      2,
+    );
+
+    const [receiptsAfter, routesAfter, countersAfter] = await Promise.all([
+      workspaceRef.collection("canary_inbound_events").get(),
+      workspaceRef.collection("canary_inbound_return_routes").get(),
+      workspaceRef.collection("canary_public_quota_counters").get(),
+    ]);
+    assert.equal(receiptsAfter.size, 6);
+    assert.equal(routesAfter.size, 6);
+    assert.deepEqual(
+      countersAfter.docs.map((document) => document.get("count")).sort(),
+      [6, 6, 6, 6],
+    );
+
+    await db.recursiveDelete(workspaceRef);
+    await deleteApp(app);
+  },
+);

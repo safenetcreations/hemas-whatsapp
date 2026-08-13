@@ -299,7 +299,7 @@ export function ScenarioRunner() {
           {complete ? (
             <div className="mt-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4" role="status">
               <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
-              <div><p className="text-sm font-bold text-emerald-900">Scenario passed locally</p><p className="mt-1 text-xs leading-5 text-emerald-800">{selected.assertion}</p></div>
+              <div><p className="text-sm font-bold text-emerald-900">Walkthrough completed locally</p><p className="mt-1 text-xs leading-5 text-emerald-800">{selected.assertion}</p></div>
             </div>
           ) : null}
         </article>

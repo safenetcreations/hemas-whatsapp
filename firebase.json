@@ -13,6 +13,7 @@
       "ignore": [
         "node_modules",
         ".git",
+        ".env*",
         "firebase-debug.log*",
         "*.local"
       ]
@@ -28,6 +29,10 @@
       ".firebase",
       "firebase-debug.log*",
       "functions",
+      "tests",
+      "output",
+      "lite_before.png",
+      "lite_after.png",
       "work"
     ]
   },

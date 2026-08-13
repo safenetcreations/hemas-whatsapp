@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
-import { resolveKnownVisitor } from "@/components/lite/lite-config";
 import {
   liteClaim,
   liteReply,
@@ -54,6 +54,7 @@ export default function LiteInboxPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const replyOperation = useRef<{ readonly key: string; readonly id: string } | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 30_000);
@@ -77,8 +78,9 @@ export default function LiteInboxPage() {
   const windowOpen = Boolean(
     selected && selected.serviceWindowExpiresAtMs > nowMs,
   );
-  const canReply = Boolean(selected?.liveCanary) && windowOpen;
   const isMine = Boolean(selected && user && selected.assigneeId === user.uid);
+  const assignedToOther = Boolean(selected?.assigneeId) && !isMine;
+  const canReply = Boolean(selected?.liveCanary) && windowOpen && isMine;
 
   const act = async (kind: "claim" | "release" | "reply") => {
     if (!selected) return;
@@ -88,9 +90,14 @@ export default function LiteInboxPage() {
       if (kind === "reply") {
         const text = draft.trim();
         if (!text) return;
-        await liteReply(selected.id, text);
+        const key = `${selected.id}:${text}`;
+        if (replyOperation.current?.key !== key) {
+          replyOperation.current = { key, id: `reply_${crypto.randomUUID()}` };
+        }
+        await liteReply(selected.id, text, replyOperation.current.id);
+        replyOperation.current = null;
         setDraft("");
-        setNotice("Reply delivered to WhatsApp ✓");
+        setNotice("Reply accepted by WhatsApp API ✓ — delivery confirmation pending.");
       } else {
         await liteClaim(selected.id, kind);
       }
@@ -102,11 +109,7 @@ export default function LiteInboxPage() {
   };
 
   const label = (conversation: LiteConversation): string => {
-    const raw = contactIndex.get(conversation.contactId)?.displayLabel ?? "Visitor";
-    if (conversation.liveCanary) {
-      return resolveKnownVisitor(raw) ?? raw;
-    }
-    return raw;
+    return contactIndex.get(conversation.contactId)?.displayLabel ?? "Visitor";
   };
 
   return (
@@ -173,7 +176,7 @@ export default function LiteInboxPage() {
           {!conversations.loading && filtered.length === 0 ? (
             <p className="p-4 text-xs text-slate-400">
               {scope === "live"
-                ? "No live chats yet — WhatsApp the line (+94 70 796 4455) and it appears here in seconds."
+                ? "No canary chats yet. Send a test message from an allowlisted phone to the configured line."
                 : "No conversations here yet."}
             </p>
           ) : null}
@@ -246,11 +249,17 @@ export default function LiteInboxPage() {
                 <p className="truncate text-sm font-semibold text-slate-900">{label(selected)}</p>
                 <p className="text-[11px] text-slate-400">
                   {selected.liveCanary
-                    ? "Real WhatsApp visitor · governed canary line"
+                    ? "Allowlisted WhatsApp visitor · governed canary line"
                     : (contactIndex.get(selected.contactId)?.maskedPhone ?? "number withheld")}
                 </p>
               </div>
               <div className="ml-auto flex items-center gap-2">
+                <Link
+                  href={`/lite/contacts#${encodeURIComponent(selected.contactId)}`}
+                  className="rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                >
+                  Open lead in CRM
+                </Link>
                 {selected.liveCanary ? (
                   <span
                     className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
@@ -275,6 +284,10 @@ export default function LiteInboxPage() {
                   >
                     {busy === "release" ? "Releasing…" : "Release"}
                   </button>
+                ) : assignedToOther ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                    Assigned to another agent
+                  </span>
                 ) : (
                   <button
                     type="button"
@@ -309,7 +322,7 @@ export default function LiteInboxPage() {
                   >
                     <p className="font-medium">
                       {message.direction === "inbound"
-                        ? "Patient message"
+                        ? "Canary tester message"
                         : message.agentReply
                           ? "Agent reply (live)"
                           : "Bot reply"}
@@ -355,9 +368,13 @@ export default function LiteInboxPage() {
                 </div>
               ) : (
                 <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                  {selected.liveCanary
-                    ? "The 24h service window is closed — replies need an approved template until the visitor messages again."
-                    : "This is a simulated demo conversation — live replies work on real WhatsApp chats."}
+                  {assignedToOther
+                    ? "This chat is assigned to another agent. It must be released before you can claim and reply."
+                    : !selected.liveCanary
+                      ? "This is a simulated demo conversation — live replies work on governed WhatsApp canary chats."
+                      : !windowOpen
+                        ? "The 24h service window is closed — replies need an approved template until the visitor messages again."
+                        : "Claim this chat to send a live WhatsApp reply."}
                 </p>
               )}
               <p className="mt-2 text-[10px] text-slate-400">

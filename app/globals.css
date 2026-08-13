@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #17221f;
-  --muted: #64716d;
-  --line: #dce4e0;
-  --canvas: #f4f7f5;
+  --ink: #14213d;
+  --muted: #5f6f86;
+  --line: #dfe6f0;
+  --canvas: #f4f7fc;
   --surface: #ffffff;
-  --brand: #075e54;
-  --brand-strong: #064b44;
-  --brand-soft: #e5f5f1;
-  --accent: #f1a43c;
+  --brand: #1863dc;
+  --brand-strong: #0f56c4;
+  --brand-soft: #eaf2ff;
+  --accent: #f0a23a;
   --danger: #c74242;
   --warning: #9b6300;
   --success: #15705d;
@@ -46,12 +46,12 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(7, 94, 84, 0.28);
+  outline: 3px solid rgba(24, 99, 220, 0.3);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #bfe6dc;
+  background: #cfe0ff;
 }
 
 .scrollbar-subtle {

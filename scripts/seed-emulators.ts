@@ -12,12 +12,14 @@ import {
   doc,
   getDoc,
   getDocs,
-  getFirestore,
+  limit,
+  query,
   setDoc,
   Timestamp,
   writeBatch,
   type Firestore,
 } from "firebase/firestore";
+import { getHemasFirestore } from "../lib/firebase/firestore-target";
 import {
   DEMO_CLOCK,
   DEMO_IDS,
@@ -299,6 +301,22 @@ const seededCampaignId = "campaign_synthetic_50k";
 const seededAudienceSnapshotId = "audience_synthetic_50k_v1";
 const seededCampaignOwnerId = "user_demo_campaign_operator";
 const seededCampaignApproverId = "user_demo_campaign_approver";
+const seededCanaryMetrics = Object.freeze([
+  { day: "2026-07-29", inboundMessages: 18, botReplies: 12, aiAnswers: 4, aiFailures: 0, bookings: 3, staffHandoffs: 3, agentReplies: 4 },
+  { day: "2026-07-30", inboundMessages: 24, botReplies: 15, aiAnswers: 6, aiFailures: 1, bookings: 5, staffHandoffs: 4, agentReplies: 5 },
+  { day: "2026-07-31", inboundMessages: 21, botReplies: 14, aiAnswers: 5, aiFailures: 0, bookings: 4, staffHandoffs: 3, agentReplies: 4 },
+  { day: "2026-08-01", inboundMessages: 28, botReplies: 18, aiAnswers: 7, aiFailures: 1, bookings: 6, staffHandoffs: 4, agentReplies: 6 },
+  { day: "2026-08-02", inboundMessages: 26, botReplies: 17, aiAnswers: 6, aiFailures: 0, bookings: 5, staffHandoffs: 5, agentReplies: 5 },
+  { day: "2026-08-03", inboundMessages: 32, botReplies: 20, aiAnswers: 8, aiFailures: 1, bookings: 7, staffHandoffs: 5, agentReplies: 7 },
+  { day: "2026-08-04", inboundMessages: 35, botReplies: 22, aiAnswers: 9, aiFailures: 1, bookings: 8, staffHandoffs: 6, agentReplies: 7 },
+  { day: "2026-08-05", inboundMessages: 41, botReplies: 25, aiAnswers: 10, aiFailures: 1, bookings: 9, staffHandoffs: 7, agentReplies: 9 },
+  { day: "2026-08-06", inboundMessages: 38, botReplies: 24, aiAnswers: 9, aiFailures: 0, bookings: 8, staffHandoffs: 6, agentReplies: 8 },
+  { day: "2026-08-07", inboundMessages: 44, botReplies: 27, aiAnswers: 11, aiFailures: 1, bookings: 10, staffHandoffs: 7, agentReplies: 10 },
+  { day: "2026-08-08", inboundMessages: 47, botReplies: 29, aiAnswers: 12, aiFailures: 1, bookings: 11, staffHandoffs: 8, agentReplies: 10 },
+  { day: "2026-08-09", inboundMessages: 39, botReplies: 25, aiAnswers: 10, aiFailures: 0, bookings: 8, staffHandoffs: 7, agentReplies: 9 },
+  { day: "2026-08-10", inboundMessages: 52, botReplies: 32, aiAnswers: 13, aiFailures: 1, bookings: 12, staffHandoffs: 9, agentReplies: 11 },
+  { day: "2026-08-11", inboundMessages: 56, botReplies: 34, aiAnswers: 14, aiFailures: 1, bookings: 13, staffHandoffs: 9, agentReplies: 12 },
+] as const);
 const seededCampaignTemplateVersionIds = {
   en: "template_wellness_awareness_en_v3",
   si: "template_wellness_awareness_si_v3",
@@ -1870,6 +1888,32 @@ async function seedSyntheticGraph(db: Firestore, uid: string): Promise<void> {
         isSyntheticDemo: workspace.isSyntheticDemo,
         createdAt: asTimestamp(workspace.createdAt),
         updatedAt: asTimestamp(workspace.updatedAt),
+      }),
+    );
+  }
+
+  for (const metric of seededCanaryMetrics) {
+    const id = `daily_${metric.day}`;
+    const governedActions =
+      metric.inboundMessages +
+      metric.botReplies +
+      metric.aiAnswers +
+      metric.aiFailures +
+      metric.bookings +
+      metric.staffHandoffs +
+      metric.agentReplies;
+    writes.push(
+      setDoc(doc(db, "workspaces", safeNetWorkspaceId, "canary_metrics", id), {
+        id,
+        workspaceId: safeNetWorkspaceId,
+        synthetic: true,
+        liveCanary: true,
+        containsMessageContent: false,
+        schemaVersion: 1,
+        updatedAt: asTimestamp(`${metric.day}T12:00:00.000Z`),
+        ...metric,
+        campaignSends: 0,
+        apiRequests: governedActions,
       }),
     );
   }
@@ -4217,6 +4261,37 @@ async function assertSyntheticCampaignSeed(db: Firestore): Promise<void> {
 async function verifySyntheticGraph(authenticatedDb: Firestore, uid: string): Promise<string> {
   const workspaceId = String(DEMO_IDS.workspaces.safeNet);
   const access = await getWorkspaceAccess(authenticatedDb, { workspaceId, uid });
+  const canaryMetrics = await getDocs(
+    query(
+      collection(authenticatedDb, "workspaces", workspaceId, "canary_metrics"),
+      limit(14),
+    ),
+  );
+  const forbiddenMetricFields = [
+    "phoneNumber",
+    "fromNumber",
+    "contactId",
+    "conversationId",
+    "messageBody",
+    "recipientIds",
+  ] as const;
+  if (
+    canaryMetrics.size !== seededCanaryMetrics.length ||
+    canaryMetrics.docs.some((metric) => {
+      const data = metric.data();
+      return (
+        data.id !== metric.id ||
+        data.workspaceId !== workspaceId ||
+        data.synthetic !== true ||
+        data.liveCanary !== true ||
+        data.containsMessageContent !== false ||
+        data.campaignSends !== 0 ||
+        forbiddenMetricFields.some((field) => field in data)
+      );
+    })
+  ) {
+    throw new Error("Synthetic WhatsApp aggregate metrics failed the content-free seed contract.");
+  }
   const [
     connectionCentre,
     contacts,
@@ -4777,7 +4852,7 @@ async function verifySyntheticGraph(authenticatedDb: Firestore, uid: string): Pr
     );
   }
 
-  return `${access.membership.role} access for ${email}: 1 governed staff-safe WhatsApp simulator and 2 deterministic zero-network integrations with no connection secret documents, 6 staff-safe contacts with 6 server-only contact secrets, 12 strict template versions and 18 singular-language Flow versions with provider state unverified/not submitted, 1 governed 50,000-record simulation campaign with immutable aggregate snapshot and no seeded recipients/events/checkpoints, 7 immutable consent events, 7 conversations including a distinct Phase 5 care-control route while the urgent safety-hold fixture remains intact, 7 metadata-only messages, 1 appointment plus event, 1 staff-safe lab workflow/event with atomic server-only secret pairs, 3 teams, 3 locations, 51 Phase 5 documents across the exact 13 staff/governance plus 10 server-only collection contract with 28 lifecycle audit joins, 13 immutable AI governance seed documents with zero runtime records, receipts or AI audits, 6 automation versions, 2 activations, 1 queued run, 1 approved care pathway/activation and 1 queued care enrollment, contact preference revision ${preferenceUpdate.preferenceRevision}, ${notes.length} backend-seeded protected-reference note; locked Hemas membership, phone/WABA routes, connection/contact/laboratory/campaign/AI secrets, AI idempotency and all 10 Phase 5 secret/receipt collections denied to the client`;
+  return `${access.membership.role} access for ${email}: 1 governed staff-safe WhatsApp simulator and 2 deterministic zero-network integrations with no connection secret documents, ${canaryMetrics.size} content-free synthetic WhatsApp aggregate days with zero campaign sends, 6 staff-safe contacts with 6 server-only contact secrets, 12 strict template versions and 18 singular-language Flow versions with provider state unverified/not submitted, 1 governed 50,000-record simulation campaign with immutable aggregate snapshot and no seeded recipients/events/checkpoints, 7 immutable consent events, 7 conversations including a distinct Phase 5 care-control route while the urgent safety-hold fixture remains intact, 7 metadata-only messages, 1 appointment plus event, 1 staff-safe lab workflow/event with atomic server-only secret pairs, 3 teams, 3 locations, 51 Phase 5 documents across the exact 13 staff/governance plus 10 server-only collection contract with 28 lifecycle audit joins, 13 immutable AI governance seed documents with zero runtime records, receipts or AI audits, 6 automation versions, 2 activations, 1 queued run, 1 approved care pathway/activation and 1 queued care enrollment, contact preference revision ${preferenceUpdate.preferenceRevision}, ${notes.length} backend-seeded protected-reference note; locked Hemas membership, phone/WABA routes, connection/contact/laboratory/campaign/AI secrets, AI idempotency and all 10 Phase 5 secret/receipt collections denied to the client`;
 }
 
 async function main(): Promise<void> {
@@ -4817,7 +4892,7 @@ async function main(): Promise<void> {
     await signInWithEmailAndPassword(auth, email, password);
 
     const firestoreEndpoint = new URL(`http://${process.env.FIRESTORE_EMULATOR_HOST}`);
-    const authenticatedDb = getFirestore(verifierApp);
+    const authenticatedDb = getHemasFirestore(verifierApp);
     connectFirestoreEmulator(
       authenticatedDb,
       firestoreEndpoint.hostname,

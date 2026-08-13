@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle2,
   ChevronDown,
@@ -11,6 +13,9 @@ import {
   UsersRound,
   UserRound,
 } from "lucide-react";
+import Link from "next/link";
+import { useWorkspaceSession } from "@/components/auth/workspace-session";
+import { hasPermission } from "@/lib/domain/access-control";
 import type { ConsentRecordDTO } from "@/lib/firebase/repositories";
 import type { InboxConversationRecord } from "./types";
 
@@ -37,7 +42,7 @@ function formatEvidenceTime(value: string): string {
   }).format(new Date(value));
 }
 
-function ContextContent({ record }: { record: InboxConversationRecord }) {
+function ContextContent({ record, canViewContacts }: { record: InboxConversationRecord; canViewContacts: boolean }) {
   const { contact, conversation, consentRecords } = record;
 
   return (
@@ -64,6 +69,23 @@ function ContextContent({ record }: { record: InboxConversationRecord }) {
             <dd className="text-right font-semibold text-slate-800">{LANGUAGE_LABELS[contact.preferredLanguage]}</dd>
           </div>
         </dl>
+        {canViewContacts ? (
+          <>
+            <Link
+              href={`/contacts#${encodeURIComponent(contact.id)}`}
+              className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-bold text-blue-800 transition hover:border-blue-300 hover:bg-blue-100"
+            >
+              <UserRound size={14} aria-hidden="true" /> Open lead in CRM
+            </Link>
+            <p className="mt-1.5 text-[10px] leading-4 text-slate-500">
+              This WhatsApp contact is already captured; no duplicate record is created.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 text-center text-[11px] font-semibold text-slate-600">
+            <LockKeyhole size={13} aria-hidden="true" /> CRM access is not included in this role
+          </p>
+        )}
       </section>
 
       <section aria-labelledby={`consent-${conversation.id}`}>
@@ -137,6 +159,12 @@ function ContextContent({ record }: { record: InboxConversationRecord }) {
 }
 
 export function ContextPanel({ record, compact = false }: { record: InboxConversationRecord; compact?: boolean }) {
+  const workspace = useWorkspaceSession();
+  const canViewContacts = Boolean(
+    workspace.status === "verified" &&
+    workspace.session &&
+    hasPermission(workspace.session.role, "contacts.view"),
+  );
   if (compact) {
     return (
       <details className="group rounded-xl border border-[var(--line)] bg-white">
@@ -145,7 +173,7 @@ export function ContextPanel({ record, compact = false }: { record: InboxConvers
           <ChevronDown size={14} className="ml-auto transition group-open:rotate-180" aria-hidden="true" />
         </summary>
         <div className="border-t border-[var(--line)] p-3">
-          <ContextContent record={record} />
+          <ContextContent record={record} canViewContacts={canViewContacts} />
         </div>
       </details>
     );
@@ -163,7 +191,7 @@ export function ContextPanel({ record, compact = false }: { record: InboxConvers
           <p className="mt-0.5 text-[10px] text-slate-500">Minimum necessary persisted data</p>
         </div>
       </div>
-      <ContextContent record={record} />
+      <ContextContent record={record} canViewContacts={canViewContacts} />
     </aside>
   );
 }

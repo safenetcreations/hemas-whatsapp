@@ -51,6 +51,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_HEMAS_CLOUD_ALLOWED_HOST
+    value: hemas-connect--hemas-whatsapp.us-central1.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_PROJECT_ID
     value: hemas-whatsapp
     availability:

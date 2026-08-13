@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createLiteBookingOperationId } from "@/components/lite/booking-operation";
 import { useLiteAuth } from "@/components/lite/lite-auth";
-import { DEMO_VISITOR_KEYS } from "@/components/lite/lite-config";
 import { liteSetBooking, useLiteBookings } from "@/components/lite/lite-data";
 
 const DEPT: Record<string, string> = {
@@ -25,18 +25,31 @@ export default function LiteAppointmentsPage() {
   const { status } = useLiteAuth();
   const bookings = useLiteBookings(status === "ready");
   const [busy, setBusy] = useState<string | null>(null);
+  const retryOperation = useRef<{
+    readonly key: string;
+    readonly operationId: string;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const act = async (id: string, next: "confirmed" | "cancelled") => {
-    setBusy(id + next);
+    const key = `${id}:${next}`;
+    const operationId =
+      retryOperation.current?.key === key
+        ? retryOperation.current.operationId
+        : createLiteBookingOperationId();
+    retryOperation.current = { key, operationId };
+    setBusy(key);
     setNotice(null);
     try {
-      const r = await liteSetBooking(id, next);
+      const r = await liteSetBooking(id, next, operationId);
       setNotice(
-        next === "confirmed"
-          ? `Confirmed ✓${r.notified ? " — WhatsApp confirmation sent to the patient's phone" : ""}`
-          : `Cancelled${r.notified ? " — patient notified on WhatsApp" : ""}`,
+        r.idempotent
+          ? `Completed ${next} result restored safely. No duplicate WhatsApp notification was sent.`
+          : next === "confirmed"
+            ? `Confirmed ✓${r.notified ? " — WhatsApp confirmation sent to the allowlisted tester" : ""}`
+            : `Cancelled${r.notified ? " — allowlisted tester notified on WhatsApp" : ""}`,
       );
+      retryOperation.current = null;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Action failed.");
     } finally {
@@ -56,8 +69,8 @@ export default function LiteAppointmentsPage() {
       <section>
         <h1 className="text-xl font-semibold text-slate-900">Appointments</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Real appointment requests from the WhatsApp line — confirm one and the patient gets a
-          WhatsApp confirmation instantly. Selections only, no patient data stored.
+          Governed canary appointment requests from WhatsApp — selections only, with no patient
+          name, phone number, or clinical content stored in this view.
         </p>
       </section>
 
@@ -102,7 +115,7 @@ export default function LiteAppointmentsPage() {
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[11px] text-slate-500">{b.reference}</span>
                     <span className="text-[11px] text-slate-400">
-                      {DEMO_VISITOR_KEYS[b.visitorKey] ?? "live visitor (masked)"}
+                      Canary visitor · opaque ref {b.visitorKey.slice(0, 6)}
                     </span>
                     <span className="ml-auto flex gap-1.5">
                       {b.status !== "confirmed" ? (
@@ -112,7 +125,7 @@ export default function LiteAppointmentsPage() {
                           onClick={() => void act(b.id, "confirmed")}
                           className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
                         >
-                          {busy === b.id + "confirmed" ? "…" : "Confirm"}
+                          {busy === `${b.id}:confirmed` ? "…" : "Confirm"}
                         </button>
                       ) : null}
                       {b.status !== "cancelled" ? (
@@ -122,7 +135,7 @@ export default function LiteAppointmentsPage() {
                           onClick={() => void act(b.id, "cancelled")}
                           className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 disabled:opacity-40"
                         >
-                          {busy === b.id + "cancelled" ? "…" : "Cancel"}
+                          {busy === `${b.id}:cancelled` ? "…" : "Cancel"}
                         </button>
                       ) : null}
                     </span>

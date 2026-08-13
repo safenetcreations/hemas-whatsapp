@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateLocalAuthPolicy,
+  isApprovedCloudIdentity,
   isExpectedSyntheticIdentity,
   isLoopbackHostname,
   syntheticAuthProjectId,
@@ -48,6 +49,37 @@ describe("local Firebase Auth boundary", () => {
     expect(isExpectedSyntheticIdentity("DEMO.ADMIN@SYNTHETIC.INVALID")).toBe(true);
     expect(isExpectedSyntheticIdentity("operator@example.com")).toBe(false);
     expect(isExpectedSyntheticIdentity(null)).toBe(false);
+  });
+
+  it("requires a separately provisioned, verified cloud management identity", () => {
+    expect(
+      isApprovedCloudIdentity({
+        uid: "approved-manager-uid",
+        emailVerified: true,
+        hemasPortalDemo: true,
+      }),
+    ).toBe(true);
+    expect(
+      isApprovedCloudIdentity({
+        uid: "approved-manager-uid",
+        emailVerified: false,
+        hemasPortalDemo: true,
+      }),
+    ).toBe(false);
+    expect(
+      isApprovedCloudIdentity({
+        uid: "approved-manager-uid",
+        emailVerified: true,
+        hemasPortalDemo: "true",
+      }),
+    ).toBe(false);
+    expect(
+      isApprovedCloudIdentity({
+        uid: "",
+        emailVerified: true,
+        hemasPortalDemo: true,
+      }),
+    ).toBe(false);
   });
 });
 

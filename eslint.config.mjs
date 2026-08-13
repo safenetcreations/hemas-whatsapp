@@ -10,6 +10,7 @@ export default defineConfig([
     ".firebase/**",
     "coverage/**",
     "out/**",
+    "work/**",
     "functions/lib/**",
     "functions/**",
     "next-env.d.ts",

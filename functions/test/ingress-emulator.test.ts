@@ -345,7 +345,7 @@ test("Functions emulator enforces GET verification, raw signature order and reda
       mode: "demo",
       eventId: `synthetic-event-${suffix}`,
       routeRef: "synthetic-phone-route-wattala-demo",
-      occurredAt: "2026-08-07T12:00:00.000Z",
+      occurredAt: new Date(Date.now() - 1_000).toISOString(),
       event: {
         kind: "message_inbound",
         providerMessageRef: `synthetic-message-${suffix}`,

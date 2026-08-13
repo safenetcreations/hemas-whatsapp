@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
-import { resolveKnownVisitor } from "@/components/lite/lite-config";
 import { useLiteContacts } from "@/components/lite/lite-data";
 
 const LANGUAGE_NAME: Record<string, string> = {
@@ -12,9 +11,16 @@ const LANGUAGE_NAME: Record<string, string> = {
 };
 
 export default function LiteContactsPage() {
-  const { status } = useLiteAuth();
+  const { status, member } = useLiteAuth();
   const [scope, setScope] = useState<"live" | "all">("live");
   const contacts = useLiteContacts(status === "ready", scope === "live");
+  const canExport = member?.role === "supervisor" || member?.role === "tenant_admin";
+
+  useEffect(() => {
+    if (contacts.loading || typeof window === "undefined" || !window.location.hash) return;
+    const contactId = decodeURIComponent(window.location.hash.slice(1));
+    document.getElementById(contactId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [contacts.loading, contacts.rows]);
 
   return (
     <div className="space-y-4">
@@ -22,16 +28,17 @@ export default function LiteContactsPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Contacts · CRM</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Every WhatsApp visitor is captured automatically as a lead — stage updates itself
-            (engaged → booked → needs human). Message bodies are never stored.
+            Every allowlisted canary visitor is captured automatically as a privacy-safe lead.
+            Message bodies and full phone numbers are never exposed here.
           </p>
         </div>
         <div className="ml-auto flex gap-1">
           <button
             type="button"
+            disabled={!canExport || contacts.rows.length === 0}
             onClick={() => {
               const rows = contacts.rows.map((c) => [
-                (c.liveCanary ? resolveKnownVisitor(c.displayLabel) : null) ?? c.displayLabel,
+                c.displayLabel,
                 c.crmStage,
                 c.preferredLanguage,
                 c.liveCanary ? "live" : "simulated",
@@ -42,10 +49,11 @@ export default function LiteContactsPage() {
               a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
               a.download = "hemas-lite-crm-export.csv";
               a.click();
+              URL.revokeObjectURL(a.href);
             }}
-            className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4]"
+            className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            ⬇ Export CSV (CRM)
+            Export privacy-safe CSV
           </button>
           <button
             type="button"
@@ -79,7 +87,8 @@ export default function LiteContactsPage() {
         {contacts.rows.map((contact) => (
           <article
             key={contact.id}
-            className="rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm"
+            id={contact.id}
+            className="scroll-mt-24 rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm target:border-blue-500 target:ring-4 target:ring-blue-100"
           >
             <div className="flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
@@ -87,11 +96,10 @@ export default function LiteContactsPage() {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-800">
-                  {(contact.liveCanary ? resolveKnownVisitor(contact.displayLabel) : null) ??
-                    contact.displayLabel}
+                  {contact.displayLabel}
                 </p>
                 <p className="truncate text-[11px] text-slate-400">
-                  {contact.liveCanary ? "Real WhatsApp visitor" : contact.maskedPhone}
+                  {contact.liveCanary ? "Allowlisted WhatsApp canary lead" : contact.maskedPhone}
                 </p>
               </div>
               <span className="ml-auto flex flex-col items-end gap-1">
@@ -133,7 +141,7 @@ export default function LiteContactsPage() {
       {!contacts.loading && contacts.rows.length === 0 && !contacts.error ? (
         <p className="text-xs text-slate-400">
           {scope === "live"
-            ? "No live visitors yet — WhatsApp the line (+94 70 796 4455) and they appear here."
+            ? "No canary visitors yet. Send a test message from an allowlisted phone to the configured line."
             : "No contacts yet."}
         </p>
       ) : null}

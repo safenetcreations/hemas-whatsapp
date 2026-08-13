@@ -16,7 +16,6 @@
 # Local secrets and environment values
 .env*
 !.env.example
-!.env.hemas-whatsapp
 apphosting.emulator.yaml
 *.local
 *.pem
@@ -31,5 +30,6 @@ apphosting.emulator.yaml
 /.playwright-cli/
 
 # Generated exports and private working material
+/output/
 /outputs/
 /work/

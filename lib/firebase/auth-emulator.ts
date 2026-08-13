@@ -2,17 +2,17 @@ import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   connectAuthEmulator,
   getAuth,
-  getIdToken,
+  getIdTokenResult,
   type Auth,
   type User,
 } from "firebase/auth";
 import {
   connectFirestoreEmulator,
-  getFirestore,
   type Firestore,
 } from "firebase/firestore";
 import {
   evaluateLocalAuthPolicy,
+  isApprovedCloudIdentity,
   isExpectedSyntheticIdentity,
   syntheticAuthProjectId,
 } from "./auth-policy";
@@ -21,6 +21,7 @@ import {
   currentCloudDemoRuntime,
   type CloudDemoRuntimeResult,
 } from "./runtime-mode";
+import { getHemasFirestore } from "./firestore-target";
 
 const authAppName = "hemas-connect-local-auth";
 const cloudAuthAppName = "hemas-connect-cloud-demo-auth";
@@ -131,7 +132,7 @@ export function getLocalEmulatorFirestore(): Firestore {
     return globalThis.__hemasLocalEmulatorFirestore;
   }
 
-  const db = getFirestore(app);
+  const db = getHemasFirestore(app);
   if (!currentCloudRuntimeOrThrow().active) {
     // Like Auth, this connection is unconditional after the local policy passes.
     // The workspace session therefore has no cloud Firestore fallback path.
@@ -142,50 +143,77 @@ export function getLocalEmulatorFirestore(): Firestore {
 }
 
 export async function verifySyntheticEmulatorUser(user: User): Promise<void> {
-  if (!isExpectedSyntheticIdentity(user.email)) {
+  const cloudRuntime = currentCloudRuntimeOrThrow();
+  let tokenResult;
+  try {
+    // Force a token refresh so a persisted browser user is never accepted
+    // without a current Firebase Auth verification.
+    tokenResult = await getIdTokenResult(user, true);
+  } catch {
     throw new LocalAuthBoundaryError(
-      "Only the seeded synthetic identity may enter this local workspace.",
-      "identity",
+      cloudRuntime.active
+        ? "Firebase Auth could not verify the governed cloud session."
+        : "The Firebase Auth emulator could not verify the local session.",
+      "emulator_unavailable",
     );
   }
 
-  try {
-    // Force a token refresh so a persisted browser user is not accepted when
-    // the Auth emulator is stopped or unavailable.
-    await getIdToken(user, true);
-  } catch {
+  if (cloudRuntime.active) {
+    if (
+      !isApprovedCloudIdentity({
+        uid: user.uid,
+        emailVerified: user.emailVerified,
+        hemasPortalDemo: tokenResult.claims.hemasPortalDemo,
+      })
+    ) {
+      throw new LocalAuthBoundaryError(
+        "This verified identity is not approved for the governed cloud demo.",
+        "identity",
+      );
+    }
+  } else if (!isExpectedSyntheticIdentity(user.email)) {
     throw new LocalAuthBoundaryError(
-      "The Firebase Auth emulator could not verify the local session.",
-      "emulator_unavailable",
+      "Only the approved synthetic identity may enter this governed workspace.",
+      "identity",
     );
   }
 }
 
 export function describeLocalAuthError(error: unknown): string {
+  const cloudDemoActive =
+    typeof window !== "undefined" && currentCloudDemoRuntime().active;
   if (error instanceof LocalAuthBoundaryError) {
     if (error.reason === "identity") {
-      return "This browser identity is not the seeded synthetic account. The portal remains locked.";
+      return "This browser identity is not the approved synthetic account. The portal remains locked.";
     }
     if (error.reason === "configuration") {
-      return "Local authentication is disabled because the environment is not an approved synthetic emulator configuration.";
+      return "Authentication is disabled because this is not an approved governed-demo configuration.";
     }
-    return "Firebase Auth emulator is unavailable. Start the local emulators and try again.";
+    return cloudDemoActive
+      ? "Firebase Auth could not verify the governed cloud session. Try again or contact the demo owner."
+      : "Firebase Auth emulator is unavailable. Start the local emulators and try again.";
   }
 
   const code =
     typeof error === "object" && error && "code" in error ? String(error.code) : "";
   if (code.includes("auth/network-request-failed")) {
-    return "Firebase Auth emulator is not reachable. Start `npm run emulators`, then seed the synthetic account.";
+    return cloudDemoActive
+      ? "Firebase Auth is not reachable. Check the network and try again."
+      : "Firebase Auth emulator is not reachable. Start `npm run emulators`, then seed the synthetic account.";
   }
   if (
     code.includes("auth/invalid-credential") ||
     code.includes("auth/user-not-found") ||
     code.includes("auth/wrong-password")
   ) {
-    return "The synthetic account is missing or the fixture credentials do not match. Run `npm run emulators:seed`.";
+    return cloudDemoActive
+      ? "The governed demo credentials do not match. Ask the demo owner for private access."
+      : "The synthetic account is missing or the fixture credentials do not match. Run `npm run emulators:seed`.";
   }
   if (code.includes("auth/too-many-requests")) {
     return "The local emulator temporarily refused more attempts. Wait briefly, then try again.";
   }
-  return "Local sign-in failed safely. No cloud or production account was contacted.";
+  return cloudDemoActive
+    ? "Governed demo sign-in failed safely. No external message was sent."
+    : "Local sign-in failed safely. No cloud or production account was contacted.";
 }

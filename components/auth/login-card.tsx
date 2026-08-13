@@ -12,18 +12,14 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  syntheticDemoEmail,
-  syntheticDemoPassword,
-} from "@/lib/firebase/auth-policy";
 import { describeLocalAuthError } from "@/lib/firebase/auth-emulator";
 import { useAuthSession } from "./auth-session";
 
 export function LoginCard() {
   const router = useRouter();
   const { status, message: sessionMessage, signIn } = useAuthSession();
-  const [email, setEmail] = useState(syntheticDemoEmail);
-  const [password, setPassword] = useState(syntheticDemoPassword);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,26 +62,26 @@ export function LoginCard() {
       </div>
 
       <div className="mt-7">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-amber-800">
-          <DatabaseZap size={12} aria-hidden="true" /> Emulator only
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-blue-800">
+          <DatabaseZap size={12} aria-hidden="true" /> Governed demo access
         </span>
         <h1 className="mt-3 text-2xl font-bold tracking-[-0.035em] text-slate-950">
-          Sign in to the local demo
+          Sign in to Hemas Connect
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Firebase Auth first verifies the seeded identity; Firestore then verifies its active synthetic workspace, membership, role, and scope. These public fixture credentials cannot access a cloud project.
+          Firebase Auth verifies the privately issued demo credential; Firestore then verifies the active synthetic workspace, role, and scope. No password is embedded or displayed by this app.
         </p>
       </div>
 
       {checkingExistingSession ? (
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900" role="status">
           <LoaderCircle size={16} className="shrink-0 animate-spin" aria-hidden="true" />
-          Checking for a verified local browser session…
+          Checking for a verified governed browser session…
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Synthetic email</span>
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Demo account email</span>
             <input
               type="email"
               value={email}
@@ -97,7 +93,7 @@ export function LoginCard() {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Synthetic password</span>
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">Password</span>
             <span className="relative block">
               <input
                 type={showPassword ? "text" : "password"}
@@ -141,7 +137,7 @@ export function LoginCard() {
             ) : (
               <LockKeyhole size={16} aria-hidden="true" />
             )}
-            {submitting ? "Verifying with local emulator…" : "Sign in to emulator"}
+            {submitting ? "Verifying access…" : "Sign in securely"}
           </button>
         </form>
       )}
@@ -150,7 +146,7 @@ export function LoginCard() {
         <div className="flex items-start gap-2 text-[11px] leading-5 text-slate-500">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--brand)]" aria-hidden="true" />
           <p>
-            This local flow validates only the seeded identity and synthetic membership. Hemas SSO, MFA, cloud sessions, production roles, and external providers remain unconfigured.
+            Cloud access requires a verified Firebase identity, the exact private demo-access claim, and an active scoped membership. Local fallback remains emulator-only; Hemas SSO and production roles are separate rollout decisions.
           </p>
         </div>
       </div>

@@ -27,7 +27,9 @@ import {
   type ReactNode,
 } from "react";
 import { getFirebaseServices } from "@/lib/firebase/client";
+import { currentCloudDemoRuntime } from "@/lib/firebase/runtime-mode";
 import { LITE_WORKSPACE_ID, isLiteEmail } from "./lite-config";
+import { prepareLiteCredentials } from "./lite-login-model";
 
 export type LiteMemberInfo = {
   readonly role: string;
@@ -49,21 +51,17 @@ type LiteAuthValue = LiteAuthState & {
 const LiteAuthContext = createContext<LiteAuthValue | null>(null);
 
 async function loadMember(uid: string): Promise<LiteMemberInfo | null> {
-  try {
-    const { db } = getFirebaseServices();
-    const snap = await getDoc(
-      doc(db, "workspaces", LITE_WORKSPACE_ID, "members", uid),
-    );
-    const data = snap.data();
-    if (!snap.exists() || !data || data.status !== "active") return null;
-    return {
-      role: typeof data.role === "string" ? data.role : "agent",
-      displayLabel:
-        typeof data.displayLabel === "string" ? data.displayLabel : "Lite seat",
-    };
-  } catch {
-    return null;
-  }
+  const { db } = getFirebaseServices();
+  const snap = await getDoc(
+    doc(db, "workspaces", LITE_WORKSPACE_ID, "members", uid),
+  );
+  const data = snap.data();
+  if (!snap.exists() || !data || data.status !== "active") return null;
+  return {
+    role: typeof data.role === "string" ? data.role : "agent",
+    displayLabel:
+      typeof data.displayLabel === "string" ? data.displayLabel : "Lite seat",
+  };
 }
 
 export function LiteAuthProvider({ children }: { children: ReactNode }) {
@@ -85,7 +83,8 @@ export function LiteAuthProvider({ children }: { children: ReactNode }) {
           setState({ status: "signed_out", user: null, member: null, message: null });
           return;
         }
-        if (!isLiteEmail(user.email)) {
+        const cloudRuntime = currentCloudDemoRuntime();
+        if (!cloudRuntime.active && !isLiteEmail(user.email)) {
           setState({
             status: "blocked",
             user,
@@ -94,22 +93,47 @@ export function LiteAuthProvider({ children }: { children: ReactNode }) {
           });
           return;
         }
-        void loadMember(user.uid).then((member) => {
-          if (!active) return;
-          setState({ status: "ready", user, member, message: null });
-        });
+        if (cloudRuntime.active && !user.emailVerified) {
+          setState({
+            status: "blocked",
+            user,
+            member: null,
+            message: "Cloud demo access requires a verified Firebase identity.",
+          });
+          return;
+        }
+        void loadMember(user.uid)
+          .then((member) => {
+            if (!active) return;
+            if (!member) {
+              setState({
+                status: "blocked",
+                user,
+                member: null,
+                message: "This Lite seat has no active workspace membership.",
+              });
+              return;
+            }
+            setState({ status: "ready", user, member, message: null });
+          })
+          .catch(() => {
+            if (!active) return;
+            setState({
+              status: "error",
+              user,
+              member: null,
+              message: "Lite membership could not be verified. Check your connection and try again.",
+            });
+          });
       });
-    } catch (error) {
+    } catch {
       queueMicrotask(() => {
         if (!active) return;
         setState({
           status: "error",
           user: null,
           member: null,
-          message:
-            error instanceof Error
-              ? error.message
-              : "Lite could not start Firebase services in this environment.",
+          message: "Lite could not start Firebase services in this environment.",
         });
       });
     }
@@ -120,12 +144,13 @@ export function LiteAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!isLiteEmail(email)) {
+    const credentials = prepareLiteCredentials(email, password);
+    if (!currentCloudDemoRuntime().active && !isLiteEmail(credentials.email)) {
       throw new Error("Use one of the Lite demo seats to sign in.");
     }
     const { auth } = getFirebaseServices();
     await setPersistence(auth, browserSessionPersistence);
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+    await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
   }, []);
 
   const signOut = useCallback(async () => {

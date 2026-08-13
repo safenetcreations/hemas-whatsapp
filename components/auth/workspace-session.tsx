@@ -45,7 +45,7 @@ const checkingSnapshot: WorkspaceSessionSnapshot = {
 
 class WorkspaceSessionTimeoutError extends Error {
   constructor() {
-    super("Firestore emulator did not verify workspace access in time.");
+    super("Firestore did not verify workspace access in time.");
     this.name = "WorkspaceSessionTimeoutError";
   }
 }
@@ -79,7 +79,7 @@ function failureSnapshot(error: unknown): WorkspaceSessionSnapshot {
     session: null,
     message: denied
       ? "The synthetic workspace or membership is missing, inactive, revoked, or invalid."
-      : "The Firestore emulator could not verify workspace access.",
+      : "Firestore could not verify governed workspace access.",
   };
 }
 

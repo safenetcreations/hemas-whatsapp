@@ -391,6 +391,7 @@ service cloud.firestore {
           'suppression',
           'tags',
           'synthetic',
+          'liveCanary',
           'preferenceRevision',
           'createdAt',
           'updatedAt'
@@ -405,6 +406,7 @@ service cloud.firestore {
         validContactSuppression(data.suppression) &&
         validContactTags(data.tags) &&
         data.synthetic is bool &&
+        (!('liveCanary' in data) || data.liveCanary == true) &&
         data.preferenceRevision is int &&
         data.preferenceRevision >= 0 &&
         data.preferenceRevision <= 1000000000 &&
@@ -2645,6 +2647,88 @@ service cloud.firestore {
           resource.data.containsMessageContent == false;
         allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
         allow create, update, delete: if false;
+      }
+
+      match /canary_reply_leases/{conversationId} {
+        // Provider-send reservations are backend-only idempotency and routing
+        // controls. They are never part of a browser read or write surface.
+        allow get, list, create, update, delete: if false;
+      }
+
+      // Signed-provider receipts, opt-out evidence, durable effect journals,
+      // send-operation reservations and manual reconciliation records are all
+      // Admin-SDK-only control-plane data. Explicit matches make that boundary
+      // reviewable even though the workspace catch-all also denies them.
+      match /canary_inbound_events/{receiptId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_outbound_events/{eventId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_opt_out_events/{eventId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_webhook_outbox/{effectId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_inbound_return_routes/{routeId} {
+        // Short-lived encrypted destinations created only from signed inbound
+        // webhooks. They are never a browser, inbox, or campaign data surface.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_public_quota_counters/{counterId} {
+        // Content-free public-test abuse controls are backend-owned and never
+        // expose sender, message, or recipient data to browser clients.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_public_bot_sessions/{subjectId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_public_suppressions/{subjectId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_outbox_reconciliations/{reconciliationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_agent_replies/{replyId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_reply_operations/{operationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_reply_reconciliations/{reconciliationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_booking_operations/{operationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_booking_reconciliations/{reconciliationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_campaign_recipient_operations/{operationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_campaign_reconciliations/{reconciliationId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /canary_provider_message_routes/{routeId} {
+        allow get, list, create, update, delete: if false;
       }
 
       match /canary_bookings/{bookingId} {

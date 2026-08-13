@@ -1,14 +1,16 @@
 # Synthetic demo acceptance script
 
-This script verifies the current product without a Firebase cloud project,
-Meta account, Hemas system, real phone number or patient data.
+This script verifies the zero-network local fallback without touching the
+existing Firebase cloud project, Meta account, Hemas system, real phone number
+or patient data. For the current governed cloud/canary boundary and tomorrow's
+walkthrough, use `docs/MANAGEMENT_DEMO_RUNBOOK_2026-08-12.md`.
 
 ## 1. Environment and identity proof
 
 1. Start the local emulators with `npm run emulators`, then run
    `npm run emulators:seed` in another terminal.
-2. Open `http://localhost:3000/login` and sign in with the visible synthetic
-   fixture identity.
+2. Open `http://localhost:3000/login` and sign in with the privately issued
+   synthetic fixture credential. The app must not display or prefill a password.
 3. Confirm the portal labels the SafeNet synthetic workspace, external sending
    off, no Hemas/Meta connection and local emulator authority.
 4. Confirm a direct portal URL redirects to Login when signed out.
@@ -178,14 +180,11 @@ npm run emulators:verify-ingress
 npm run build
 ```
 
-Current component-gate baseline (2026-08-08; collected in bounded runs rather
-than claimed as one fresh monolithic `npm run validate` invocation): 506/506
-root tests across 39 files, 77/77 Rules/Storage tests, 187 passing Functions
-tests with two intentional
-emulator-only skips in the 189-test pure run, 2/2 signed-ingress emulator tests
-and 20 prerendered routes. The Phase 5 verifier must complete all 6 automation
-plus 13 care actions, and the Compliance verifier must project all 28 fresh
-audit events without changing the datastore.
+Do not reuse historical counts as release evidence. Run the current
+`npm run validate` from a clean Node 22 shell and retain its full log. The
+Phase 5 verifier must complete all 6 automation plus 13 care actions, and the
+Compliance verifier must project all 28 fresh audit events without changing
+the datastore.
 
 For every browser milestone:
 
@@ -196,14 +195,18 @@ For every browser milestone:
 - remove or move generated Playwright artifacts out of the repository;
 - re-read the Rules audit caveats before making any connected-UAT claim.
 
-## 7. Explicitly unfinished modules
+## 7. Explicit boundaries
 
 - AI & Knowledge is not accepted as a persisted module. Its corrected
   persistence contract is in progress; the current deterministic/hardcoded
   surface must not be described as complete or as evidence of a connected AI
   model, retrieval system or clinical capability.
-- Analytics, Usage, Settings, Demo Lab and Help remain local-only/incomplete
-  modules and are outside the persisted acceptance above.
+- Automatic Analytics now reads aggregate-only authenticated Firestore data and
+  is included in local acceptance. Its fixture values are not Hemas performance
+  or provider-delivery evidence.
+- Usage, Demo Lab and Help retain deterministic/local demonstration surfaces.
+  Private Settings recovery controls require governed cloud claims and are not
+  exercised by this zero-network fallback.
 - Home-collection planning and patient-view Flow navigation remain page-local
   demonstrations.
 

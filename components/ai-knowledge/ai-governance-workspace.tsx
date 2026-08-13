@@ -163,7 +163,10 @@ export function AIGovernanceWorkspace() {
     return knowledgeSources.filter((source) => (!normalized || `${source.title} ${source.owner} ${source.language}`.toLowerCase().includes(normalized)) && (sourceStatus === "all" || source.status === sourceStatus));
   }, [sourceQuery, sourceStatus]);
 
-  const selectedSource = knowledgeSources.find((source) => source.id === selectedSourceId) ?? knowledgeSources[0];
+  const selectedSource =
+    filteredSources.find((source) => source.id === selectedSourceId) ??
+    filteredSources[0] ??
+    null;
   const selectedScenario = safetyScenarios.find((scenario) => scenario.id === selectedScenarioId) ?? safetyScenarios[0];
 
   const runScenario = () => {
@@ -178,7 +181,10 @@ export function AIGovernanceWorkspace() {
           <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand)]"><Bot size={21} aria-hidden="true" /></span>
           <div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--brand)]">Assisted service</p><h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] text-slate-950 sm:text-3xl">AI &amp; Knowledge</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">Inspect approved sources and run a deterministic safety pipeline. This workspace does not call an AI provider, diagnose, interpret reports, or send messages.</p></div>
         </div>
-        <button type="button" disabled title="Production AI remains locked until Hemas governance and provider terms are approved" className="inline-flex h-10 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-300 px-4 text-sm font-semibold text-white"><LockKeyhole size={15} aria-hidden="true" /> Production AI locked</button>
+        <div className="xl:text-right">
+          <span className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 text-sm font-semibold text-slate-700"><LockKeyhole size={15} aria-hidden="true" /> Production AI locked</span>
+          <p className="mt-1.5 max-w-sm text-xs leading-5 text-slate-500">Requires Hemas governance approval and provider terms.</p>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="AI governance summary">
@@ -193,10 +199,20 @@ export function AIGovernanceWorkspace() {
       <section className="grid gap-6 xl:grid-cols-[minmax(310px,0.72fr)_minmax(0,1.28fr)]">
         <article className="overflow-hidden rounded-2xl border border-[var(--line)] bg-white">
           <div className="border-b border-[var(--line)] p-4 sm:p-5"><h2 className="text-[15px] font-bold text-slate-950">Knowledge governance</h2><p className="mt-1 text-xs text-slate-500">Only approved, effective versions are retrievable</p><label className="relative mt-4 block"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} aria-hidden="true" /><span className="sr-only">Search knowledge sources</span><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} type="search" placeholder="Search source or owner" className="h-10 w-full rounded-xl border border-[var(--line)] bg-slate-50 pl-9 pr-3 text-xs outline-none focus:border-[var(--brand)] focus:bg-white" /></label><label className="mt-2 block"><span className="sr-only">Filter source approval status</span><select value={sourceStatus} onChange={(event) => setSourceStatus(event.target.value as "all" | KnowledgeStatus)} className="h-9 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-xs font-semibold text-slate-700"><option value="all">All governance states</option><option value="approved">Approved only</option><option value="review">In review</option><option value="expired">Expired</option></select></label></div>
-          <SourceList sources={filteredSources} selectedId={selectedSource.id} onSelect={setSelectedSourceId} />
+          <SourceList sources={filteredSources} selectedId={selectedSource?.id ?? ""} onSelect={setSelectedSourceId} />
         </article>
         <div className="space-y-4">
-          <SourceDetail source={selectedSource} />
+          {selectedSource ? (
+            <SourceDetail source={selectedSource} />
+          ) : (
+            <article className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+              <div>
+                <Search className="mx-auto text-slate-300" size={28} aria-hidden="true" />
+                <h3 className="mt-3 text-sm font-bold text-slate-800">No source selected</h3>
+                <p className="mt-1 text-xs text-slate-500">Clear or change the filters to inspect an approved source.</p>
+              </div>
+            </article>
+          )}
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-slate-700"><BrainCircuit size={18} aria-hidden="true" /></span><div><h3 className="text-sm font-bold text-slate-900">Retrieval boundary</h3><p className="mt-1 text-xs leading-5 text-slate-600">Draft and expired sources remain visible for governance but are excluded from assistant context. No unrestricted EHR, report body, hidden reasoning, or patient content is available here.</p></div></div></div>
         </div>
       </section>

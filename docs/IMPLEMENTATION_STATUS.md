@@ -1,8 +1,65 @@
 # Hemas Connect implementation status
 
-Snapshot: 2026-08-08  
-Current product state: **advanced authenticated Firebase-emulator build in active
-development; not connected UAT or production**
+Snapshot: **2026-08-12**
+Current product state: **local management-demo candidate with governed Enterprise
+synthetic data and a private, allowlisted Lite WhatsApp canary; not yet deployed or
+verified as live production**
+
+This section is the authoritative current summary. The detailed 8 August snapshot
+below is retained only as historical implementation evidence and must not be used
+as the release status.
+
+## Current 12 August release summary
+
+- Full and Lite use one Hemas-branded platform with explicit Enterprise-synthetic
+  and Lite-canary truth boundaries. Public credential prefills and client-visible
+  tester numbers/passwords have been removed.
+- Full Analytics now reads authenticated aggregate-only WhatsApp metrics in real
+  time, provides eight KPIs, an accessible 14-day chart/table and aggregate CSV,
+  while keeping the deterministic scenario model separately labelled.
+- Inbox-to-CRM opens the exact existing lead/contact without duplicating it. Lite
+  contacts remain an internal governed CRM projection; a third-party CRM connector
+  is intentionally not claimed until Hemas selects a vendor and field contract.
+- The Lite WhatsApp lane has transactional ownership, service-window checks,
+  current suppression checks, durable operation IDs, provider-route evidence,
+  STOP-aware campaign boundaries and evidence-only recovery for reply, booking,
+  campaign and fatal Meta outcomes. Recovery controls never resend an ambiguous
+  provider operation.
+- Signed webhooks bind the exact WABA and phone-number asset, reject oversized
+  batches without truncation, minimize sender evidence, persist a mode-bound
+  idempotent outbox plan and stop automation during human takeover.
+- Firestore is pinned to Standard database `(default)`. Browser access to provider
+  receipts, effect journals, reservations, routes and reconciliation evidence is
+  explicitly denied; private Functions enforce verified claims and current active
+  membership.
+- Operator tooling is dry-run-first for claim grant/revoke, membership disable,
+  token revocation and historical receipt retention. The tracked-sensitive scan is
+  part of `npm run validate`.
+- One production architecture gate remains intentionally unprovisioned: deferred
+  Meta outbox work has a private bounded recovery control but no scheduled wake-up.
+  Adding Cloud Scheduler/Tasks (or an equivalent paid queue) requires explicit
+  architecture and cost approval; the management demo must follow the manual
+  recovery step in the runbook.
+- Desktop/mobile zero-network smoke evidence and the presenter procedure are in
+  `output/playwright/SMOKE_TEST_2026-08-11.md` and
+  `docs/MANAGEMENT_DEMO_RUNBOOK_2026-08-12.md`.
+
+<!-- FINAL_VALIDATION_SUMMARY -->
+Final integrated validation passed on Node 22.23.2 on 12 August 2026:
+
+- tracked-sensitive scan, ESLint and TypeScript: passed;
+- root unit/model/UI tests: 611/611 passed;
+- Firestore and Storage Rules: 89/89 passed in Standard emulators;
+- Functions: 293 passed, two emulator-dependent tests intentionally skipped,
+  zero failed;
+- fresh seed, durable audit, authenticated Functions, Phase 5, Compliance and
+  signed-ingress emulator verification: passed with outbound/network paths locked;
+- Next.js production build: passed with 28 static routes.
+
+## Archived implementation snapshot — 8 August 2026
+
+The remainder of this document describes the earlier emulator-only milestone and
+its then-current limitations.
 
 ## What is implemented
 

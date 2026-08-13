@@ -2,7 +2,6 @@
 
 import {
   BarChart3,
-  Bell,
   Bot,
   Boxes,
   BriefcaseMedical,
@@ -10,14 +9,12 @@ import {
   ContactRound,
   FileCheck2,
   FlaskConical,
-  HeartPulse,
   Inbox,
   LayoutDashboard,
   LifeBuoy,
   Menu,
   MessageSquareText,
   Network,
-  Search,
   Settings,
   ShieldCheck,
   UsersRound,
@@ -25,9 +22,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   visiblePortalRoutePaths,
   type PortalRoutePath,
@@ -50,7 +48,7 @@ const navigation: NavGroup[] = [
     label: "Operations",
     items: [
       { label: "Overview", href: "/", icon: LayoutDashboard },
-      { label: "Inbox", href: "/inbox", icon: Inbox, badge: "28" },
+      { label: "Inbox", href: "/inbox", icon: Inbox },
       { label: "Contacts", href: "/contacts", icon: ContactRound },
       { label: "Appointments", href: "/appointments", icon: BriefcaseMedical },
       { label: "Lab journeys", href: "/labs", icon: FlaskConical },
@@ -87,14 +85,19 @@ const navigation: NavGroup[] = [
 function Brand() {
   return (
     <Link href="/" className="flex min-w-0 items-center gap-3 rounded-lg" aria-label="Hemas Connect overview">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--brand)] text-white shadow-sm">
-        <HeartPulse size={21} strokeWidth={2.2} aria-hidden="true" />
-      </span>
+      <Image
+        src="/hemas-logo.png"
+        alt="Hemas Hospitals"
+        width={62}
+        height={32}
+        priority
+        className="h-9 w-auto shrink-0 object-contain"
+      />
       <span className="min-w-0">
         <span className="block truncate text-[15px] font-bold tracking-[-0.02em] text-slate-950">
           Hemas Connect
         </span>
-        <span className="block truncate text-[11px] font-medium text-slate-500">SafeNet product prototype</span>
+        <span className="block truncate text-[11px] font-medium text-slate-500">Enterprise · governed demo</span>
       </span>
     </Link>
   );
@@ -132,7 +135,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           className="flex w-full items-center gap-3 rounded-xl border border-[var(--line)] bg-slate-50 px-3 py-2.5 text-left transition hover:bg-slate-100"
           aria-label={`Verified workspace: ${session.workspaceName}`}
         >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-100 text-xs font-bold text-blue-800">
             {workspaceInitials(session.workspaceName)}
           </span>
           <span className="min-w-0 flex-1">
@@ -203,11 +206,56 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const currentLabel =
+    navigation.flatMap((group) => group.items).find((item) =>
+      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
+    )?.label ?? "Enterprise workspace";
 
   useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    if (!mobileOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : menuButtonRef.current;
+    const content = contentRef.current;
+    content?.setAttribute("inert", "");
+    document.body.style.overflow = "hidden";
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusFirst = window.requestAnimationFrame(() => {
+      const first = dialogRef.current?.querySelector<HTMLElement>(focusableSelector);
+      first?.focus();
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const controls = [...dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)];
+      if (controls.length === 0) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
+      window.cancelAnimationFrame(focusFirst);
+      document.removeEventListener("keydown", handleKeyDown);
+      content?.removeAttribute("inert");
       document.body.style.overflow = "";
+      previouslyFocused?.focus();
     };
   }, [mobileOpen]);
 
@@ -215,7 +263,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[var(--canvas)]">
       <div className="fixed inset-x-0 top-0 z-50 flex h-8 items-center justify-center gap-2 bg-[#fff3d9] px-3 text-center text-[10px] font-semibold text-[#75521a] sm:text-[11px]">
         <FlaskConical size={12} aria-hidden="true" />
-        <span>{publicStageLabel} · NOT CONNECTED TO HEMAS OR META · EXTERNAL SENDING OFF · REAL PATIENT DATA OFF</span>
+        <span>{publicStageLabel} · GOVERNED MANAGEMENT DEMO · ALLOWLISTED CANARY ONLY · REAL PATIENT DATA OFF · CLINICAL ADVICE OFF</span>
       </div>
 
       <aside className="fixed bottom-0 left-0 top-8 z-40 hidden w-[252px] border-r border-[var(--line)] lg:block">
@@ -223,10 +271,17 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {mobileOpen ? (
-        <div className="fixed inset-0 top-8 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div
+          ref={dialogRef}
+          id="portal-navigation-dialog"
+          className="fixed inset-0 top-8 z-50 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+        >
           <button className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" onClick={() => setMobileOpen(false)} aria-label="Close navigation" />
           <aside className="absolute bottom-0 left-0 top-0 w-[min(88vw,320px)] border-r border-[var(--line)] shadow-2xl">
-            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-3 top-4 z-10 grid h-9 w-9 place-items-center rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Close navigation">
+            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-xl text-slate-600 hover:bg-slate-100" aria-label="Close navigation">
               <X size={19} aria-hidden="true" />
             </button>
             <Sidebar onNavigate={() => setMobileOpen(false)} />
@@ -234,26 +289,38 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <div className="pt-8 lg:pl-[252px]">
+      <div ref={contentRef} className="pt-8 lg:pl-[252px]">
         <header className="sticky top-8 z-30 flex h-16 items-center gap-3 border-b border-[var(--line)] bg-white/95 px-4 backdrop-blur sm:px-6 lg:h-[72px] lg:px-8">
-          <button type="button" onClick={() => setMobileOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[var(--line)] text-slate-700 hover:bg-slate-50 lg:hidden" aria-label="Open navigation">
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[var(--line)] text-slate-700 hover:bg-slate-50 lg:hidden"
+            aria-label="Open navigation"
+            aria-controls="portal-navigation-dialog"
+            aria-expanded={mobileOpen}
+          >
             <Menu size={20} aria-hidden="true" />
           </button>
 
-          <form className="relative max-w-md flex-1" role="search" onSubmit={(event) => event.preventDefault()}>
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} aria-hidden="true" />
-            <input type="search" aria-label="Search workspace" placeholder="Search synthetic contacts, conversations…" className="h-10 w-full rounded-xl border border-[var(--line)] bg-slate-50 pl-10 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-emerald-700 focus:bg-white" />
-          </form>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-blue-700">
+              Hemas Connect Enterprise
+            </p>
+            <p className="truncate text-sm font-semibold text-slate-800">{currentLabel}</p>
+          </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-800 md:flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Meta disconnected
+            <span className="hidden items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-800 sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              Governed demo
             </span>
-            <button type="button" className="relative grid h-10 w-10 place-items-center rounded-xl border border-[var(--line)] text-slate-600 hover:bg-slate-50" aria-label="Operational alerts">
-              <Bell size={18} aria-hidden="true" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
-            </button>
+            <Link
+              href="/lite"
+              className="inline-flex h-10 items-center rounded-xl border border-blue-200 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+            >
+              Open Lite
+            </Link>
           </div>
         </header>
 

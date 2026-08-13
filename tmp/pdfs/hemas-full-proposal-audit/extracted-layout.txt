@@ -1,0 +1,234 @@
+       SAFE NET CREATIONS                                                          Prepared For:    Hemas Hospitals (Pvt)
+                                                                                                    Ltd
+       DIGITAL DEVELOPMENT & SYSTEMS STRATEGY
+                                                                                   Date:            July 30, 2026
+                                                                                   Quote Ref:       SNC-HEMAS-2026-Q1
+       Commercial Proposal & Quotation                                             Valid Until:     August 30, 2026
+       WhatsApp AI Automation & Growth Platform for Hemas                          Prepared By:     Safe Net Creations Lead
+       Hospitals                                                                                    Team
+
+
+
+
+  1. Executive Summary & Strategic Objective
+Hemas Hospitals is positioned as one of Sri Lanka’s premier healthcare networks. To elevate patient experience,
+reduce call-center bottlenecking, and streamline appointment channelling, Safe Net Creations proposes an
+enterprise-grade, Meta-certified WhatsApp Automation and AI Engine.
+
+This solution transforms WhatsApp into a 24/7 digital front desk for Hemas Hospitals—enabling automated doctor
+appointments, lab report delivery, FAQs, and instant customer service. Recognizing enterprise deployment
+dynamics, our proposal supports a phased rollout strategy: starting with a single branch or single core service
+(e.g., Doctor Channelling at Wattala/Thalawathugoda) and seamlessly scaling network-wide across all locations and
+medical departments.
+
+
+      Key Strategic Benefits for Hemas Hospitals
+       • Zero Patient Friction: Patients book appointments, check doctor availability, and request reports inside
+        WhatsApp without downloading external apps.
+       • Operational Cost Reduction: Automated AI handles up to 80% of repetitive incoming inquiries (branch
+        timing, test costs, doctor schedules), freeing call center agents for complex clinical inquiries.
+       • Modular Risk-Free Rollout: Start with 1 branch / 1 service module, validate ROI, and expand seamlessly
+        to all hospital facilities.
+
+
+
+  2. Feature Scope & Technical Specification
+Below is the detailed breakdown of all 15 core functions included in the Safe Net Creations platform architecture:
+
+
+                                             SAFE NET
+  #       FEATURE MODULE                                         FUNCTIONAL VALUE FOR HEMAS HOSPITALS
+                                             SCOPE
+
+
+  1       Official WhatsApp API              Included (✓)        Verified Green-Tick Meta Cloud API integration ensuring 99.9%
+          (Meta)                                                 uptime, mass message throughput, and official trust mark.
+
+
+  2       AI Chatbot Engine                  Included (✓)        Natural Language Processing (NLP) chatbot trained on Hemas
+                                                                 services, doctor directories, branch schedules, and hospital FAQs.
+
+
+  3       Multi-Agent Team Inbox             Included (✓)        Centralized dashboard allowing call center reps, OPD desks, and
+                                                                 branch teams to manage simultaneous patient conversations
+                                                                 seamlessly.
+
+
+  4                                          Included (✓)
+
+
+
+Safe Net Creations • Confidential Proposal for Hemas Hospitals                                                              Page 1 of 4
+                                             SAFE NET
+  #       FEATURE MODULE                                         FUNCTIONAL VALUE FOR HEMAS HOSPITALS
+                                             SCOPE
+
+          Bulk Broadcast                                         Send targeted broadcast messages for annual wellness
+          Campaigns                                              packages, preventive health checkups, emergency updates, and
+                                                                 awareness drives.
+
+
+  5       Analytics & Performance            Included (✓)        Real-time dashboards tracking inquiry volumes, bot resolution
+                                                                 rates, agent response latency, and appointment conversion
+                                                                 metrics.
+
+
+  6       CRM / HIS Integration              Included (✓)        Connects via API to Hemas Hospital Information System (HIS),
+                                                                 eChannelling, or Doc990 backends for live data lookup and
+                                                                 syncing.
+
+
+  7       Appointment Automation             Included (✓)        End-to-end channelling flow: search doctor, pick time slot, receive
+                                                                 booking confirmation ticket, and automated WhatsApp reminders.
+
+
+  8       Local Engineering                  Included (✓)        Dedicated Sri Lankan technical team from Safe Net Creations for
+          Support                                                SLA management, workflow adjustments, and system
+                                                                 maintenance.
+
+
+  9       Users / Staff Accounts             Unlimited           No seat-based restrictions; onboard unlimited call center
+                                                                 representatives, receptionists, and branch admins.
+
+
+  10      Channels & Branches                Unlimited           Multi-branch architecture supporting Wattala, Thalawathugoda,
+                                                                 Galle, and future clinics under one unified engine.
+
+
+  11      Patient Contacts                   Unlimited           Store and segment unlimited patient profiles without tier caps or
+          Database                                               contact storage surcharges.
+
+
+  12      Marketing Campaigns                Unlimited           Run unlimited broadcast campaigns subject only to Meta’s
+                                                                 standard messaging policies and rate limits.
+
+
+  13      Setup Cost (One-time)              LKR 75,000          Complete platform configuration, Meta API verification, AI chatbot
+                                                                 training, and initial workflow setup.
+
+
+  14      Monthly Platform Fee               LKR 25,000          Includes server hosting, software licensing, multi-agent platform
+                                                                 access, continuous system updates, and support.
+
+
+  15      Meta Conversation Rates            At Actual           Direct pass-through charges billed by Meta based on
+                                             Cost                conversation type (Service vs. Marketing/Utility conversations).
+
+
+
+  3. Phased Implementation & Scale-Up Strategy
+To ensure smooth operational adoption without disrupting hospital workflow, we recommend a 3-phase deployment
+approach:
+
+
+   PHASE 1: Pilot Launch (Single Branch / Core Service)
+   • Target Focus: Doctor Appointment Channelling & FAQ Bot for 1 Primary Branch (e.g., Hemas Wattala or Thalawathugoda).
+   • Deliverables: Meta WhatsApp API setup, basic AI chatbot for doctor schedules, multi-agent inbox for 5–10 front desk staff, and
+   staff training.
+   • Goal: Test patient adoption, optimize conversation flows, and establish baseline performance metrics.
+
+
+
+Safe Net Creations • Confidential Proposal for Hemas Hospitals                                                               Page 2 of 4
+   PHASE 2: Service Module Expansion
+   • Target Focus: Add Automated Lab Report Delivery, Health Package Promotion, and Post-Visit Feedback.
+   • Deliverables: Integration with Lab Information Systems (LIS), automated SMS/WhatsApp link dispatch when reports are ready,
+   and bulk campaign setup.
+   • Goal: Reduce physical report collection counter traffic and increase diagnostic revenue via broadcast campaigns.
+
+
+
+   PHASE 3: Full Multi-Branch Network Integration
+   • Target Focus: Scale to all Hemas Hospital branches, outpatient clinics, and specialized centers.
+   • Deliverables: Smart location-based menu routing (detects patient location/branch preference), enterprise HIS API
+   synchronization, advanced analytics dashboard.
+   • Goal: Complete digital front-desk ecosystem across the entire Hemas healthcare network.
+
+
+
+  4. Combined Commercial Proposal Summary
+Hemas Hospitals can choose between Infrastructure Only (software solution managed by Hemas team) or a Fully
+Managed Growth Retainer (Safe Net manages SEO, campaigns, lead acquisition, and WhatsApp discipline):
+
+
+                                 ONE-TIME
+  PACKAGE TIER                                             MONTHLY FEE              SCOPE INCLUDED
+                                 SETUP
+
+
+  1. Infrastructure Only         LKR 75,000                LKR 25,000 / mo          Official Meta WhatsApp API, AI Chatbot engine,
+  Tech Solution                                                                     Multi-agent inbox, technical hosting & local
+                                                                                    support.
+
+
+  2. Starter Growth              LKR 75,000                LKR 35,000 / mo          WhatsApp Infrastructure + Baseline SEO, basic
+  Pilot + Marketing                                                                 search content rhythm, and patient inquiry follow-
+                                                                                    up tracking.
+
+
+  3. Demand Engine               LKR 75,000                LKR 65,000 /             Full WhatsApp Platform + Active SEO + Paid
+     MOST POPULAR                                                                   Campaign Management + Lead Quality
+                                                           mo
+                                                                                    Review + WhatsApp discipline monitoring.
+
+
+  4. Enterprise Network          LKR 75,000+               LKR 95,000+ / mo         Multi-branch HIS deep API integration, multi-
+  Full Network Scale                                                                channel ad management, dedicated strategist,
+                                                                                    executive reporting & custom SLAs.
+
+
+
+
+    Note on Meta Official Conversation Charges
+    Meta charges directly per 24-hour conversation window (Service conversations initiated by patients vs. Marketing/Utility
+    conversations initiated by hospital). These charges are billed at exact cost without markup, allowing full transparency.
+
+
+
+
+  5. Technical Architecture & Security Standards
+
+   System Architecture                                                   SLA & Local Support
+
+     • Cloud Infrastructure: High-availability Meta                        • Uptime SLA: 99.9% operational availability
+      Cloud API connected to Safe Net enterprise                             guarantee for WhatsApp messaging engine.
+      middleware.                                                          • Local Team: Dedicated Sri Lankan development
+                                                                             and strategy team at Safe Net Creations.
+
+
+
+Safe Net Creations • Confidential Proposal for Hemas Hospitals                                                                 Page 3 of 4
+     • Data Privacy: ISO-compliant encrypted data                   • Response Time: Urgent critical bug fixes within 2
+      transit; confidential patient health data handled via           hours; routine workflow updates within 24 hours.
+      single-use secure links.
+     • Failover Protocol: Auto-routing to live call center
+      agent if chatbot intent confidence drops below
+      threshold.
+
+
+
+
+  6. Next Steps for Implementation
+To proceed with Phase 1 deployment for Hemas Hospitals:
+
+ 1. Package Selection: Confirm chosen tier (e.g., Tech Only at LKR 25k/mo or Most Popular Demand Engine at LKR 65k/mo).
+ 2. Kickoff & Meta Verification: Provide Meta Business Manager ID and legal documents for official WhatsApp green-tick
+    verification.
+ 3. Branch & Service Mapping: Supply doctor schedules, test price lists, and branch contact protocols for pilot deployment.
+ 4. Go-Live Target: Phase 1 Pilot can be operational within 10–14 business days from kickoff.
+
+
+
+Prepared By: Safe Net Creations                                   Accepted & Approved By: Hemas Hospitals
+
+
+____________________________________                              ____________________________________
+Director / Systems Strategy Lead                                  Authorized Representative
+Safe Net Creations (safenetcreations.com)                         Hemas Hospitals (Pvt) Ltd
+Date: July 30, 2026                                               Date: ________________________
+
+
+
+
+Safe Net Creations • Confidential Proposal for Hemas Hospitals                                                       Page 4 of 4
+

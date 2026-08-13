@@ -1,6 +1,5 @@
 export const syntheticAuthProjectId = "demo-hemas-connect";
 export const syntheticDemoEmail = "demo.admin@synthetic.invalid";
-export const syntheticDemoPassword = "Synthetic-Demo-Only-2026!";
 
 export type LocalAuthPolicyInput = {
   hostname: string;
@@ -60,4 +59,19 @@ export function evaluateLocalAuthPolicy(input: LocalAuthPolicyInput): LocalAuthP
 
 export function isExpectedSyntheticIdentity(email: string | null): boolean {
   return email?.trim().toLowerCase() === syntheticDemoEmail;
+}
+
+export type ApprovedCloudIdentityInput = {
+  uid: string;
+  emailVerified: boolean;
+  hemasPortalDemo: unknown;
+};
+
+export function isApprovedCloudIdentity(input: ApprovedCloudIdentityInput): boolean {
+  return (
+    input.uid.length >= 1 &&
+    input.uid.length <= 128 &&
+    input.emailVerified &&
+    input.hemasPortalDemo === true
+  );
 }

@@ -290,8 +290,8 @@ export function useLiteContacts(
             liveCanary: data.liveCanary === true,
             crmStage: (() => {
               const tags: unknown[] = Array.isArray(data.tags) ? data.tags : [];
-              if (tags.includes("crm_booked")) return "booked";
-              if (tags.includes("crm_needs_human")) return "needs_human";
+              if (tags.includes("appointment")) return "booked";
+              if (tags.includes("human-handoff")) return "needs_human";
               return "engaged";
             })(),
           } satisfies LiteContact;
@@ -594,17 +594,199 @@ export async function liteClaim(
   await callable({ conversationId, action });
 }
 
-export async function liteReply(conversationId: string, text: string): Promise<void> {
+export async function liteReply(
+  conversationId: string,
+  text: string,
+  operationId: string,
+): Promise<void> {
   const callable = httpsCallable(liteFunctions(), "liteSendAgentReply", {
     timeout: 25_000,
   });
-  await callable({ conversationId, text });
+  await callable({ conversationId, operationId, text });
 }
 
 export async function liteSetupSeats(): Promise<unknown> {
   const callable = httpsCallable(liteFunctions(), "liteDemoSetup", { timeout: 45_000 });
   const result = await callable({});
   return result.data;
+}
+
+export interface LiteReplyReconciliationRequest {
+  readonly conversationId: string;
+  readonly operationId: string;
+  readonly outcome: "sent" | "not_sent";
+  readonly providerMessageId: string | null;
+  readonly providerEvidenceSha256: string;
+}
+
+export async function liteReconcileReplyEvidence(
+  input: LiteReplyReconciliationRequest,
+): Promise<{ readonly idempotent: boolean }> {
+  const callable = httpsCallable(liteFunctions(), "liteReconcileAgentReply", {
+    timeout: 30_000,
+  });
+  const result = await callable(input);
+  return result.data as { readonly idempotent: boolean };
+}
+
+export interface LiteBookingReconciliationRequest {
+  readonly operationId: string;
+  readonly requestSha256: string;
+  readonly outcome: "sent" | "not_sent";
+  readonly providerMessageId: string | null;
+  readonly providerEvidenceSha256: string;
+}
+
+export async function liteReconcileBookingEvidence(
+  input: LiteBookingReconciliationRequest,
+): Promise<{ readonly idempotent: boolean }> {
+  const callable = httpsCallable(liteFunctions(), "liteReconcileBookingNotification", {
+    timeout: 30_000,
+  });
+  const result = await callable(input);
+  return result.data as { readonly idempotent: boolean };
+}
+
+export interface LiteCampaignReconciliationRequest {
+  readonly operationId: string;
+  readonly requestSha256: string;
+  readonly recipientOperationId: string | null;
+  readonly outcome: "sent" | "not_sent" | "finalize_recorded" | "halt_reserved";
+  readonly providerMessageId: string | null;
+  readonly providerEvidenceSha256: string;
+}
+
+export async function liteReconcileCampaignEvidence(
+  input: LiteCampaignReconciliationRequest,
+): Promise<{ readonly idempotent: boolean; readonly sent: number; readonly failed: number }> {
+  const callable = httpsCallable(liteFunctions(), "liteReconcileCampaign", {
+    timeout: 30_000,
+  });
+  const result = await callable(input);
+  return result.data as {
+    readonly idempotent: boolean;
+    readonly sent: number;
+    readonly failed: number;
+  };
+}
+
+export interface MetaOutboxReconciliationResult {
+  readonly attempted: number;
+  readonly terminal: number;
+  readonly suppressed: number;
+  readonly retryable: number;
+  readonly fatal: number;
+  readonly deferred: number;
+}
+
+export async function reconcileMetaCanaryOutbox(): Promise<MetaOutboxReconciliationResult> {
+  const callable = httpsCallable(liteFunctions(), "reconcileMetaCanaryOutbox", {
+    timeout: 60_000,
+  });
+  const result = await callable({});
+  return result.data as MetaOutboxReconciliationResult;
+}
+
+export type MetaCanaryFatalEffectKind =
+  | "graph_bot_reply"
+  | "graph_auto_reply"
+  | "graph_template_send";
+
+export type MetaCanaryFatalOutcome =
+  | "confirmed_sent"
+  | "confirmed_not_sent";
+
+export interface MetaCanaryFatalResolutionDraft {
+  readonly effectId: string;
+  readonly effectKind: MetaCanaryFatalEffectKind;
+  readonly outcome: MetaCanaryFatalOutcome;
+  readonly providerMessageId: string | null;
+  readonly providerEvidenceSha256: string;
+}
+
+interface MetaCanaryFatalResolutionRequest extends MetaCanaryFatalResolutionDraft {
+  readonly requestSha256: string;
+}
+
+function assertMetaCanaryFatalResolutionDraft(
+  input: MetaCanaryFatalResolutionDraft,
+): MetaCanaryFatalResolutionDraft {
+  if (
+    !/^fx_[0-9a-f]{8,64}$/.test(input.effectId) ||
+    (input.effectKind !== "graph_bot_reply" &&
+      input.effectKind !== "graph_auto_reply" &&
+      input.effectKind !== "graph_template_send") ||
+    (input.outcome !== "confirmed_sent" && input.outcome !== "confirmed_not_sent") ||
+    !/^[0-9a-f]{64}$/.test(input.providerEvidenceSha256) ||
+    (input.outcome === "confirmed_sent"
+      ? typeof input.providerMessageId !== "string" ||
+        input.providerMessageId.trim().length === 0 ||
+        input.providerMessageId.length > 512
+      : input.providerMessageId !== null)
+  ) {
+    throw new Error("Fatal-effect reconciliation evidence is invalid.");
+  }
+  return input;
+}
+
+async function browserSha256Hex(value: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("Secure browser hashing is unavailable.");
+  }
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+/** Build the exact evidence-only request contract expected by Functions. */
+export async function buildMetaCanaryFatalResolutionRequest(
+  raw: MetaCanaryFatalResolutionDraft,
+): Promise<MetaCanaryFatalResolutionRequest> {
+  const input = assertMetaCanaryFatalResolutionDraft(raw);
+  const requestSha256 = await browserSha256Hex(JSON.stringify([
+    "meta-canary-fatal-resolution:v1",
+    input.effectId,
+    input.effectKind,
+    input.outcome,
+    input.providerMessageId,
+    input.providerEvidenceSha256,
+  ]));
+  return { ...input, requestSha256 };
+}
+
+export async function reconcileMetaCanaryFatalEffect(
+  draft: MetaCanaryFatalResolutionDraft,
+): Promise<{ readonly idempotent: boolean }> {
+  const request = await buildMetaCanaryFatalResolutionRequest(draft);
+  const callable = httpsCallable(liteFunctions(), "reconcileMetaCanaryFatalEffect", {
+    timeout: 30_000,
+  });
+  const result = await callable(request);
+  if (
+    typeof result.data !== "object" ||
+    result.data === null ||
+    Array.isArray(result.data)
+  ) {
+    throw new Error("Fatal-effect reconciliation returned invalid evidence.");
+  }
+  const data = result.data as Record<string, unknown>;
+  if (
+    data.resolved !== true ||
+    data.effectId !== request.effectId ||
+    data.effectKind !== request.effectKind ||
+    data.outcome !== request.outcome ||
+    data.providerMessageId !== request.providerMessageId ||
+    typeof data.idempotent !== "boolean" ||
+    data.canary !== true ||
+    data.containsMessageContent !== false
+  ) {
+    throw new Error("Fatal-effect reconciliation returned invalid evidence.");
+  }
+  return { idempotent: data.idempotent };
 }
 
 // ---------------------------------------------------------------------------
@@ -703,9 +885,25 @@ export function useLiteDoctors(enabled: boolean): ListenerState<LiteDoctor> {
   return state;
 }
 
-export async function liteSetBooking(bookingId: string, status: "confirmed" | "cancelled"): Promise<{ notified?: boolean }> {
+export async function liteSetBooking(
+  bookingId: string,
+  status: "confirmed" | "cancelled",
+  operationId: string,
+): Promise<{
+  ok: true;
+  bookingId: string;
+  status: "confirmed" | "cancelled";
+  notified: boolean;
+  idempotent: boolean;
+}> {
   const callable = httpsCallable(liteFunctions(), "liteSetBookingStatus", { timeout: 25_000 });
-  return (await callable({ bookingId, status })).data as { notified?: boolean };
+  return (await callable({ bookingId, status, operationId })).data as {
+    ok: true;
+    bookingId: string;
+    status: "confirmed" | "cancelled";
+    notified: boolean;
+    idempotent: boolean;
+  };
 }
 
 export async function liteSaveDoctor(input: {
@@ -718,17 +916,21 @@ export async function liteSaveDoctor(input: {
 export interface LiteCampaignLaunchResult {
   readonly campaignId: string;
   readonly audience: number;
+  readonly excluded: number;
   readonly sent: number;
   readonly failed: number;
+  readonly idempotent: boolean;
 }
 
 export async function liteLaunchCampaign(
+  operationId: string,
   name: string,
   templateName?: string,
   recipients?: readonly string[],
 ): Promise<LiteCampaignLaunchResult> {
   const callable = httpsCallable(liteFunctions(), "liteSendCampaign", { timeout: 110_000 });
   const result = await callable({
+    operationId,
     name,
     ...(templateName ? { templateName } : {}),
     ...(recipients && recipients.length > 0 ? { recipients } : {}),

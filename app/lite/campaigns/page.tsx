@@ -1,18 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { createLiteCampaignOperationId } from "@/components/lite/campaign-operation";
 import { useLiteAuth } from "@/components/lite/lite-auth";
-import { DEMO_KNOWN_VISITORS } from "@/components/lite/lite-config";
 import {
   liteLaunchCampaign,
   useLiteCampaignSends,
   useLiteCampaigns,
+  useLiteContacts,
 } from "@/components/lite/lite-data";
-
-const AUDIENCE = Object.values(DEMO_KNOWN_VISITORS).map((label) => ({
-  label,
-  digits: (label.split("\u00b7")[0] ?? "").replace(/\D/g, ""),
-}));
 
 const TEMPLATES = [
   { value: "hemas_canary_hello", label: "hemas_canary_hello · text (en_US)" },
@@ -47,26 +43,57 @@ function when(ms: number): string {
 export default function LiteCampaignsPage() {
   const { status, member } = useLiteAuth();
   const campaigns = useLiteCampaigns(status === "ready");
+  const contacts = useLiteContacts(status === "ready", true);
+  const audience = useMemo(
+    () => contacts.rows.map((contact) => ({ id: contact.id, label: contact.displayLabel })),
+    [contacts.rows],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const sends = useLiteCampaignSends(selectedId);
 
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<string>(TEMPLATES[0].value);
-  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set(AUDIENCE.map((a) => a.digits)));
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [reviewing, setReviewing] = useState(false);
+  const [operationId, setOperationId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   const canLaunch = member?.role === "supervisor" || member?.role === "tenant_admin";
 
+  const invalidateDraftOperation = () => {
+    setOperationId(null);
+    setReviewing(false);
+  };
+
+  const review = () => {
+    setOperationId((current) => current ?? createLiteCampaignOperationId());
+    setReviewing(true);
+  };
+
   const launch = async () => {
+    if (!operationId) {
+      setNotice("Review the campaign again before sending.");
+      return;
+    }
     setPending(true);
     setNotice(null);
     try {
-      const result = await liteLaunchCampaign(name.trim(), template, [...picked]);
+      const result = await liteLaunchCampaign(
+        operationId,
+        name.trim(),
+        template,
+        [...picked],
+      );
       setNotice(
-        `Campaign dispatched ✓ — ${result.sent} sent, ${result.failed} failed, audience ${result.audience} (governed allowlist).`,
+        result.idempotent
+          ? `Completed result restored safely — ${result.sent} sent, ${result.failed} failed, audience ${result.audience}. No recipient was sent twice.`
+          : `Campaign dispatched ✓ — ${result.sent} sent, ${result.failed} failed, audience ${result.audience} (governed allowlist).`,
       );
       setName("");
+      setPicked(new Set());
+      setReviewing(false);
+      setOperationId(null);
       setSelectedId(result.campaignId);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Campaign failed.");
@@ -80,8 +107,8 @@ export default function LiteCampaignsPage() {
       <section>
         <h1 className="text-xl font-semibold text-slate-900">Campaigns</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Real WhatsApp template broadcasts — audience locked to the governed test allowlist,
-          delivery tracked live (sent → delivered → read).
+          Governed WhatsApp canary templates — audience is limited to captured allowlisted
+          test contacts, with content-free delivery status tracking.
         </p>
       </section>
 
@@ -90,14 +117,20 @@ export default function LiteCampaignsPage() {
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
           <input
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value);
+              invalidateDraftOperation();
+            }}
             maxLength={80}
             placeholder="Campaign name — e.g. OPD reminder (Aug)"
             className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
           />
           <select
             value={template}
-            onChange={(event) => setTemplate(event.target.value)}
+            onChange={(event) => {
+              setTemplate(event.target.value);
+              invalidateDraftOperation();
+            }}
             className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
           >
             {TEMPLATES.map((option) => (
@@ -109,10 +142,10 @@ export default function LiteCampaignsPage() {
           <button
             type="button"
             disabled={pending || !canLaunch || name.trim().length < 3 || picked.size === 0}
-            onClick={() => void launch()}
+            onClick={review}
             className="rounded-xl bg-[#1863DC] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
           >
-            {pending ? "Sending…" : "Send campaign"}
+            Review campaign
           </button>
         </div>
         <div className="mt-3">
@@ -120,16 +153,17 @@ export default function LiteCampaignsPage() {
             Audience — pick contacts ({picked.size} selected)
           </p>
           <div className="flex flex-wrap gap-2">
-            {AUDIENCE.map((a) => {
-              const on = picked.has(a.digits);
+            {audience.map((contact) => {
+              const on = picked.has(contact.id);
               return (
                 <button
-                  key={a.digits}
+                  key={contact.id}
                   type="button"
                   onClick={() => {
                     const next = new Set(picked);
-                    if (on) next.delete(a.digits); else next.add(a.digits);
+                    if (on) next.delete(contact.id); else next.add(contact.id);
                     setPicked(next);
+                    invalidateDraftOperation();
                   }}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
                     on
@@ -137,18 +171,51 @@ export default function LiteCampaignsPage() {
                       : "border border-slate-200 text-slate-500 hover:bg-blue-50"
                   }`}
                 >
-                  {on ? "\u2713 " : ""}{a.label}
+                  {on ? "\u2713 " : ""}{contact.label}
                 </button>
               );
             })}
+            {!contacts.loading && audience.length === 0 ? (
+              <span className="text-xs text-amber-700">
+                No captured canary leads are available. Receive an allowlisted test message first.
+              </span>
+            ) : null}
           </div>
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
-          Contacts come from the governed test allowlist (max 5) — in the pilot this becomes
-          segments (language, tags, visit history). Approved templates only — that
-          is Meta&apos;s rule for business-initiated messages.{" "}
+          The browser sends pseudonymous contact references, never phone numbers. The server resolves
+          those references against the governed allowlist (max 5). Approved templates only.{" "}
           {!canLaunch ? "Broadcasts need the Supervisor seat — agents handle chats." : ""}
         </p>
+        {reviewing ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3" role="alertdialog" aria-labelledby="campaign-review-title">
+            <p id="campaign-review-title" className="text-sm font-semibold text-amber-950">Confirm external WhatsApp send</p>
+            <p className="mt-1 text-xs leading-5 text-amber-900">
+              Send <strong>{template}</strong> to <strong>{picked.size}</strong> selected allowlisted test contact{picked.size === 1 ? "" : "s"}. Delivery cannot be undone.
+            </p>
+            <p className="mt-1 text-[11px] leading-5 text-amber-800">
+              This review has one server idempotency key. A timeout retry reuses it; changing the draft creates a new operation.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void launch()}
+                className="rounded-lg bg-amber-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {pending ? "Sending…" : "Confirm and send"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setReviewing(false)}
+                className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
         {notice ? (
           <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
             {notice}

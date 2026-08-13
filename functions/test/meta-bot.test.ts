@@ -110,6 +110,26 @@ test("unknown text falls back to the menu without storing anything", () => {
   assert.equal(r.booking, null);
 });
 
+test("ordinary words containing lab as a substring remain eligible for AI", () => {
+  const question = "What services are available?";
+  const r = runBotEngine(english, text(question));
+  assert.equal(r.aiQuery, question);
+  assert.equal(r.purpose, "general_support");
+});
+
+test("a new sender's first real question is AI-eligible in its script language", () => {
+  for (const [question, language] of [
+    ["What services do you offer?", "en"],
+    ["වත්තල රෝහල කොහෙද?", "si"],
+    ["வத்தளை மருத்துவமனை எங்கே?", "ta"],
+  ] as const) {
+    const r = runBotEngine(FRESH_BOT_SESSION, text(question));
+    assert.equal(r.aiQuery, question);
+    assert.equal(r.session.language, language);
+    assert.equal(r.session.state, "menu");
+  }
+});
+
 test("stale sessions restart at language selection", () => {
   const stale: BotSession = { ...english, updatedAtMs: NOW - BOT_SESSION_TTL_MS - 1 };
   const r = runBotEngine(stale, text("hi"));

@@ -79,6 +79,26 @@ const DEMO_HIS_INTEGRATION_ID = "integration_demo_his_simulator";
 const DEMO_LIMS_INTEGRATION_ID = "integration_demo_lims_simulator";
 const AI_WORKSPACE = AI_GOVERNANCE_WORKSPACE_ID;
 
+const backendOnlyCanaryCollections = [
+  "canary_inbound_events",
+  "canary_outbound_events",
+  "canary_opt_out_events",
+  "canary_webhook_outbox",
+  "canary_inbound_return_routes",
+  "canary_public_quota_counters",
+  "canary_public_bot_sessions",
+  "canary_public_suppressions",
+  "canary_outbox_reconciliations",
+  "canary_agent_replies",
+  "canary_reply_operations",
+  "canary_reply_reconciliations",
+  "canary_booking_operations",
+  "canary_booking_reconciliations",
+  "canary_campaign_recipient_operations",
+  "canary_campaign_reconciliations",
+  "canary_provider_message_routes",
+] as const;
+
 let testEnvironment: RulesTestEnvironment;
 
 const now = () => Timestamp.fromMillis(1_800_000_000_000);
@@ -2274,6 +2294,33 @@ async function seedPhase5RulesFixtures(): Promise<void> {
   });
 }
 
+describe("public canary retention configuration", () => {
+  it("enables unindexed timestamp TTL fields for every public-test collection", () => {
+    const indexes = JSON.parse(
+      readFileSync(resolve(process.cwd(), "firestore.indexes.json"), "utf8"),
+    ) as { fieldOverrides?: Array<Record<string, unknown>> };
+    const ttlCollections = new Set(
+      (indexes.fieldOverrides ?? [])
+        .filter((entry) =>
+          entry.fieldPath === "expireAt" &&
+          entry.ttl === true &&
+          Array.isArray(entry.indexes) &&
+          entry.indexes.length === 0
+        )
+        .map((entry) => entry.collectionGroup),
+    );
+    expect(ttlCollections).toEqual(new Set([
+      "canary_inbound_return_routes",
+      "canary_public_quota_counters",
+      "canary_public_bot_sessions",
+      "canary_public_suppressions",
+      "canary_inbound_events",
+      "canary_webhook_outbox",
+      "canary_provider_message_routes",
+    ]));
+  });
+});
+
 describe("Phase 5 automation and care persistence rules", () => {
   beforeEach(seedPhase5RulesFixtures);
 
@@ -2443,6 +2490,108 @@ describe("default deny and tenant isolation", () => {
     await assertFails(
       getDoc(doc(db, "workspaces", WORKSPACE_A, "contacts", "contact-other-scope")),
     );
+  });
+
+  it("allows only the literal true live-canary extension on the strict contact read model", async () => {
+    const contactId = "contact-live-rules";
+    const contactPath = ["workspaces", WORKSPACE_A, "contacts", contactId] as const;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), ...contactPath),
+        syntheticContact(contactId, WORKSPACE_A, { liveCanary: true }),
+      );
+    });
+
+    const db = testEnvironment.authenticatedContext("agent-a").firestore();
+    await assertSucceeds(getDoc(doc(db, ...contactPath)));
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), ...contactPath), { liveCanary: false });
+    });
+    await assertFails(getDoc(doc(db, ...contactPath)));
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), ...contactPath));
+    });
+  });
+
+  it("keeps provider-send reply leases entirely backend-only", async () => {
+    const leaseRef = [
+      "workspaces",
+      WORKSPACE_A,
+      "canary_reply_leases",
+      "conversation-1",
+    ] as const;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), ...leaseRef), {
+        id: "conversation-1",
+        workspaceId: WORKSPACE_A,
+        conversationId: "conversation-1",
+        operationId: "reply_1234567890abcdef",
+        actorUid: "agent-a",
+        bodySha256: "a".repeat(64),
+        status: "sending",
+        providerMessageId: null,
+        containsMessageContent: false,
+        createdAt: now(),
+        updatedAt: now(),
+        schemaVersion: 1,
+      });
+    });
+
+    const db = testEnvironment.authenticatedContext("agent-a").firestore();
+    await assertFails(getDoc(doc(db, ...leaseRef)));
+    await assertFails(updateDoc(doc(db, ...leaseRef), { status: "sent" }));
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), ...leaseRef));
+    });
+  });
+
+  it("keeps every canary receipt, operation and reconciliation collection backend-only", async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      for (const collectionName of backendOnlyCanaryCollections) {
+        await setDoc(
+          doc(
+            context.firestore(),
+            "workspaces",
+            WORKSPACE_A,
+            collectionName,
+            "control-plane-fixture",
+          ),
+          {
+            workspaceId: WORKSPACE_A,
+            containsMessageContent: false,
+            synthetic: true,
+          },
+        );
+      }
+    });
+
+    for (const uid of ["admin-a", "supervisor-a", "agent-a", "analyst-a"]) {
+      const db = testEnvironment.authenticatedContext(uid).firestore();
+      for (const collectionName of backendOnlyCanaryCollections) {
+        const controlPlaneDoc = doc(
+          db,
+          "workspaces",
+          WORKSPACE_A,
+          collectionName,
+          "control-plane-fixture",
+        );
+        await assertFails(getDoc(controlPlaneDoc));
+        await assertFails(
+          getDocs(
+            query(
+              collection(db, "workspaces", WORKSPACE_A, collectionName),
+              limit(1),
+            ),
+          ),
+        );
+        await assertFails(setDoc(controlPlaneDoc, { forged: true }));
+        await assertFails(updateDoc(controlPlaneDoc, { forged: true }));
+        await assertFails(deleteDoc(controlPlaneDoc));
+      }
+    }
   });
 
   it("allows only bounded patient-list queries that prove an agent's exact scope", async () => {

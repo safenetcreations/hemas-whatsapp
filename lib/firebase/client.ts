@@ -2,7 +2,6 @@ import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import {
   connectFirestoreEmulator,
-  getFirestore,
   type Firestore,
 } from "firebase/firestore";
 import {
@@ -11,6 +10,7 @@ import {
   type FirebaseStorage,
 } from "firebase/storage";
 import { evaluateLocalAuthPolicy, syntheticAuthProjectId } from "./auth-policy";
+import { getHemasFirestore } from "./firestore-target";
 import { cloudDemoFirebaseConfig, currentCloudDemoRuntime } from "./runtime-mode";
 
 const localServicesAppName = "hemas-connect-local-services";
@@ -63,7 +63,7 @@ export function getFirebaseServices(): FirebaseServices {
     const services = {
       app,
       auth: getAuth(app),
-      db: getFirestore(app),
+      db: getHemasFirestore(app),
       storage: getStorage(app),
     };
     // Deliberately no emulator connection calls: the governed cloud demo
@@ -88,7 +88,7 @@ export function getFirebaseServices(): FirebaseServices {
     getApps().find((candidate) => candidate.name === localServicesAppName) ??
     initializeApp(firebaseConfig, localServicesAppName);
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  const db = getHemasFirestore(app);
   const storage = getStorage(app);
 
   if (

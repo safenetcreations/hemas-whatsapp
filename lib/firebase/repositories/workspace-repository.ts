@@ -132,6 +132,7 @@ const contactDocumentSchema = z
     tags: z.array(z.enum(SAFE_CONTACT_TAGS)).max(SAFE_CONTACT_TAGS.length),
     preferenceRevision: z.number().int().min(0).max(1_000_000_000),
     synthetic: z.literal(true),
+    liveCanary: z.literal(true).optional(),
     createdAt: timestampValue,
     updatedAt: timestampValue,
   })
@@ -188,6 +189,7 @@ const conversationDocumentSchema = z
     handoffSummary: z.string().max(500),
     unreadCount: z.number().int().min(0).max(100_000),
     synthetic: z.literal(true),
+    liveCanary: z.literal(true).optional(),
     createdAt: timestampValue,
     updatedAt: timestampValue,
   })
@@ -270,6 +272,8 @@ const messageMetadataDocumentSchema = z
     deliveredAt: timestampValue.nullable(),
     metadataOnly: z.literal(true),
     synthetic: z.literal(true),
+    liveCanary: z.literal(true).optional(),
+    agentReply: z.literal(true).optional(),
     schemaVersion: z.literal(1),
     createdAt: timestampValue,
     updatedAt: timestampValue,
@@ -300,6 +304,33 @@ const messageMetadataDocumentSchema = z
         code: "custom",
         path: ["direction"],
         message: "Outbound metadata cannot carry inbound receipt state",
+      });
+    }
+
+    if (
+      data.liveCanary === true &&
+      data.direction === "outbound" &&
+      data.externalDispatch !== "dispatched"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["externalDispatch"],
+        message: "Live outbound metadata must represent a provider dispatch",
+      });
+    }
+
+    if (
+      data.agentReply === true &&
+      (data.liveCanary !== true ||
+        data.direction !== "outbound" ||
+        data.externalDispatch !== "dispatched" ||
+        data.actorId === null ||
+        data.sentAt === null)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["agentReply"],
+        message: "Agent replies require an attributed live outbound provider dispatch",
       });
     }
   });
@@ -408,6 +439,7 @@ export interface ContactListItemDTO {
     readonly updatedAt: string;
   };
   readonly synthetic: true;
+  readonly liveCanary?: true;
   readonly updatedAt: string;
 }
 
@@ -554,6 +586,29 @@ export function parseContactDocument(
       updatedAt: parsed.suppression.updatedAt.toDate().toISOString(),
     },
     synthetic: parsed.synthetic,
+    ...(parsed.liveCanary === true ? { liveCanary: true as const } : {}),
+    updatedAt: parsed.updatedAt.toDate().toISOString(),
+  };
+}
+
+export function parseConversationDocument(
+  value: unknown,
+  documentId: string,
+  workspaceId: string,
+): ConversationListItemDTO {
+  const parsed = parseOrThrow(conversationDocumentSchema, value, "Conversation");
+  if (parsed.id !== documentId || parsed.workspaceId !== workspaceId) {
+    throw new WorkspaceAccessError(
+      "Conversation identity does not match its tenant path.",
+      "invalid_data",
+    );
+  }
+  return {
+    ...parsed,
+    serviceWindowExpiresAt: timestampToIso(parsed.serviceWindowExpiresAt),
+    firstResponseDueAt: parsed.firstResponseDueAt.toDate().toISOString(),
+    lastMessageAt: parsed.lastMessageAt.toDate().toISOString(),
+    createdAt: parsed.createdAt.toDate().toISOString(),
     updatedAt: parsed.updatedAt.toDate().toISOString(),
   };
 }
@@ -695,23 +750,9 @@ export async function listScopedConversations(
   const snapshot = await getDocs(
     query(collection(db, "workspaces", input.workspaceId, "conversations"), ...constraints),
   );
-  return snapshot.docs.map((record) => {
-    const parsed = parseOrThrow(conversationDocumentSchema, record.data(), "Conversation");
-    if (parsed.id !== record.id || parsed.workspaceId !== input.workspaceId) {
-      throw new WorkspaceAccessError(
-        "Conversation identity does not match its tenant path.",
-        "invalid_data",
-      );
-    }
-    return {
-      ...parsed,
-      serviceWindowExpiresAt: timestampToIso(parsed.serviceWindowExpiresAt),
-      firstResponseDueAt: parsed.firstResponseDueAt.toDate().toISOString(),
-      lastMessageAt: parsed.lastMessageAt.toDate().toISOString(),
-      createdAt: parsed.createdAt.toDate().toISOString(),
-      updatedAt: parsed.updatedAt.toDate().toISOString(),
-    };
-  });
+  return snapshot.docs.map((record) =>
+    parseConversationDocument(record.data(), record.id, input.workspaceId),
+  );
 }
 
 export async function listScopedContacts(

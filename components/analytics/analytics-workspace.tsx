@@ -5,7 +5,6 @@ import {
   BarChart3,
   CheckCircle2,
   Clock3,
-  Download,
   Handshake,
   Languages,
   MapPinned,
@@ -19,6 +18,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 
 import { DimensionFilterBar } from "./dimension-filters";
 import { formatDuration, formatNumber, formatPercent } from "./formatters";
+import { WhatsAppMetricsPanel } from "./whatsapp-metrics-panel";
 import {
   ANALYTICS_SAMPLE_ROWS,
   DEFAULT_DIMENSION_FILTERS,
@@ -35,11 +35,7 @@ import {
   type SampleLanguage,
   type SampleLocation,
 } from "./sample-data";
-import {
-  AggregateEmptyState,
-  AggregateMetric,
-  LiveAnalyticsLock,
-} from "./workspace-primitives";
+import { AggregateEmptyState, AggregateMetric } from "./workspace-primitives";
 
 interface AggregateTotals {
   entered: number;
@@ -357,96 +353,115 @@ export function AnalyticsWorkspace() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--brand)]">
-                Sample reporting
+                Governed operational reporting
               </p>
               <StatusPill tone="info" dot>
-                Deterministic aggregates
+                Automatic + scenario views
               </StatusPill>
             </div>
             <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] text-slate-950 sm:text-3xl">
               Analytics workspace
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              Explore synthetic operational funnels, handoffs, and safeguards across
-              sample dimensions. No value is a Hemas production-performance claim.
+              Review content-free WhatsApp counters from the authenticated workspace,
+              then explore the clearly separated deterministic scenario model below.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <StatusPill tone="success">As of {SAMPLE_AS_OF_DATE}</StatusPill>
-          <button
-            type="button"
-            disabled
-            title="Exports are intentionally unavailable in the aggregate prototype"
-            className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-full bg-slate-100 px-3 text-[10px] font-bold uppercase tracking-[0.05em] text-slate-400"
-          >
-            <Download size={12} aria-hidden="true" /> Export unavailable
-          </button>
-        </div>
       </section>
 
-      <LiveAnalyticsLock context="analytics" />
-      <DimensionFilterBar
-        filters={filters}
-        onChange={setFilters}
-        resultCount={filteredRows.length}
-      />
+      <WhatsAppMetricsPanel />
 
-      {filteredRows.length === 0 ? (
-        <AggregateEmptyState
-          title="No aggregate fixture matches"
-          description="This combination has no deterministic sample cell. Nothing was inferred or backfilled."
-          onReset={() => setFilters(DEFAULT_DIMENSION_FILTERS)}
+      <section
+        className="space-y-6 border-t border-[var(--line)] pt-6 lg:space-y-8 lg:pt-8"
+        aria-labelledby="scenario-analytics-title"
+      >
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
+                Separate deterministic model
+              </p>
+              <StatusPill tone="info" dot>
+                Fixtures only
+              </StatusPill>
+            </div>
+            <h2
+              id="scenario-analytics-title"
+              className="mt-1 text-xl font-bold tracking-[-0.025em] text-slate-950"
+            >
+              Scenario analytics
+            </h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
+              Explore synthetic funnels, handoffs and safeguards. These values do not come
+              from the automatic WhatsApp feed and are not Hemas performance claims.
+            </p>
+          </div>
+          <StatusPill tone="neutral">Fixture as of {SAMPLE_AS_OF_DATE}</StatusPill>
+        </div>
+
+        <DimensionFilterBar
+          filters={filters}
+          onChange={setFilters}
+          resultCount={filteredRows.length}
         />
-      ) : (
-        <>
-          <section
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-            aria-label="Filtered sample analytics"
-          >
-            <AggregateMetric
-              label="Sample journey entries"
-              value={formatNumber(totals.entered)}
-              detail={`${filteredRows.length} deterministic aggregate slices`}
-              icon={Activity}
-              tone="blue"
-            />
-            <AggregateMetric
-              label="Mock completion"
-              value={formatPercent(totals.completed, totals.entered)}
-              detail={`${formatNumber(totals.completed)} completed fixture goals`}
-              icon={CheckCircle2}
-              tone="emerald"
-            />
-            <AggregateMetric
-              label="Human handoff"
-              value={formatPercent(totals.handoffs, totals.entered)}
-              detail={`${formatNumber(totals.handoffs)} sample handoff events`}
-              icon={UserRoundCheck}
-              tone="violet"
-            />
-            <AggregateMetric
-              label="Weighted response"
-              value={formatDuration(averageResponseSeconds)}
-              detail="Generated sample timing; not a service-level result"
-              icon={Clock3}
-              tone="amber"
-            />
-          </section>
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)]">
-            <FunnelPanel totals={totals} />
-            <SafetyPanel totals={totals} />
-          </section>
+        {filteredRows.length === 0 ? (
+          <AggregateEmptyState
+            title="No aggregate fixture matches"
+            description="This combination has no deterministic sample cell. Nothing was inferred or backfilled."
+            onReset={() => setFilters(DEFAULT_DIMENSION_FILTERS)}
+          />
+        ) : (
+          <>
+            <section
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+              aria-label="Filtered sample analytics"
+            >
+              <AggregateMetric
+                label="Sample journey entries"
+                value={formatNumber(totals.entered)}
+                detail={`${filteredRows.length} deterministic aggregate slices`}
+                icon={Activity}
+                tone="blue"
+              />
+              <AggregateMetric
+                label="Mock completion"
+                value={formatPercent(totals.completed, totals.entered)}
+                detail={`${formatNumber(totals.completed)} completed fixture goals`}
+                icon={CheckCircle2}
+                tone="emerald"
+              />
+              <AggregateMetric
+                label="Human handoff"
+                value={formatPercent(totals.handoffs, totals.entered)}
+                detail={`${formatNumber(totals.handoffs)} sample handoff events`}
+                icon={UserRoundCheck}
+                tone="violet"
+              />
+              <AggregateMetric
+                label="Weighted response"
+                value={formatDuration(averageResponseSeconds)}
+                detail="Generated sample timing; not a service-level result"
+                icon={Clock3}
+                tone="amber"
+              />
+            </section>
 
-          <JourneyPerformanceTable rows={filteredRows} />
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)]">
+              <FunnelPanel totals={totals} />
+              <SafetyPanel totals={totals} />
+            </section>
 
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
-            <DistributionPanel rows={filteredRows} />
-            <PrivacyPanel />
-          </section>
-        </>
-      )}
+            <JourneyPerformanceTable rows={filteredRows} />
+
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+              <DistributionPanel rows={filteredRows} />
+              <PrivacyPanel />
+            </section>
+          </>
+        )}
+      </section>
     </div>
   );
 }

@@ -4,13 +4,27 @@ Hemas Connect is a governed, multi-tenant patient-engagement workspace for
 WhatsApp operations, appointments, secure lab-report notifications, campaigns,
 care automations, consent, and audit oversight.
 
-This repository currently runs only as a **synthetic SafeNet demonstration**.
-External messaging and real-patient-data modes are disabled by default. It is
-not connected to Hemas, Meta, a hospital information system, or a laboratory
+The Enterprise workspace remains a **synthetic SafeNet demonstration** with
+external messaging and real-patient-data modes disabled. A separate Hemas
+Connect Lite lane contains a governed Meta canary. Proactive templates,
+campaigns, and operator sends remain tightly allowlisted. A separate exact
+public-inbound test switch may let any valid sender initiate a bot conversation;
+those return routes are encrypted, short-lived, rate-limited, and cannot be used
+for proactive messaging. Unknown public free text can be forwarded in memory
+to the governed AI answerer only after bounded sender/global AI quota; neither
+the question nor generated answer is persisted, and deterministic fallback
+remains available when AI is unavailable or the quota is exhausted. The bot
+includes a no-medical-data/no-emergency-use notice in every reply. Public mode
+also requires a time-bounded kill switch of no more than seven days; operational
+tests should use a shorter window. This is not equivalent to production
+acceptance.
+Neither lane is connected to a hospital information system or laboratory
 information system.
 
 The exact implemented-versus-pending boundary is maintained in
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
+The controlled management-demo and one-number acceptance sequence is in
+[`docs/MANAGEMENT_DEMO_RUNBOOK_2026-08-12.md`](docs/MANAGEMENT_DEMO_RUNBOOK_2026-08-12.md).
 
 ## Local setup
 
@@ -41,8 +55,9 @@ onboarding tenant:
 npm run emulators:seed
 ```
 
-Then open `http://localhost:3000/login`. The visible credentials are synthetic
-emulator fixtures and cannot authenticate against a cloud Firebase project.
+Then open `http://localhost:3000/login`. The synthetic emulator credentials are
+kept in the private presenter/operator note; no password is embedded or shown
+by the app, and the local fixture cannot authorize the governed cloud runtime.
 
 The emulator-only Firebase project ID is `demo-hemas-connect`. The `demo-`
 prefix prevents accidental access to live Firebase resources.

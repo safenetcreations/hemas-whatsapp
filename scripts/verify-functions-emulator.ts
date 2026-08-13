@@ -13,11 +13,11 @@ import {
   doc,
   getDoc,
   getDocs,
-  getFirestore,
   limit,
   query,
   where,
 } from "firebase/firestore";
+import { getHemasFirestore } from "../lib/firebase/firestore-target";
 import {
   connectFunctionsEmulator,
   getFunctions,
@@ -559,7 +559,7 @@ try {
   }
 
   const firestoreEndpoint = new URL(`http://${firestoreEmulatorHost}`);
-  const db = getFirestore(verifierApp);
+  const db = getHemasFirestore(verifierApp);
   connectFirestoreEmulator(
     db,
     firestoreEndpoint.hostname,

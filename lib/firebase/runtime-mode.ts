@@ -67,11 +67,7 @@ export function isAllowedCloudDemoHostname(
     return true;
   }
   const allowed = allowedHost?.trim().toLowerCase();
-  if (allowed && normalized === allowed) {
-    return true;
-  }
-  // Firebase App Hosting serves managed domains under *.hosted.app.
-  return normalized.length > ".hosted.app".length && normalized.endsWith(".hosted.app");
+  return Boolean(allowed && normalized === allowed);
 }
 
 export function evaluateCloudDemoRuntime(

@@ -12,11 +12,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc -p tsconfig.typecheck.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest",
     "test:rules": "npx -y firebase-tools@latest emulators:exec --only firestore,storage --project demo-hemas-connect \"vitest run --config vitest.rules.config.ts\"",
     "test:functions": "npm --prefix functions test",
+    "test:public-inbound-emulator": "npm --prefix functions run build && npx -y firebase-tools@latest emulators:exec --only firestore --project demo-hemas-connect \"node functions/lib/test/meta-canary-public-integration.test.js\"",
+    "security:scan-tracked": "tsx scripts/ops/scan-tracked-sensitive.ts",
     "emulators": "HEMAS_RUNTIME_MODE=demo HEMAS_DEFAULT_TENANT_ID=workspace_safenet_demo HEMAS_PROVIDER_MODE=synthetic HEMAS_INTEGRATION_MODE=synthetic HEMAS_AUDIT_SINK_MODE=durable HEMAS_OUTBOUND_ENABLED=false HEMAS_APPROVAL_GATE_REQUIRED=true HEMAS_DIAGNOSIS_ENABLED=false npx -y firebase-tools@latest emulators:start --project demo-hemas-connect",
     "emulators:seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 tsx scripts/seed-emulators.ts",
     "emulators:verify-seed": "npx -y firebase-tools@latest emulators:exec --only auth,firestore --project demo-hemas-connect \"npm run emulators:seed\"",
@@ -25,7 +27,7 @@
     "emulators:verify-phase5-functions": "npm --prefix functions run build && HEMAS_RUNTIME_MODE=demo HEMAS_DEFAULT_TENANT_ID=workspace_safenet_demo HEMAS_PROVIDER_MODE=synthetic HEMAS_INTEGRATION_MODE=synthetic HEMAS_AUDIT_SINK_MODE=durable HEMAS_OUTBOUND_ENABLED=false HEMAS_APPROVAL_GATE_REQUIRED=true HEMAS_DIAGNOSIS_ENABLED=false npx -y firebase-tools@latest emulators:exec --only auth,firestore,functions --project demo-hemas-connect \"npm run emulators:seed && GCLOUD_PROJECT=demo-hemas-connect FUNCTIONS_EMULATOR_HOST=127.0.0.1:5001 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 tsx scripts/verify-phase5-functions-emulator.ts\"",
     "emulators:verify-compliance-functions": "npm --prefix functions run build && HEMAS_RUNTIME_MODE=demo HEMAS_DEFAULT_TENANT_ID=workspace_safenet_demo HEMAS_PROVIDER_MODE=synthetic HEMAS_INTEGRATION_MODE=synthetic HEMAS_AUDIT_SINK_MODE=durable HEMAS_OUTBOUND_ENABLED=false HEMAS_APPROVAL_GATE_REQUIRED=true HEMAS_DIAGNOSIS_ENABLED=false npx -y firebase-tools@latest emulators:exec --only auth,firestore,functions --project demo-hemas-connect \"npm run emulators:seed && GCLOUD_PROJECT=demo-hemas-connect FUNCTIONS_EMULATOR_HOST=127.0.0.1:5001 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 tsx scripts/verify-compliance-functions-emulator.ts\"",
     "emulators:verify-ingress": "npm --prefix functions run build && HEMAS_RUNTIME_MODE=demo HEMAS_PROVIDER_MODE=synthetic HEMAS_INTEGRATION_MODE=synthetic HEMAS_OUTBOUND_ENABLED=false HEMAS_DIAGNOSIS_ENABLED=false HEMAS_SYNTHETIC_INGRESS_SECRET=PUBLIC-SYNTHETIC-WEBHOOK-FIXTURE-NOT-A-SECRET-2026 HEMAS_RUN_SYNTHETIC_INGRESS_HTTP_TEST=true npx -y firebase-tools@latest emulators:exec --only firestore,functions --project demo-hemas-connect \"node functions/lib/test/ingress-emulator.test.js\"",
-    "validate": "npm run lint && npm run typecheck && npm run test && npm run test:rules && npm run test:functions && npm run emulators:verify-seed && npm run emulators:verify-audit && npm run emulators:verify-functions && npm run emulators:verify-phase5-functions && npm run emulators:verify-compliance-functions && npm run emulators:verify-ingress && npm run build"
+    "validate": "npm run security:scan-tracked && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm run test:functions && npm run test:public-inbound-emulator && npm run emulators:verify-seed && npm run emulators:verify-audit && npm run emulators:verify-functions && npm run emulators:verify-phase5-functions && npm run emulators:verify-compliance-functions && npm run emulators:verify-ingress && npm run build"
   },
   "dependencies": {
     "firebase": "12.17.1",

@@ -7,21 +7,23 @@ import Link from "next/link";
 import { useLiteAuth } from "@/components/lite/lite-auth";
 import { useLiteConversations, useLiteMetrics } from "@/components/lite/lite-data";
 import { LITE_SEAT_HINTS } from "@/components/lite/lite-config";
+import { publicEnv } from "@/lib/config/public-env";
 
 const CARD = "rounded-xl border border-[#e3e8ee] bg-white shadow-[0_1px_3px_rgba(0,55,112,0.08)]";
-const QUOTA = 10_000;
+const ACTION_ALLOWANCE = 10_000;
+const isLocalSyntheticDemo = publicEnv.appStage === "demo";
 
 const CAPABILITIES = [
-  "AI chatbot · EN / සිංහල / தமிழ் · real Hemas data",
-  "Appointment booking with WhatsApp confirmations",
-  "Live inbox · 3 agent seats · real replies",
-  "Campaigns with per-recipient delivery tracking",
-  "CRM auto-capture + CSV export",
+  "Governed service-information assistant · EN / සිංහල / தமிழ்",
+  "Canary appointment requests with WhatsApp confirmations",
+  "Allowlisted inbox · 3 synthetic agent seats · governed replies",
+  "Canary templates with per-recipient delivery tracking",
+  "Privacy-safe CRM capture + supervisor CSV export",
 ] as const;
 
 const ACTIONS = [
-  { href: "/lite/inbox", title: "Open the inbox", sub: "Live chats, claim & reply" },
-  { href: "/lite/campaigns", title: "New campaign", sub: "Template blast with tracking" },
+  { href: "/lite/inbox", title: "Open the inbox", sub: "Governed chats, claim & reply" },
+  { href: "/lite/campaigns", title: "New campaign", sub: "Review template send controls" },
   { href: "/lite/appointments", title: "Appointments", sub: "Confirm today's bookings" },
 ] as const;
 
@@ -42,11 +44,13 @@ export default function LiteDashboardPage() {
       { ai: 0, bookings: 0, api: 0 },
     );
   const mine = conversations.rows.filter((row) => row.assigneeId === user?.uid).length;
-  const quotaPct = Math.min(100, Math.round((totals.api / QUOTA) * 100));
+  const quotaPct = Math.min(100, Math.round((totals.api / ACTION_ALLOWANCE) * 100));
   const value = (n: number) => (conversations.loading || metrics.loading ? "–" : n);
+  const telemetryError = conversations.error ?? metrics.error;
+  const telemetryReady = conversations.rows.length > 0 || metrics.rows.length > 0;
 
   const stats = [
-    { label: "Live chats", value: value(conversations.rows.length), sub: "real WhatsApp line" },
+    { label: "Canary chats", value: value(conversations.rows.length), sub: "allowlisted test line" },
     { label: "AI answers", value: value(totals.ai), sub: "this month" },
     { label: "Bookings", value: value(totals.bookings), sub: "this month" },
     { label: "Assigned to me", value: value(mine), sub: member?.role ?? "seat" },
@@ -60,12 +64,20 @@ export default function LiteDashboardPage() {
             Hello{member ? `, ${member.displayLabel.split(" — ")[0]}` : ""}
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            One WhatsApp number, one helpdesk — running on the Hemas Connect engine.
+            One governed canary line, one helpdesk — synthetic records on the Hemas Connect engine.
           </p>
         </div>
         <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#e3e8ee] bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-[0_1px_3px_rgba(0,55,112,0.08)]">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-[#1863DC]" />
-          Live line connected
+          <span
+            className={`h-2 w-2 rounded-full ${telemetryError ? "bg-rose-500" : telemetryReady ? "bg-emerald-500" : "bg-amber-500"}`}
+          />
+          {telemetryError
+            ? "Canary telemetry unavailable"
+            : telemetryReady
+              ? isLocalSyntheticDemo
+                ? "Synthetic telemetry loaded"
+                : "Canary telemetry received"
+              : "Canary ready · awaiting traffic"}
         </span>
       </section>
 
@@ -106,9 +118,9 @@ export default function LiteDashboardPage() {
       <section className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className={`${CARD} p-5`}>
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">Live in this workspace</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Available in this workspace</h2>
             <span className="rounded-full bg-[#1863DC]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1863DC]">
-              All systems live
+              Governed canary
             </span>
           </div>
           <ul className="mt-4 space-y-2.5">
@@ -123,9 +135,9 @@ export default function LiteDashboardPage() {
           </ul>
           <div className="mt-5 border-t border-[#e3e8ee] pt-4">
             <div className="flex items-baseline justify-between text-xs">
-              <span className="font-semibold text-slate-600">API requests this month</span>
+              <span className="font-semibold text-slate-600">Governed actions this month</span>
               <span className="text-slate-500 [font-variant-numeric:tabular-nums]">
-                {totals.api.toLocaleString()} / {QUOTA.toLocaleString()}
+                {totals.api.toLocaleString()} / {ACTION_ALLOWANCE.toLocaleString()}
               </span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eef2f7]">
@@ -153,7 +165,8 @@ export default function LiteDashboardPage() {
             ))}
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-slate-400">
-            Each seat signs in on its own device — claim a chat in the inbox and reply live.
+            Each privately provisioned seat signs in on its own device. Provider replies require
+            the separate canary claim and an owned conversation.
           </p>
         </div>
       </section>

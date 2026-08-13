@@ -3,8 +3,10 @@
 import { useMemo } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
 import { useLiteMetrics, type LiteDailyMetrics } from "@/components/lite/lite-data";
+import { publicEnv } from "@/lib/config/public-env";
 
-const MONTHLY_API_QUOTA = 10_000; // Lite plan demo quota (Phase 5 finalizes)
+const MONTHLY_ACTION_ALLOWANCE = 10_000; // Demo packaging allowance; final commercial plan pending.
+const isLocalSyntheticDemo = publicEnv.appStage === "demo";
 
 function monthOf(day: string): string {
   return day.slice(0, 7);
@@ -42,7 +44,7 @@ export default function LiteAnalyticsPage() {
     return { monthRows, totals, last14 };
   }, [metrics.rows]);
 
-  const quotaPct = Math.min(100, Math.round((totals.apiRequests / MONTHLY_API_QUOTA) * 100));
+  const quotaPct = Math.min(100, Math.round((totals.apiRequests / MONTHLY_ACTION_ALLOWANCE) * 100));
   const maxBar = Math.max(1, ...last14.map((row) => row.inboundMessages + row.botReplies));
 
   const cards = [
@@ -59,15 +61,18 @@ export default function LiteAnalyticsPage() {
       <section>
         <h1 className="text-xl font-semibold text-slate-900">Analytics</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Live counters from the real line — this month ({monthRows.length} active day
-          {monthRows.length === 1 ? "" : "s"}). Content-free by design: numbers, never messages.
+          Automatic aggregate counter contract — this month ({monthRows.length} recorded day
+          {monthRows.length === 1 ? "" : "s"}). {isLocalSyntheticDemo
+            ? "The local emulator uses content-free synthetic fixtures with zero campaign sends."
+            : "UAT reads content-free telemetry from the governed allowlisted canary path."} These
+          are not production Hemas performance claims.
         </p>
       </section>
 
       {metrics.error ? (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{metrics.error}</p>
       ) : null}
-      {metrics.loading ? <p className="text-xs text-slate-400">Loading live counters…</p> : null}
+      {metrics.loading ? <p className="text-xs text-slate-400">Loading aggregate counters…</p> : null}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {cards.map((card) => (
@@ -85,9 +90,9 @@ export default function LiteAnalyticsPage() {
 
       <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">API requests this month</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Governed actions this month</h2>
           <span className="text-xs text-slate-500">
-            {totals.apiRequests.toLocaleString()} / {MONTHLY_API_QUOTA.toLocaleString()} (Lite plan)
+            {totals.apiRequests.toLocaleString()} / {MONTHLY_ACTION_ALLOWANCE.toLocaleString()} (demo allowance)
           </span>
         </div>
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
@@ -100,15 +105,16 @@ export default function LiteAnalyticsPage() {
         </div>
         <p className="mt-2 text-[11px] text-slate-400">
           Every governed action counts here — inbound, bot, AI, agent replies and campaign sends.
-          This is the &quot;API requests / month&quot; line on the plan sheet, measured for real.
+          This is a demo consumption counter derived from governed canary actions; it is not an
+          API-request count, provider invoice, or finalized commercial quota.
         </p>
       </section>
 
       <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">Last 14 days — conversation volume</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Last 14 recorded days — conversation volume</h2>
         <div className="mt-4 flex h-36 items-end gap-1.5">
           {last14.length === 0 ? (
-            <p className="text-xs text-slate-400">Counters appear after the next live messages.</p>
+            <p className="text-xs text-slate-400">Counters appear after governed activity is recorded.</p>
           ) : (
             last14.map((row) => {
               const volume = row.inboundMessages + row.botReplies;

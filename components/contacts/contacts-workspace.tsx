@@ -190,6 +190,36 @@ export function ContactsWorkspace() {
     };
   }, [installRecords, queryDirectory, workspaceId, workspaceSnapshot.status]);
 
+  useEffect(() => {
+    if (loadState !== "ready" || records.length === 0 || typeof window === "undefined") return;
+    const rawHash = window.location.hash.slice(1);
+    if (!rawHash) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      let contactId: string;
+      try {
+        contactId = decodeURIComponent(rawHash);
+      } catch {
+        setAnnouncement("The requested CRM lead reference is invalid.");
+        return;
+      }
+
+      const matched = records.find((record) => record.contact.id === contactId);
+      if (!matched) {
+        setAnnouncement("The requested CRM lead is outside this workspace scope.");
+        return;
+      }
+
+      setSelectedId(matched.contact.id);
+      setMobileDetailOpen(true);
+      setAnnouncement(`${matched.contact.displayLabel} opened from the WhatsApp inbox.`);
+    });
+    return () => {
+      active = false;
+    };
+  }, [loadState, records]);
+
   const selectedRecord =
     records.find((record) => record.contact.id === selectedId) ?? records[0] ?? null;
 

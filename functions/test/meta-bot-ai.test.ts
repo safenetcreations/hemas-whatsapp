@@ -28,6 +28,16 @@ test("engine exposes unrouted free text as aiQuery", () => {
   assert.equal(r.replies.length, 2, "fallback replies unchanged for non-AI path");
 });
 
+test("engine exposes a completely new sender's first question as aiQuery", () => {
+  const question = "What services do you offer?";
+  const r = runBotEngine(
+    { language: null, state: "language", departmentId: null, dayId: null, updatedAtMs: 0 },
+    text(question),
+  );
+  assert.equal(r.aiQuery, question);
+  assert.equal(r.session.language, "en");
+});
+
 test("engine keeps aiQuery null for keywords, selections and empty text", () => {
   assert.equal(runBotEngine(english, text("hi")).aiQuery, null);
   assert.equal(runBotEngine(english, text("book a dental visit")).aiQuery, null);
@@ -66,13 +76,23 @@ test("a 400 on the thinking config retries once without it", async () => {
   const fetchImpl = (async (_url: unknown, init?: { body?: string }) => {
     calls += 1;
     const body = JSON.parse(init?.body ?? "{}") as {
-      generationConfig?: { thinkingConfig?: unknown };
+      store?: unknown;
+      generationConfig?: Record<string, unknown> & { thinkingConfig?: unknown };
     };
+    assert.equal(body.store, false);
+    assert.equal("temperature" in (body.generationConfig ?? {}), false);
+    assert.equal("top_p" in (body.generationConfig ?? {}), false);
+    assert.equal("top_k" in (body.generationConfig ?? {}), false);
     if (body.generationConfig?.thinkingConfig) {
       return new Response(JSON.stringify({}), { status: 400 });
     }
     return new Response(
-      JSON.stringify({ candidates: [{ content: { parts: [{ text: "Recovered." }] } }] }),
+      JSON.stringify({
+        candidates: [{
+          content: { parts: [{ text: "Recovered." }] },
+          finishReason: "STOP",
+        }],
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }) as unknown as typeof fetch;
@@ -117,7 +137,7 @@ test("answerWithGuardrails returns a sanitised answer on success", async () => {
         jsonResponse({
           candidates: [
             {
-              content: { parts: [{ text: "**OPD** is open Monday to Saturday, 8.00 AM to 8.00 PM." }] },
+              content: { parts: [{ text: "**Timings** are unavailable in this demo. Please call the hotline to confirm." }] },
               finishReason: "STOP",
             },
           ],
@@ -125,7 +145,7 @@ test("answerWithGuardrails returns a sanitised answer on success", async () => {
     },
   );
   assert.equal(outcome.failureCode, null);
-  assert.ok(outcome.answer?.includes("*OPD*"), outcome.answer ?? "");
+  assert.ok(outcome.answer?.includes("*Timings*"), outcome.answer ?? "");
   assert.ok(!outcome.answer?.includes("**"));
 });
 
@@ -145,6 +165,42 @@ test("answerWithGuardrails maps failures to content-free codes", async () => {
     },
   );
   assert.equal(blocked.failureCode, "safety");
+
+  for (const finishReason of [
+    "SAFETY",
+    "RECITATION",
+    "BLOCKLIST",
+    "PROHIBITED_CONTENT",
+    "SPII",
+    "MAX_TOKENS",
+  ]) {
+    const filtered = await answerWithGuardrails(
+      { text: "x", language: "en" },
+      {
+        apiKey: "k",
+        fetchImpl: (async () => jsonResponse({
+          candidates: [{
+            content: { parts: [{ text: "must not be accepted" }] },
+            finishReason,
+          }],
+        })) as unknown as typeof fetch,
+      },
+    );
+    assert.equal(filtered.answer, null, finishReason);
+    assert.equal(filtered.failureCode, "safety", finishReason);
+  }
+
+  const missingFinishReason = await answerWithGuardrails(
+    { text: "x", language: "en" },
+    {
+      apiKey: "k",
+      fetchImpl: (async () => jsonResponse({
+        candidates: [{ content: { parts: [{ text: "must not be accepted" }] } }],
+      })) as unknown as typeof fetch,
+    },
+  );
+  assert.equal(missingFinishReason.answer, null);
+  assert.equal(missingFinishReason.failureCode, "safety");
 
   const empty = await answerWithGuardrails(
     { text: "x", language: "en" },

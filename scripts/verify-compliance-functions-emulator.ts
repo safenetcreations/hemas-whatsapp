@@ -14,11 +14,11 @@ import {
   connectFirestoreEmulator,
   doc,
   getDocsFromServer,
-  getFirestore,
   Timestamp,
   updateDoc,
   type Firestore,
 } from "firebase/firestore";
+import { getHemasFirestore } from "../lib/firebase/firestore-target";
 import {
   connectFunctionsEmulator,
   getFunctions,
@@ -1014,7 +1014,7 @@ try {
   });
   actorUid = await signInFresh(auth);
 
-  const db: Firestore = getFirestore(verifierApp);
+  const db: Firestore = getHemasFirestore(verifierApp);
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
   const functions = getFunctions(verifierApp, "us-central1");
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);

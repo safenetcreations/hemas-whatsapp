@@ -2,6 +2,7 @@ import { Timestamp } from "firebase/firestore";
 import { describe, expect, it } from "vitest";
 import {
   parseContactDocument,
+  parseConversationDocument,
   parseMessageMetadataDocument,
   parseWorkspaceAccessDocuments,
   prepareConsentRecordListInput,
@@ -11,6 +12,12 @@ import {
   prepareWorkspaceListInput,
   WorkspaceAccessError,
 } from "@/lib/firebase/repositories";
+import {
+  buildLiveContactDocument,
+  buildLiveConversationDocument,
+  buildLiveMessageDocument,
+  liveIds,
+} from "../functions/src/meta-bot/bridge.js";
 
 const messageTimestamp = Timestamp.fromDate(new Date("2026-08-07T12:30:00.000Z"));
 
@@ -130,6 +137,109 @@ describe("Firestore read-repository input boundaries", () => {
         ),
       ).toThrowError(expect.objectContaining({ code: "invalid_data" }));
     }
+  });
+
+  it("parses the exact canonical contact, conversation and message shapes emitted by the live bridge", () => {
+    const nowMs = Date.parse("2026-08-11T10:00:00.000Z");
+    const ids = liveIds("94700000000");
+    const inbound = {
+      direction: "inbound" as const,
+      waMessageId: "wamid.synthetic",
+      messageType: "text",
+      language: "en" as const,
+      purpose: "general_support" as const,
+      staffHandoff: true,
+      last4: "0000",
+    };
+
+    const contact = buildLiveContactDocument({
+      contactId: ids.contactId,
+      last4: inbound.last4,
+      language: "en",
+      nowMs,
+      addTags: ["human-handoff"],
+    });
+    expect(parseContactDocument(contact, ids.contactId, "workspace_safenet_demo")).toMatchObject({
+      id: ids.contactId,
+      tags: ["human-handoff"],
+      liveCanary: true,
+      suppression: {
+        suppressAll: false,
+        suppressMarketing: false,
+        invalidContact: false,
+      },
+    });
+
+    const conversation = buildLiveConversationDocument({
+      contactId: ids.contactId,
+      conversationId: ids.conversationId,
+      message: inbound,
+      nowMs,
+    });
+    expect(
+      parseConversationDocument(
+        conversation,
+        ids.conversationId,
+        "workspace_safenet_demo",
+      ),
+    ).toMatchObject({
+      id: ids.conversationId,
+      mode: "human_takeover",
+      liveCanary: true,
+    });
+
+    const inboundMessage = buildLiveMessageDocument({
+      messageId: "message_live_0000000000000000",
+      contactId: ids.contactId,
+      conversationId: ids.conversationId,
+      message: inbound,
+      nowMs,
+    });
+    expect(
+      parseMessageMetadataDocument(
+        inboundMessage,
+        "message_live_0000000000000000",
+        "workspace_safenet_demo",
+      ),
+    ).toMatchObject({ externalDispatch: "not_applicable", liveCanary: true });
+
+    const outboundMessage = buildLiveMessageDocument({
+      messageId: "message_live_1111111111111111",
+      contactId: ids.contactId,
+      conversationId: ids.conversationId,
+      message: { ...inbound, direction: "outbound" },
+      nowMs,
+    });
+    expect(
+      parseMessageMetadataDocument(
+        {
+          ...outboundMessage,
+          actorId: "agent-a",
+          agentReply: true,
+        },
+        "message_live_1111111111111111",
+        "workspace_safenet_demo",
+      ),
+    ).toMatchObject({
+      externalDispatch: "dispatched",
+      liveCanary: true,
+      agentReply: true,
+    });
+
+    expect(() =>
+      parseContactDocument(
+        { ...contact, liveCanary: false },
+        ids.contactId,
+        "workspace_safenet_demo",
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid_data" }));
+    expect(() =>
+      parseMessageMetadataDocument(
+        { ...outboundMessage, agentReply: false },
+        "message_live_1111111111111111",
+        "workspace_safenet_demo",
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid_data" }));
   });
 
   it("accepts bounded tenant-admin and exact-scope list inputs", () => {

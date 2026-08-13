@@ -35,10 +35,10 @@ const queueRows = [
 ];
 
 const activity = [
-  { icon: Siren, title: "Urgent-language safeguard triggered", detail: "Conversation SYN-C009 · routed to supervisor", time: "2m", tone: "text-red-700 bg-red-50" },
-  { icon: UserRoundCheck, title: "Human takeover accepted", detail: "Tamil appointment enquiry · Synthetic Agent 04", time: "7m", tone: "text-blue-700 bg-blue-50" },
-  { icon: CalendarCheck2, title: "Mock appointment rescheduled", detail: "Reference SYN-A1842 · no external write", time: "13m", tone: "text-emerald-700 bg-emerald-50" },
-  { icon: PauseCircle, title: "Campaign simulation paused", detail: "50K Wellness Awareness · quality safeguard test", time: "24m", tone: "text-amber-700 bg-amber-50" },
+  { icon: Siren, title: "Urgent-language safeguard triggered", detail: "Conversation SYN-C009 · routed to supervisor", time: "Seed event", tone: "text-red-700 bg-red-50" },
+  { icon: UserRoundCheck, title: "Human takeover accepted", detail: "Tamil appointment enquiry · Synthetic Agent 04", time: "Seed event", tone: "text-blue-700 bg-blue-50" },
+  { icon: CalendarCheck2, title: "Mock appointment rescheduled", detail: "Reference SYN-A1842 · no external write", time: "Seed event", tone: "text-emerald-700 bg-emerald-50" },
+  { icon: PauseCircle, title: "Campaign simulation paused", detail: "50K Wellness Awareness · quality safeguard test", time: "Seed event", tone: "text-amber-700 bg-amber-50" },
 ];
 
 export default function OverviewPage() {
@@ -55,12 +55,12 @@ export default function OverviewPage() {
       <section className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <StatusPill tone="success" dot>Demo systems ready</StatusPill>
-            <StatusPill tone="warning" dot>Outbound disabled</StatusPill>
+            <StatusPill tone="success" dot>Enterprise fixture ready</StatusPill>
+            <StatusPill tone="warning" dot>Production outbound locked</StatusPill>
           </div>
           <h1 className="text-2xl font-bold tracking-[-0.035em] text-slate-950 sm:text-3xl">Operations overview</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-            Monitor synthetic patient journeys, team queues, safeguards, and campaign readiness across the demo workspace.
+            Review fixed synthetic journeys, team queues, safeguards, and campaign readiness across the governed management workspace.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -77,11 +77,11 @@ export default function OverviewPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Sample metrics">
-        <MetricCard label="Open conversations" value="28" detail="Sample data · 6 need attention" icon={Inbox} tone="brand" />
-        <MetricCard label="Waiting over 10 min" value="6" detail="2 more than the sample target" icon={AlarmClock} tone="amber" />
-        <MetricCard label="Appointments today" value="42" detail="31 confirmed · mock schedule" icon={CalendarCheck2} tone="blue" />
-        <MetricCard label="Consent-eligible audience" value="38,443" detail="Deterministic 50K cohort after exclusions" icon={ContactRound} tone="violet" />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Fixed demonstration metrics">
+        <MetricCard label="Open conversations" value="28" detail="Fixed demo fixture · 6 need attention" icon={Inbox} tone="brand" />
+        <MetricCard label="Waiting over 10 min" value="6" detail="Fixed fixture · 2 above sample target" icon={AlarmClock} tone="amber" />
+        <MetricCard label="Appointments today" value="42" detail="Fixed mock schedule · 31 confirmed" icon={CalendarCheck2} tone="blue" />
+        <MetricCard label="Consent-eligible audience" value="38,443" detail="Fixed 50K cohort after policy exclusions" icon={ContactRound} tone="violet" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
@@ -89,7 +89,7 @@ export default function OverviewPage() {
           <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-4 sm:px-5">
             <div>
               <h2 className="text-[15px] font-bold text-slate-950">Queue health</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">Synthetic operational workload by routing queue</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Fixed synthetic workload by routing queue</p>
             </div>
             {visibleRoutes.has("/team") ? (
               <Link href="/team" className="hidden items-center gap-1 text-xs font-semibold text-[var(--brand)] hover:underline sm:flex">
@@ -134,12 +134,12 @@ export default function OverviewPage() {
             <ShieldCheck className="text-[var(--brand)]" size={23} aria-hidden="true" />
           </div>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            No real messages can leave this environment. Hemas-owned Firebase, Meta assets, approvals, and real-device verification are required before activation.
+            Enterprise production messaging is locked. The separate Lite canary remains allowlisted and must pass provider and real-device verification before any live claim.
           </p>
           <div className="mt-5 space-y-3">
             {[
-              ["Firebase emulator", "Ready", true],
-              ["Meta WhatsApp Cloud API", "Not configured", false],
+              ["Enterprise Firebase emulator", "Ready", true],
+              ["Lite WhatsApp canary", "Separate · gated", false],
               ["Hemas HIS / LIMS", "Locked", false],
               ["Real patient data", "Blocked", false],
             ].map(([label, value, ready]) => (
@@ -164,8 +164,8 @@ export default function OverviewPage() {
         <article className="min-w-0 rounded-2xl border border-[var(--line)] bg-white p-5 shadow-[0_1px_2px_rgba(23,34,31,0.03)] xl:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-[15px] font-bold text-slate-950">Synthetic activity</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">No patient identities or external provider events</p>
+              <h2 className="text-[15px] font-bold text-slate-950">Fixed synthetic activity</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">Seeded scenarios · no patient identities or provider events</p>
             </div>
             <Activity size={18} className="text-slate-400" aria-hidden="true" />
           </div>

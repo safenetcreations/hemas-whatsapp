@@ -13,6 +13,8 @@ const cloudEnvironment: CloudDemoRuntimeEnvironment = {
   NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false",
   NEXT_PUBLIC_EXTERNAL_MESSAGING_ENABLED: "false",
   NEXT_PUBLIC_REAL_PATIENT_DATA_ENABLED: "false",
+  NEXT_PUBLIC_HEMAS_CLOUD_ALLOWED_HOST:
+    "hemas-connect--hemas-whatsapp.us-central1.hosted.app",
   NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_DESCRIPTOR_ENABLED: "true",
   NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_RUNTIME_ENABLED: "true",
   NEXT_PUBLIC_HEMAS_CLOUD_FIREBASE_ANALYTICS_ENABLED: "false",
@@ -125,8 +127,9 @@ describe("governed cloud demo runtime", () => {
     ).toEqual({ active: false, refused: true, reason: "hostname_not_allowed" });
   });
 
-  it("allows the App Hosting domain, loopback and one explicit extra host", () => {
-    expect(isAllowedCloudDemoHostname(hostedAppHostname, undefined)).toBe(true);
+  it("allows only loopback and the exact configured App Hosting domain", () => {
+    expect(isAllowedCloudDemoHostname(hostedAppHostname, undefined)).toBe(false);
+    expect(isAllowedCloudDemoHostname(hostedAppHostname, hostedAppHostname)).toBe(true);
     expect(isAllowedCloudDemoHostname("localhost", undefined)).toBe(true);
     expect(isAllowedCloudDemoHostname("127.0.0.1", undefined)).toBe(true);
     expect(
@@ -135,5 +138,11 @@ describe("governed cloud demo runtime", () => {
     expect(isAllowedCloudDemoHostname("uat.hemasconnect.example", undefined)).toBe(false);
     expect(isAllowedCloudDemoHostname("nothosted.app", undefined)).toBe(false);
     expect(isAllowedCloudDemoHostname("hosted.app", undefined)).toBe(false);
+    expect(
+      isAllowedCloudDemoHostname(
+        "some-other-project.us-central1.hosted.app",
+        hostedAppHostname,
+      ),
+    ).toBe(false);
   });
 });
