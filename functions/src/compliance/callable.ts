@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import {
   HttpsError,
   onCall,
@@ -7,6 +7,7 @@ import {
 } from "firebase-functions/v2/https";
 import { assertDemoAuditEmulatorBoundary } from "../audit-firestore.js";
 import { FailClosedError } from "../errors.js";
+import { getHemasFirestore } from "../firestore-target.js";
 import { parseListComplianceAuditEventsInput } from "./contracts.js";
 import { createFirestoreComplianceAuditSource } from "./firestore.js";
 import { listSyntheticComplianceAuditEvents } from "./service.js";
@@ -34,7 +35,7 @@ function getDemoFirestore(
       "The Admin app does not match the synthetic demo project.",
     );
   }
-  return getFirestore(app);
+  return getHemasFirestore(app);
 }
 
 function authenticatedUid(request: CallableRequest<unknown>): string {

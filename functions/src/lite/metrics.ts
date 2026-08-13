@@ -5,7 +5,9 @@
  *   workspaces/{ws}/canary_metrics/daily_YYYY-MM-DD
  *
  * Counters only — no identifiers, no bodies, no per-visitor data. These feed
- * the Analytics page and the plan-quota view ("API requests / month").
+ * the Analytics page and the governed-action demo allowance. The legacy
+ * `apiRequests` field name is retained for schema compatibility; it does not
+ * represent raw network or provider request volume.
  */
 
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
@@ -25,6 +27,11 @@ export type MetricField =
   | "campaignSends"
   | "apiRequests";
 
+export interface DailyMetricIncrement {
+  readonly id: string;
+  readonly data: Record<string, unknown>;
+}
+
 /** Colombo-local day id for a timestamp, e.g. "daily_2026-08-11". */
 export function metricsDayId(nowMs: number): string {
   const d = new Date(nowMs + COLOMBO_OFFSET_MS);
@@ -34,10 +41,47 @@ export function metricsDayId(nowMs: number): string {
   return `daily_${iso}`;
 }
 
+/** Build one merge-safe increment for inclusion in a domain transaction/batch. */
+export function buildDailyMetricIncrement(
+  workspaceId: string,
+  nowMs: number,
+  fields: Partial<Record<MetricField, number>>,
+): DailyMetricIncrement | null {
+  const entries = Object.entries(fields).filter(
+    (entry): entry is [MetricField, number] =>
+      typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0,
+  );
+  if (entries.length === 0) return null;
+  const id = metricsDayId(nowMs);
+  const increments: Record<string, unknown> = {};
+  let total = 0;
+  for (const [field, amount] of entries) {
+    increments[field] = FieldValue.increment(amount);
+    if (field !== "apiRequests") total += amount;
+  }
+  if (!("apiRequests" in increments) && total > 0) {
+    increments.apiRequests = FieldValue.increment(total);
+  }
+  return {
+    id,
+    data: {
+      id,
+      workspaceId,
+      day: id.replace(/^daily_/, ""),
+      synthetic: true,
+      liveCanary: true,
+      containsMessageContent: false,
+      schemaVersion: 1,
+      updatedAt: Timestamp.fromMillis(nowMs),
+      ...increments,
+    },
+  };
+}
+
 /**
  * Increment daily counters (fire-and-forget safe: never throws).
- * `apiRequests` is bumped automatically by the sum of all other increments
- * unless explicitly provided.
+ * The legacy `apiRequests` counter is bumped automatically by the sum of all
+ * other business-event increments unless explicitly provided.
  */
 export async function bumpDailyMetrics(
   db: Firestore,
@@ -46,38 +90,12 @@ export async function bumpDailyMetrics(
   fields: Partial<Record<MetricField, number>>,
 ): Promise<void> {
   try {
-    const entries = Object.entries(fields).filter(
-      (entry): entry is [MetricField, number] =>
-        typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0,
-    );
-    if (entries.length === 0) return;
-    const id = metricsDayId(nowMs);
-    const increments: Record<string, unknown> = {};
-    let total = 0;
-    for (const [field, amount] of entries) {
-      increments[field] = FieldValue.increment(amount);
-      if (field !== "apiRequests") total += amount;
-    }
-    if (!("apiRequests" in increments) && total > 0) {
-      increments.apiRequests = FieldValue.increment(total);
-    }
+    const increment = buildDailyMetricIncrement(workspaceId, nowMs, fields);
+    if (!increment) return;
     await db
       .collection("workspaces").doc(workspaceId)
-      .collection(METRICS_COLLECTION).doc(id)
-      .set(
-        {
-          id,
-          workspaceId,
-          day: id.replace(/^daily_/, ""),
-          synthetic: true,
-          liveCanary: true,
-          containsMessageContent: false,
-          schemaVersion: 1,
-          updatedAt: Timestamp.now(),
-          ...increments,
-        },
-        { merge: true },
-      );
+      .collection(METRICS_COLLECTION).doc(increment.id)
+      .set(increment.data, { merge: true });
   } catch {
     // Metrics never break the message path.
   }

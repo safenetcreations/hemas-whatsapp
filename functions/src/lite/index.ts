@@ -195,8 +195,22 @@ export const liteDemoSetup = onCall(
       }
     }
 
-    logger.info("lite: seats provisioned", { count: seats.length });
-    return { provisioned: seats.length, seats, doctorsSeeded: DOCTOR_SEED.length };
+    // Self-heal the enterprise demo admin's portal-access claim — the cloud
+    // login gate requires hemasPortalDemo=true on the verified identity.
+    let adminClaimEnsured = false;
+    try {
+      const adminUser = await auth.getUserByEmail(SYNTHETIC_DEMO_EMAIL);
+      const claims = (adminUser.customClaims ?? {}) as Record<string, unknown>;
+      if (claims.hemasPortalDemo !== true) {
+        await auth.setCustomUserClaims(adminUser.uid, { ...claims, hemasPortalDemo: true });
+      }
+      adminClaimEnsured = true;
+    } catch {
+      /* admin account managed elsewhere */
+    }
+
+    logger.info("lite: seats provisioned", { count: seats.length, adminClaimEnsured });
+    return { provisioned: seats.length, seats, doctorsSeeded: DOCTOR_SEED.length, adminClaimEnsured };
   },
 );
 

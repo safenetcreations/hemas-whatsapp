@@ -1,8 +1,9 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { ConfigValidationError, loadRuntimeConfig } from "../config.js";
 import { FailClosedError } from "../errors.js";
+import { getHemasFirestore } from "../firestore-target.js";
 import {
   assertAiGovernanceRuntimeBoundary,
   parseAiRetrospectiveRequestInput,
@@ -30,7 +31,7 @@ function getDemoFirestore(boundary: AiGovernanceEmulatorBoundary): Firestore {
       "The Admin app does not match the synthetic demo project.",
     );
   }
-  return getFirestore(app);
+  return getHemasFirestore(app);
 }
 
 function authenticatedActor(request: CallableRequest<unknown>): AiGovernanceActor {

@@ -1,9 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { assertDemoAuditEmulatorBoundary } from "../audit-firestore.js";
 import { ConfigValidationError, loadRuntimeConfig } from "../config.js";
 import { FailClosedError } from "../errors.js";
+import { getHemasFirestore } from "../firestore-target.js";
 import { parseSyntheticAppointmentRequestInput } from "./contracts.js";
 import { requestSyntheticAppointmentAction } from "./service.js";
 
@@ -20,7 +21,7 @@ function getDemoFirestore(): Firestore {
       "The initialized Admin app does not match the emulator-safe demo project.",
     );
   }
-  return getFirestore(app);
+  return getHemasFirestore(app);
 }
 
 function authenticatedActor(request: CallableRequest<unknown>): {

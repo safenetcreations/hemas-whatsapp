@@ -4,9 +4,10 @@
  * Turns the bot's "unknown free text" fallback into a real AI answer while
  * keeping every governance rule of this lane:
  *
- * - The user's text is inspected IN MEMORY only. It is sent to the model to
- *   produce an answer and is never stored, logged, or echoed into errors —
- *   the webhook keeps writing content-free records (hashes) exactly as before.
+ * - The user's text is inspected IN MEMORY only and sent transiently to the
+ *   model with request logging disabled. This service never persists it,
+ *   application-logs it, or echoes it into errors; the webhook writes only
+ *   content-free evidence.
  * - The model is fenced by a strict system prompt: it may only answer from
  *   the synthetic knowledge base below, must refuse medical advice, must
  *   redirect emergencies to 1990 (Suwa Seriya), and replies in the session
@@ -157,10 +158,10 @@ export async function answerWithGuardrails(
         "x-goog-api-key": config.apiKey,
       },
       body: JSON.stringify({
+        store: false,
         systemInstruction: { parts: [{ text: buildAiSystemPrompt(request.language) }] },
         contents: [{ role: "user", parts: [{ text: request.text }] }],
         generationConfig: {
-          temperature: 0.2,
           maxOutputTokens: 512,
           ...(thinking ? { thinkingConfig: thinking } : {}),
         },
@@ -194,7 +195,7 @@ export async function answerWithGuardrails(
       return { answer: null, failureCode: "safety", latencyMs: Date.now() - startedAt };
     }
     const candidate = parsed.candidates?.[0];
-    if (candidate?.finishReason === "SAFETY") {
+    if (candidate && candidate.finishReason !== "STOP") {
       return { answer: null, failureCode: "safety", latencyMs: Date.now() - startedAt };
     }
     const rawText = (candidate?.content?.parts ?? [])

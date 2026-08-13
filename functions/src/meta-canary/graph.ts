@@ -17,6 +17,14 @@ export const metaAccessToken = defineSecret("HEMAS_META_ACCESS_TOKEN");
 export const metaAppSecret = defineSecret("HEMAS_META_APP_SECRET");
 export const metaVerifyToken = defineSecret("HEMAS_META_VERIFY_TOKEN");
 export const geminiApiKey = defineSecret("HEMAS_GEMINI_API_KEY");
+/** Versioned AES keyring for short-lived, signed-inbound return routes. */
+export const metaReturnRouteKeyring = defineSecret(
+  "HEMAS_META_RETURN_ROUTE_KEYRING",
+);
+/** Stable HMAC key for public sender identity, quota, session, and STOP state. */
+export const metaPublicIdentityKey = defineSecret(
+  "HEMAS_META_PUBLIC_IDENTITY_KEY",
+);
 
 export function graphVersion(): string {
   const raw = process.env.HEMAS_META_GRAPH_VERSION?.trim() ?? "";

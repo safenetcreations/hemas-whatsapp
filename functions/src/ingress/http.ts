@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import type { Response } from "firebase-functions/v1";
 import { onRequest } from "firebase-functions/v2/https";
 
 import { FailClosedError } from "../errors.js";
+import { getHemasFirestore } from "../firestore-target.js";
 import {
   authorizeSyntheticIngressRoute,
   loadSyntheticIngressBoundary,
@@ -36,7 +36,7 @@ function getAuthorizedDemoStore(authorization: AuthorizedSyntheticIngressRoute) 
     );
   }
   return createAdminFirestoreIngressStore({
-    db: getFirestore(app),
+    db: getHemasFirestore(app),
     authorization,
   });
 }

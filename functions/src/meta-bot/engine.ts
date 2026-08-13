@@ -350,8 +350,8 @@ function requestedLanguage(text: string): BotLanguage | null {
   }
   return null;
 }
-const BOOK_KEYWORDS = /(book|appoint|channel|වෙන්|හමුවීම|சந்திப்பு|பதிவு)/i;
-const LAB_KEYWORDS = /(lab|result|report|රසායනාගාර|ප්‍රතිඵල|ஆய்வக|முடிவு)/i;
+const BOOK_KEYWORDS = /(?:\b(?:book(?:ing)?|appoint(?:ment|ments)?|channel(?:ing)?)\b|වෙන්|හමුවීම|சந்திப்பு|பதிவு)/i;
+const LAB_KEYWORDS = /(?:\b(?:lab|laboratory|results?|reports?)\b|රසායනාගාර|ප්‍රතිඵල|ஆய்வக|முடிவு)/i;
 
 function languageMenu(): Record<string, unknown>[] {
   return [buttonMessage(T.chooseLanguage, T.langButtons)];
@@ -415,14 +415,58 @@ export function runBotEngine(
   }
 
   if (!session.language) {
-    const detected = text ? (requestedLanguage(text) ?? detectScriptLanguage(text)) : null;
+    const requested = text ? requestedLanguage(text) : null;
+    const detected = text ? detectScriptLanguage(text) : null;
     const welcome = config.welcomeMediaId
       ? [imageMessage(config.welcomeMediaId, "Hemas Connect · Governed WhatsApp care (SafeNet demo)")]
       : [];
-    if (detected) {
-      return done([...welcome, ...mainMenu(detected)], { language: detected, state: "menu" });
+    if (requested) {
+      return done([...welcome, ...mainMenu(requested)], {
+        language: requested,
+        state: "menu",
+      });
     }
-    return done([...welcome, ...languageMenu()], { state: "language" });
+    if (
+      !text ||
+      isMenuKeyword(text) ||
+      MENU_KEYWORDS_NATIVE.test(text)
+    ) {
+      if (detected) {
+        return done([...welcome, ...mainMenu(detected)], {
+          language: detected,
+          state: "menu",
+        });
+      }
+      return done([...welcome, ...languageMenu()], { state: "language" });
+    }
+    const firstLanguage = detected ?? "en";
+    if (BOOK_KEYWORDS.test(text)) {
+      return done(
+        [
+          ...welcome,
+          listMessage(
+            T.deptHeader[firstLanguage],
+            T.deptBody[firstLanguage],
+            T.menuButton[firstLanguage],
+            T.deptRows[firstLanguage],
+          ),
+        ],
+        { language: firstLanguage, state: "book_department", departmentId: null },
+        { purpose: "appointment" },
+      );
+    }
+    if (LAB_KEYWORDS.test(text)) {
+      return done(
+        [...welcome, textMessage(T.lab[firstLanguage])],
+        { language: firstLanguage, state: "idle" },
+        { purpose: "laboratory" },
+      );
+    }
+    return done(
+      [...welcome, textMessage(T.fallback[firstLanguage]), ...mainMenu(firstLanguage)],
+      { language: firstLanguage, state: "menu" },
+      { aiQuery: text },
+    );
   }
 
   const lang = session.language;

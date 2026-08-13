@@ -1,9 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { assertDemoAuditEmulatorBoundary } from "../audit-firestore.js";
 import { ConfigValidationError, loadRuntimeConfig } from "../config.js";
 import { FailClosedError } from "../errors.js";
+import { getHemasFirestore } from "../firestore-target.js";
 import { parseSyntheticAutomationControlInput } from "./contracts.js";
 import { isCloudDemoEnabled } from "../governed-project.js";
 import { controlSyntheticAutomationRun } from "./service.js";
@@ -26,7 +27,7 @@ function getDemoFirestore(boundary: ReturnType<typeof emulatorBoundary>): Firest
   if (app.options.projectId && app.options.projectId !== boundary.projectId) {
     throw new FailClosedError("invalid_audit_project", "The Admin app does not match the synthetic demo project.");
   }
-  return getFirestore(app);
+  return getHemasFirestore(app);
 }
 
 function authenticatedActor(request: CallableRequest<unknown>): { uid: string; authTime: Date } {

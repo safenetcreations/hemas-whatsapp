@@ -21,10 +21,18 @@ export { listComplianceAuditEvents } from "./compliance/index.js";
 export { demoRecordSyntheticAiRetrospective } from "./ai-governance/index.js";
 export { demoAppendInternalNote } from "./demo-services.js";
 export { syntheticInboundWebhook } from "./ingress/index.js";
-export { demoSendMetaCanaryTemplate, metaCanaryWebhook } from "./meta-canary/index.js";
+export {
+  demoSendMetaCanaryTemplate,
+  metaCanaryWebhook,
+  reconcileMetaCanaryFatalEffect,
+  reconcileMetaCanaryOutbox,
+} from "./meta-canary/index.js";
 export {
   liteClaimConversation,
   liteDemoSetup,
+  liteReconcileAgentReply,
+  liteReconcileBookingNotification,
+  liteReconcileCampaign,
   liteSendAgentReply,
   liteSendCampaign,
   liteSetBookingStatus,

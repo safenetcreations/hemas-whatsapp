@@ -1,9 +1,10 @@
 import { getApp, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { assertDemoAuditEmulatorBoundary } from "./audit-firestore.js";
 import { deterministicId } from "./deterministic.js";
 import { FailClosedError, assertSafeTenantId } from "./errors.js";
+import { getHemasFirestore } from "./firestore-target.js";
 import {
   executeAuditedWorkspaceMutation,
   fingerprintServiceRequest,
@@ -183,7 +184,7 @@ function getDemoFirestore(): Firestore {
     firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
   });
   const app = getApps().length > 0 ? getApp() : initializeApp({ projectId });
-  return getFirestore(app);
+  return getHemasFirestore(app);
 }
 
 function authenticatedActor(request: CallableRequest<unknown>): {
