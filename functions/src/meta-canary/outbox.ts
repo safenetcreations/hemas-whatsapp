@@ -56,6 +56,9 @@ export type CanaryOutboxRecord = {
   readonly leaseExpiresAtMs: number | null;
   readonly dispatchStartedAtMs: number | null;
   readonly dispatchReplySource?: "ai_transient" | "durable";
+  /** Opaque backend-only locator for a private bot reply reservation. */
+  readonly protectedConversationId?: string;
+  readonly protectedContentId?: string;
   readonly completedAtMs: number | null;
   readonly terminalReason:
     | "completed"
@@ -194,6 +197,12 @@ export function parseCanaryOutboxRecord(value: unknown): CanaryOutboxRecord | nu
     (data.dispatchReplySource !== undefined &&
       data.dispatchReplySource !== "ai_transient" &&
       data.dispatchReplySource !== "durable") ||
+    (data.protectedConversationId !== undefined &&
+      (typeof data.protectedConversationId !== "string" ||
+        !/^conversation_live_[0-9a-f]{10}$/.test(data.protectedConversationId))) ||
+    (data.protectedContentId !== undefined &&
+      (typeof data.protectedContentId !== "string" ||
+        !/^pmc_bot_[0-9a-f]{40}$/.test(data.protectedContentId))) ||
     (data.completedAtMs !== null && !isSafeInteger(data.completedAtMs)) ||
     (data.terminalReason !== null &&
       data.terminalReason !== "completed" &&
@@ -243,6 +252,10 @@ export function parseCanaryOutboxRecord(value: unknown): CanaryOutboxRecord | nu
   const reconciledReason =
     data.terminalReason === "reconciled_sent" ||
     data.terminalReason === "reconciled_not_sent";
+  const protectedReferenceFieldCount = [
+    data.protectedConversationId,
+    data.protectedContentId,
+  ].filter((entry) => entry !== undefined).length;
   if (
     ((data.state === "pending" ||
       data.state === "processing" ||
@@ -270,7 +283,12 @@ export function parseCanaryOutboxRecord(value: unknown): CanaryOutboxRecord | nu
       (data.effectKind !== "graph_bot_reply" ||
         data.dispatchStartedAtMs === null ||
         (data.dispatchReplySource === "ai_transient" &&
-          payload.replySource !== "ai_transient")))
+          payload.replySource !== "ai_transient"))) ||
+    (protectedReferenceFieldCount !== 0 &&
+      (protectedReferenceFieldCount !== 2 ||
+        data.effectKind !== "graph_bot_reply" ||
+        data.dispatchStartedAtMs === null ||
+        data.dispatchReplySource === undefined))
   ) {
     return null;
   }
@@ -360,6 +378,10 @@ export function markCanaryOutboxDispatchStarted(
   leaseToken: string,
   nowMs: number,
   dispatchReplySource?: "ai_transient" | "durable",
+  protectedReference?: {
+    readonly conversationId: string;
+    readonly contentId: string;
+  },
 ): CanaryOutboxRecord {
   assertLease(record, leaseToken);
   if (dispatchReplySource && record.effectKind !== "graph_bot_reply") {
@@ -371,10 +393,27 @@ export function markCanaryOutboxDispatchStarted(
   ) {
     throw new Error("invalid_dispatch_reply_source");
   }
+  if (
+    protectedReference &&
+    (record.effectKind !== "graph_bot_reply" ||
+      !dispatchReplySource ||
+      !/^conversation_live_[0-9a-f]{10}$/.test(
+        protectedReference.conversationId,
+      ) ||
+      !/^pmc_bot_[0-9a-f]{40}$/.test(protectedReference.contentId))
+  ) {
+    throw new Error("invalid_protected_dispatch_reference");
+  }
   return {
     ...record,
     dispatchStartedAtMs: nowMs,
     ...(dispatchReplySource ? { dispatchReplySource } : {}),
+    ...(protectedReference
+      ? {
+        protectedConversationId: protectedReference.conversationId,
+        protectedContentId: protectedReference.contentId,
+      }
+      : {}),
     updatedAtMs: nowMs,
   };
 }
@@ -1334,6 +1373,7 @@ export function buildInitialCanaryOutboxEffects(input: {
   }
   const messages = new Map(input.allowlistedMessages.map((message) => [message.waMessageId, message]));
   const optOuts = new Map(input.optOuts.map((optOut) => [optOut.waMessageId, optOut]));
+  const optedOutWaIds = new Set(input.optOuts.map((optOut) => optOut.waId));
   const effects: CanaryOutboxRecord[] = [];
   const welcomeMediaId =
     typeof input.welcomeMediaId === "string" &&
@@ -1383,6 +1423,12 @@ export function buildInitialCanaryOutboxEffects(input: {
       continue;
     }
 
+    const message = messages.get(record.waMessageId);
+    if (message && optedOutWaIds.has(message.waId)) {
+      // A private STOP/UNSUBSCRIBE suppresses every automation candidate from
+      // the same sender in this signed envelope, not just the exact STOP event.
+      continue;
+    }
     const inboundReturnRouteId = input.inboundReturnRouteIds?.get(record.waMessageId);
     if (
       inboundReturnRouteId !== undefined &&
@@ -1390,7 +1436,6 @@ export function buildInitialCanaryOutboxEffects(input: {
     ) {
       throw new Error("invalid_inbound_return_route_id");
     }
-    const message = messages.get(record.waMessageId);
     if (
       !message ||
       !record.fromNumberSha256 ||

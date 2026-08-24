@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.hemas-connect.example/schemas/bulk-job-request.schema.json",
+  "title": "Hemas Enterprise WhatsApp bulk job request",
+  "description": "POST /v1/whatsapp/bulk-jobs body. Requires the Idempotency-Key header (16-128 chars of [A-Za-z0-9._:-]). Oversized batches and duplicate recipients or client references are rejected, never truncated.",
+  "type": "object",
+  "required": ["clientBatchId", "template", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "clientBatchId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{8,64}$"
+    },
+    "template": {
+      "$ref": "#/$defs/templateSelection"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/bulkItem"
+      }
+    }
+  },
+  "$defs": {
+    "bulkItem": {
+      "type": "object",
+      "required": ["to", "clientReference"],
+      "additionalProperties": false,
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "E.164 recipient with or without +; stored only as hash + last4.",
+          "pattern": "^\\+?[0-9 ()-]{8,20}$"
+        },
+        "clientReference": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+          "description": "Opaque customer key echoed in every DLR for this item."
+        }
+      }
+    },
+    "templateSelection": {
+      "type": "object",
+      "required": ["templateName"],
+      "additionalProperties": false,
+      "properties": {
+        "templateName": {
+          "enum": [
+            "hemas_canary_hello",
+            "hemas_welcome_visual",
+            "hemas_wellness_reminder",
+            "hemas_visit_summary_cta",
+            "hemas_lab_report_ready"
+          ]
+        },
+        "languageCode": {
+          "const": "en_US",
+          "default": "en_US"
+        },
+        "bodyParams": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "headerMedia": {
+          "$ref": "#/$defs/mediaDescriptor"
+        },
+        "ctaSuffix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._~/-]{1,256}$"
+        }
+      }
+    },
+    "mediaDescriptor": {
+      "type": "object",
+      "required": ["kind", "mimeType", "sizeBytes", "link"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["image", "video", "audio", "document"]
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "link": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "image" } } },
+          "then": {
+            "properties": {
+              "mimeType": { "enum": ["image/jpeg", "image/png"] },
+              "sizeBytes": { "maximum": 5242880 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "video" } } },
+          "then": {
+            "properties": {
+              "mimeType": { "enum": ["video/mp4", "video/3gpp"] },
+              "sizeBytes": { "maximum": 16777216 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "audio" } } },
+          "then": {
+            "properties": {
+              "mimeType": {
+                "enum": ["audio/aac", "audio/amr", "audio/mpeg", "audio/mp4", "audio/ogg"]
+              },
+              "sizeBytes": { "maximum": 16777216 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "document" } } },
+          "then": {
+            "properties": {
+              "mimeType": {
+                "enum": [
+                  "application/pdf",
+                  "application/msword",
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  "application/vnd.ms-excel",
+                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                  "application/vnd.ms-powerpoint",
+                  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                  "text/plain"
+                ]
+              },
+              "sizeBytes": { "maximum": 104857600 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

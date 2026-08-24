@@ -11,6 +11,11 @@ runConfig:
 # Local development is unaffected: `npm run dev` reads .env.local, and the
 # App Hosting emulator reads apphosting.emulator.yaml (gitignored).
 env:
+  - variable: NEXT_PUBLIC_UI_REVISION
+    value: "corporate-2026-08-22-v3"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_APP_STAGE
     value: uat
     availability:

@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, ChevronDown, Megaphone, Send, ShieldCheck, UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createLiteCampaignOperationId } from "@/components/lite/campaign-operation";
 import { useLiteAuth } from "@/components/lite/lite-auth";
@@ -9,6 +10,18 @@ import {
   useLiteCampaigns,
   useLiteContacts,
 } from "@/components/lite/lite-data";
+import {
+  LITE_BUTTON_PRIMARY,
+  LITE_BUTTON_SECONDARY,
+  LITE_FIELD,
+  LITE_PANEL,
+  LiteEmptyState,
+  LiteNotice,
+  LitePageHeader,
+  LiteSectionHeader,
+  LiteStatus,
+  liteCx,
+} from "@/components/lite/lite-ui";
 
 const TEMPLATES = [
   { value: "hemas_canary_hello", label: "hemas_canary_hello · text (en_US)" },
@@ -103,55 +116,77 @@ export default function LiteCampaignsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h1 className="text-xl font-semibold text-slate-900">Campaigns</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Governed WhatsApp canary templates — audience is limited to captured allowlisted
-          test contacts, with content-free delivery status tracking.
-        </p>
-      </section>
+    <div className="space-y-6">
+      <LitePageHeader
+        eyebrow="Outbound engagement"
+        title="Campaigns"
+        description="Prepare approved WhatsApp templates for captured allowlisted contacts and follow their content-free delivery status."
+        actions={
+          <LiteStatus tone={campaigns.error ? "danger" : campaigns.loading ? "neutral" : "brand"}>
+            {campaigns.error
+              ? "Unavailable"
+              : campaigns.loading
+                ? "Loading"
+                : `${campaigns.rows.length} campaigns`}
+          </LiteStatus>
+        }
+      />
 
-      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">New campaign</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-          <input
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              invalidateDraftOperation();
-            }}
-            maxLength={80}
-            placeholder="Campaign name — e.g. OPD reminder (Aug)"
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-          />
-          <select
-            value={template}
-            onChange={(event) => {
-              setTemplate(event.target.value);
-              invalidateDraftOperation();
-            }}
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-500"
-          >
-            {TEMPLATES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+      <section className={liteCx(LITE_PANEL, "p-5 sm:p-6")}>
+        <LiteSectionHeader
+          title="New campaign"
+          description="Build, review, and confirm one governed canary send."
+          icon={Megaphone}
+        />
+        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(240px,0.9fr)_minmax(320px,1.25fr)_auto]">
+          <label className="text-sm font-semibold text-[var(--lite-ink-secondary)]">
+            Campaign name
+            <input
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                invalidateDraftOperation();
+              }}
+              maxLength={80}
+              placeholder="Campaign name — e.g. OPD reminder (Aug)"
+              className={`${LITE_FIELD} mt-2`}
+            />
+          </label>
+          <label className="text-sm font-semibold text-[var(--lite-ink-secondary)]">
+            Approved template
+            <select
+              value={template}
+              onChange={(event) => {
+                setTemplate(event.target.value);
+                invalidateDraftOperation();
+              }}
+              className={`${LITE_FIELD} mt-2`}
+            >
+              {TEMPLATES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             disabled={pending || !canLaunch || name.trim().length < 3 || picked.size === 0}
             onClick={review}
-            className="rounded-xl bg-[#1863DC] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
+            className={`${LITE_BUTTON_PRIMARY} self-end`}
           >
+            <ShieldCheck size={17} aria-hidden="true" />
             Review campaign
           </button>
         </div>
-        <div className="mt-3">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Audience — pick contacts ({picked.size} selected)
-          </p>
+        <div className="mt-5 border-t border-[var(--lite-line)] pt-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <UsersRound size={17} className="text-[var(--lite-brand)]" aria-hidden="true" />
+            <p className="text-sm font-bold text-[var(--lite-ink-secondary)]">
+              Audience
+            </p>
+            <LiteStatus tone={picked.size > 0 ? "brand" : "neutral"}>{picked.size} selected</LiteStatus>
+          </div>
           <div className="flex flex-wrap gap-2">
             {audience.map((contact) => {
               const on = picked.has(contact.id);
@@ -159,19 +194,21 @@ export default function LiteCampaignsPage() {
                 <button
                   key={contact.id}
                   type="button"
+                  aria-pressed={on}
                   onClick={() => {
                     const next = new Set(picked);
                     if (on) next.delete(contact.id); else next.add(contact.id);
                     setPicked(next);
                     invalidateDraftOperation();
                   }}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                  className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-bold transition ${
                     on
-                      ? "bg-[#1863DC] text-white"
-                      : "border border-slate-200 text-slate-500 hover:bg-blue-50"
+                      ? "border-[var(--lite-brand)] bg-[var(--lite-brand)] text-white"
+                      : "border-[var(--lite-line)] bg-white text-[var(--lite-muted)] hover:border-[var(--lite-brand)]/35 hover:bg-[var(--lite-brand-soft)]"
                   }`}
                 >
-                  {on ? "\u2713 " : ""}{contact.label}
+                  {on ? <Check size={14} className="mr-1 inline" aria-hidden="true" /> : null}
+                  {contact.label}
                 </button>
               );
             })}
@@ -182,18 +219,27 @@ export default function LiteCampaignsPage() {
             ) : null}
           </div>
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
+        <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-[var(--lite-muted)]">
+          <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--lite-brand)]" aria-hidden="true" />
+          <span>
           The browser sends pseudonymous contact references, never phone numbers. The server resolves
           those references against the governed allowlist (max 5). Approved templates only.{" "}
           {!canLaunch ? "Broadcasts need the Supervisor seat — agents handle chats." : ""}
+          </span>
         </p>
         {reviewing ? (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3" role="alertdialog" aria-labelledby="campaign-review-title">
-            <p id="campaign-review-title" className="text-sm font-semibold text-amber-950">Confirm external WhatsApp send</p>
-            <p className="mt-1 text-xs leading-5 text-amber-900">
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5" role="region" aria-labelledby="campaign-review-title">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-800"><ShieldCheck size={19} aria-hidden="true" /></span>
+              <div>
+                <p id="campaign-review-title" className="font-display text-base font-bold text-amber-950">Confirm external WhatsApp send</p>
+                <p className="mt-0.5 text-xs text-amber-800">This action cannot be undone after dispatch.</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-amber-950">
               Send <strong>{template}</strong> to <strong>{picked.size}</strong> selected allowlisted test contact{picked.size === 1 ? "" : "s"}. Delivery cannot be undone.
             </p>
-            <p className="mt-1 text-[11px] leading-5 text-amber-800">
+            <p className="mt-1 text-xs leading-5 text-amber-800">
               This review has one server idempotency key. A timeout retry reuses it; changing the draft creates a new operation.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -201,15 +247,16 @@ export default function LiteCampaignsPage() {
                 type="button"
                 disabled={pending}
                 onClick={() => void launch()}
-                className="rounded-lg bg-amber-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-950 disabled:opacity-50"
               >
+                <Send size={16} aria-hidden="true" />
                 {pending ? "Sending…" : "Confirm and send"}
               </button>
               <button
                 type="button"
                 disabled={pending}
                 onClick={() => setReviewing(false)}
-                className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900"
+                className={`${LITE_BUTTON_SECONDARY} border-amber-300 text-amber-900`}
               >
                 Cancel
               </button>
@@ -217,56 +264,63 @@ export default function LiteCampaignsPage() {
           </div>
         ) : null}
         {notice ? (
-          <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-            {notice}
-          </p>
+          <div className="mt-4"><LiteNotice tone="info">{notice}</LiteNotice></div>
         ) : null}
       </section>
 
       {campaigns.error ? (
-        <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{campaigns.error}</p>
+        <LiteNotice tone="danger">Campaign history is temporarily unavailable.</LiteNotice>
       ) : null}
 
-      <section className="grid gap-3">
+      {campaigns.loading ? (
+        <section className="grid gap-4" aria-busy="true">
+          {[0, 1].map((row) => <div key={row} className="h-24 animate-pulse rounded-2xl bg-white" />)}
+        </section>
+      ) : null}
+
+      {campaigns.rows.length > 0 ? (
+        <LiteSectionHeader title="Campaign history" description="Open a campaign to review recipient delivery evidence." icon={Megaphone} />
+      ) : null}
+      <section className="grid gap-4">
         {campaigns.rows.map((campaign) => (
           <article
             key={campaign.id}
-            className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
-              selectedId === campaign.id ? "border-blue-300" : "border-blue-900/5"
-            }`}
+            className={liteCx(LITE_PANEL, "overflow-hidden transition", selectedId === campaign.id && "border-[var(--lite-brand)] ring-4 ring-[var(--lite-brand)]/8")}
           >
             <button
               type="button"
               onClick={() => setSelectedId(selectedId === campaign.id ? null : campaign.id)}
-              className="flex w-full flex-wrap items-center gap-2 text-left"
+              aria-expanded={selectedId === campaign.id}
+              className="flex min-h-20 w-full flex-wrap items-center gap-3 px-5 py-4 text-left transition hover:bg-[var(--lite-brand-soft)]/40"
             >
-              <span className="text-sm font-semibold text-slate-800">{campaign.name}</span>
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--lite-brand-soft)] text-[var(--lite-brand)]"><Megaphone size={18} aria-hidden="true" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="font-display block truncate text-[15px] font-bold text-[var(--lite-ink)]">{campaign.name}</span>
+                <span className="mt-1 block text-xs text-[var(--lite-muted)]">{campaign.templateName} · {campaign.sentCount}/{campaign.audienceCount} sent{campaign.failedCount > 0 ? ` · ${campaign.failedCount} failed` : ""}</span>
+              </span>
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${
                   STATUS_STYLE[campaign.status] ?? "bg-slate-100 text-slate-600"
                 }`}
               >
                 {campaign.status}
               </span>
-              <span className="text-[11px] text-slate-400">
-                {campaign.templateName} · {campaign.sentCount}/{campaign.audienceCount} sent
-                {campaign.failedCount > 0 ? ` · ${campaign.failedCount} failed` : ""}
-              </span>
-              <span className="ml-auto text-[11px] text-slate-400">{when(campaign.createdAtMs)}</span>
+              <span className="text-xs text-[var(--lite-muted)]">{when(campaign.createdAtMs)}</span>
+              <ChevronDown size={17} className={liteCx("text-[var(--lite-muted)] transition", selectedId === campaign.id && "rotate-180")} aria-hidden="true" />
             </button>
 
             {selectedId === campaign.id ? (
-              <div className="mt-3 border-t border-slate-100 pt-3">
+              <div className="border-t border-[var(--lite-line)] bg-[#fbfdfd] p-5">
                 {sends.loading ? (
-                  <p className="text-xs text-slate-400">Loading recipients…</p>
+                  <p className="text-sm text-[var(--lite-muted)]">Loading recipient evidence…</p>
                 ) : null}
-                <ul className="grid gap-1.5 sm:grid-cols-2">
+                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                   {sends.rows.map((send) => (
                     <li
                       key={send.id}
-                      className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2"
+                      className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--lite-line)] bg-white px-3.5 py-2.5"
                     >
-                      <span className="text-xs font-medium text-slate-700">···{send.toNumberLast4}</span>
+                      <span className="text-xs font-bold text-[var(--lite-ink-secondary)]">···{send.toNumberLast4}</span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
                           SEND_STATUS_STYLE[send.status] ?? "bg-slate-100 text-slate-500"
@@ -275,12 +329,14 @@ export default function LiteCampaignsPage() {
                         {send.status}
                       </span>
                       {send.errorCode ? (
-                        <span className="truncate text-[10px] text-rose-500">{send.errorCode}</span>
+                        <span className="truncate text-[11px] text-rose-600">{send.errorCode}</span>
                       ) : null}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-[10px] text-slate-400">
+                {!sends.loading && sends.rows.length === 0 ? <p className="text-sm text-[var(--lite-muted)]">No recipient evidence has been recorded.</p> : null}
+                <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-[var(--lite-muted)]">
+                  <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[var(--lite-brand)]" aria-hidden="true" />
                   Statuses update live from Meta delivery receipts. Records are content-free —
                   masked number, status and template name only.
                 </p>
@@ -291,7 +347,7 @@ export default function LiteCampaignsPage() {
       </section>
 
       {!campaigns.loading && campaigns.rows.length === 0 && !campaigns.error ? (
-        <p className="text-xs text-slate-400">No campaigns yet — send the first one above.</p>
+        <div className={LITE_PANEL}><LiteEmptyState icon={Megaphone} title="No campaigns yet" description="Prepare and review the first governed canary campaign above." /></div>
       ) : null}
     </div>
   );

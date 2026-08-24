@@ -46,6 +46,19 @@ service cloud.firestore {
     //   phoneLookupHmac, encryptedPhoneRef, encryptedDisplayNameRef and
     //   externalPatientRef. Every direct client read and write is denied.
     //
+    // conversations/{conversationId}/protectedMessageContents/{contentId}
+    // stores short-lived canary text separately from staff-readable message
+    // metadata. It carries workspace/team/location scope, a deterministic
+    // message binding, bounded text, integrity hash and native expiry
+    // timestamps. Every browser read and write is denied; a purpose-bound
+    // backend callable rechecks current membership, scope and assignment and
+    // writes content-free access evidence before returning any text.
+    // protectedMessageAccessAudits/{auditId} stores deterministic per-seat,
+    // per-conversation, per-minute content-free access evidence for 90 days.
+    // protectedMessageAccessQuotas/{quotaId} stores a five-minute, content-free
+    // fixed-window counter enforcing six protected reads per seat per minute.
+    // Both collections are entirely backend-owned.
+    //
     // templates/{versionId} and flows/{versionId} are singular-language,
     // synthetic SafeNet-demo catalogue versions. Local lifecycle is separate
     // from provider submission/approval evidence. Provider IDs are null and
@@ -2753,6 +2766,58 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
 
+      // --- Enterprise bulk gateway (synthetic lane) -----------------------
+      // Job and item ledgers are content-free read models: hashed recipient
+      // + last4, template name, opaque client_reference and counters only.
+      // Written exclusively by trusted backend writers.
+
+      match /enterprise_bulk_jobs/{jobId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == jobId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /enterprise_bulk_job_items/{itemId} {
+        allow get: if activeWorkspaceMember(workspaceId) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == itemId &&
+          resource.data.containsMessageContent == false;
+        allow list: if activeWorkspaceMember(workspaceId) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      match /enterprise_callback_endpoints/{endpointId} {
+        // Customer webhook destinations are an admin configuration surface.
+        // The paired signing secret never appears in this document.
+        allow get: if hasRole(workspaceId, ['tenant_admin']) &&
+          isSameWorkspace(resource.data, workspaceId) &&
+          resource.data.id == endpointId;
+        allow list: if hasRole(workspaceId, ['tenant_admin']) && isBoundedList();
+        allow create, update, delete: if false;
+      }
+
+      // Recipient digits, HMAC signing keys, wamid routing receipts and
+      // signed delivery payloads (which may carry protected reply text) are
+      // Admin-SDK-only control-plane data.
+      match /enterprise_bulk_item_secrets/{itemId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /enterprise_bulk_send_receipts/{receiptId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /enterprise_callback_secrets/{endpointId} {
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /enterprise_callback_deliveries/{deliveryId} {
+        allow get, list, create, update, delete: if false;
+      }
+
       match /whatsappConnections/{connectionId} {
         allow get: if canReadDemoConnectionCentre(workspaceId) &&
           connectionId == 'connection_demo_simulator' &&
@@ -2836,6 +2901,13 @@ service cloud.firestore {
           resource.data.id == conversationId;
         allow list: if canListScopedPatientData(workspaceId, resource.data);
         allow create, update, delete: if false;
+
+        match /protectedMessageContents/{contentId} {
+          // Message text is never a direct Firestore browser surface. Admin SDK
+          // callers bypass Rules and must enforce current tenant, role, scope,
+          // assignment, schema, expiry and retrieval-audit controls.
+          allow get, list, create, update, delete: if false;
+        }
       }
 
       match /messages/{messageId} {
@@ -2843,6 +2915,18 @@ service cloud.firestore {
           resource.data.id == messageId;
         allow list: if canListScopedPatientData(workspaceId, resource.data);
         allow create, update, delete: if false;
+      }
+
+      match /protectedMessageAccessAudits/{auditId} {
+        // Content access evidence is immutable and never client-authored or
+        // directly client-readable.
+        allow get, list, create, update, delete: if false;
+      }
+
+      match /protectedMessageAccessQuotas/{quotaId} {
+        // Per-seat fixed-window counters are trusted backend concurrency and
+        // abuse controls. Browsers cannot inspect, reset or inflate them.
+        allow get, list, create, update, delete: if false;
       }
 
       match /handoffSessions/{handoffId} {

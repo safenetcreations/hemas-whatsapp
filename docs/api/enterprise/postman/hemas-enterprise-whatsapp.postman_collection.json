@@ -1,0 +1,208 @@
+{
+  "info": {
+    "_postman_id": "a7c4f6a2-2f6e-4d5c-9a1b-hemas-ent-demo",
+    "name": "Hemas Connect Enterprise WhatsApp Gateway (demo)",
+    "description": "Governed bulk WhatsApp gateway against the synthetic provider lane.\n\nAuth: every request needs a Firebase Auth ID token (bearer) for an operator holding the enterprise gateway claim and an active workspace membership. In the emulator, mint one via the seeded demo admin.\n\nIdempotency: mutating requests require an Idempotency-Key header (16-128 chars of [A-Za-z0-9._:-]). Identical replays return the recorded result with idempotent=true; divergent replays are 409 operation_conflict.\n\nCallback signing: webhooks are signed with HMAC-SHA256 over '{timestampMs}.{eventId}.{rawBody}'. Verify X-Hemas-Signature-256 (sha256=<hex>) with a constant-time compare; deduplicate on X-Hemas-Event-Id.\n\nBoundary: no live provider lane exists pre-Addendum; non-synthetic dispatch fails closed with live_dispatch_unavailable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5001/demo-hemas-connect/us-central1/enterpriseWhatsappApi",
+      "type": "string"
+    },
+    { "key": "idToken", "value": "", "type": "string" },
+    { "key": "idempotencyKey", "value": "", "type": "string" },
+    { "key": "jobId", "value": "", "type": "string" },
+    { "key": "signingKey", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{idToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Submit bulk job",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.collectionVariables.get('idempotencyKey')) {",
+              "  pm.collectionVariables.set('idempotencyKey', 'bulk-' + pm.variables.replaceIn('{{$guid}}'));",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('202 accepted', () => pm.response.to.have.status(202));",
+              "const body = pm.response.json();",
+              "pm.test('job id shape', () => pm.expect(body.jobId).to.match(/^bulkjob_[0-9a-f]{24}$/));",
+              "pm.test('counts sum to itemCount', () => {",
+              "  pm.expect(body.queuedCount + body.sentCount + body.notSentCount + body.suppressedCount)",
+              "    .to.eql(body.itemCount);",
+              "});",
+              "pm.collectionVariables.set('jobId', body.jobId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/whatsapp/bulk-jobs",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "whatsapp", "bulk-jobs"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"clientBatchId\": \"batch_demo_20260824_001\",\n  \"template\": {\n    \"templateName\": \"hemas_visit_summary_cta\",\n    \"bodyParams\": [\"Amara\"],\n    \"ctaSuffix\": \"visits/v-2026-08-0042\"\n  },\n  \"items\": [\n    { \"to\": \"+94771234567\", \"clientReference\": \"crm-0001\" },\n    { \"to\": \"+94770000001\", \"clientReference\": \"crm-0002\" }\n  ]\n}"
+        },
+        "description": "Accepts 1-1,000 items. Duplicate recipients or client references and oversized batches are rejected, never truncated. Replaying the identical body under the same Idempotency-Key returns the recorded result."
+      }
+    },
+    {
+      "name": "Get bulk job",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 ok', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('terminal or dispatching status', () => {",
+              "  pm.expect(['accepted', 'dispatching', 'completed', 'completed_partial']).to.include(body.status);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/whatsapp/bulk-jobs/{{jobId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "whatsapp", "bulk-jobs", "{{jobId}}"]
+        },
+        "description": "Snapshot of the job ledger summary. Counts always sum to itemCount."
+      }
+    },
+    {
+      "name": "Configure callbacks",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('idempotencyKey', 'cbcfg-' + pm.variables.replaceIn('{{$guid}}'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 ok', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('signing key returned once', () => pm.expect(body.signingKey).to.match(/^[A-Za-z0-9+/]{43}=$/));",
+              "pm.collectionVariables.set('signingKey', body.signingKey);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/whatsapp/callbacks",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "whatsapp", "callbacks"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"dlrUrl\": \"https://api.hemas-crm.example/webhooks/dlr\",\n  \"replyUrl\": \"https://api.hemas-crm.example/webhooks/replies\"\n}"
+        },
+        "description": "Sets customer webhook destinations (null disables a stream; at least one required). Rotates and returns the HMAC signing key exactly once — store it immediately."
+      }
+    },
+    {
+      "name": "Verify a callback signature (worked example)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Demonstrates consumer-side verification with the collection's signingKey.",
+              "const signingKey = pm.collectionVariables.get('signingKey') || 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=';",
+              "const eventId = 'evt_' + '0'.repeat(32);",
+              "const timestampMs = Date.now().toString();",
+              "const rawBody = JSON.stringify({ event: 'whatsapp.dlr.v1', eventId, occurredAtMs: Number(timestampMs), data: { clientBatchId: 'batch_demo_20260824_001', clientReference: 'crm-0001', providerMessageId: 'wamid.SYN-example00000000', status: 'delivered', recipientLast4: '4567' } });",
+              "const base = `${timestampMs}.${eventId}.${rawBody}`;",
+              "const key = CryptoJS.enc.Base64.parse(signingKey);",
+              "const signature = 'sha256=' + CryptoJS.HmacSHA256(base, key).toString(CryptoJS.enc.Hex);",
+              "pm.collectionVariables.set('exampleSignature', signature);",
+              "pm.collectionVariables.set('exampleEventId', eventId);",
+              "pm.collectionVariables.set('exampleTimestamp', timestampMs);",
+              "pm.collectionVariables.set('exampleBody', rawBody);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Recompute exactly as your webhook consumer must, then compare.",
+              "const echoed = pm.response.json();",
+              "const signature = echoed.headers['x-hemas-signature-256'];",
+              "const timestampMs = echoed.headers['x-hemas-timestamp'];",
+              "const eventId = echoed.headers['x-hemas-event-id'];",
+              "const rawBody = pm.collectionVariables.get('exampleBody');",
+              "const signingKey = pm.collectionVariables.get('signingKey') || 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=';",
+              "const key = CryptoJS.enc.Base64.parse(signingKey);",
+              "const expected = 'sha256=' + CryptoJS.HmacSHA256(`${timestampMs}.${eventId}.${rawBody}`, key).toString(CryptoJS.enc.Hex);",
+              "pm.test('signature verifies', () => pm.expect(signature).to.eql(expected));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Hemas-Signature-256", "value": "{{exampleSignature}}" },
+          { "key": "X-Hemas-Event-Id", "value": "{{exampleEventId}}" },
+          { "key": "X-Hemas-Timestamp", "value": "{{exampleTimestamp}}" }
+        ],
+        "url": {
+          "raw": "https://postman-echo.com/post",
+          "protocol": "https",
+          "host": ["postman-echo", "com"],
+          "path": ["post"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{{exampleBody}}"
+        },
+        "description": "Round-trips a signed example through postman-echo and verifies it the way a consumer must: HMAC-SHA256 over '{timestampMs}.{eventId}.{rawBody}' with the base64 signing key, compared against X-Hemas-Signature-256."
+      }
+    }
+  ]
+}

@@ -5,8 +5,8 @@
  * the governed live canary line. Design rules:
  *
  * - Selections only: every branch is driven by interactive button/list IDs.
- *   Free text is never stored anywhere (the webhook already hashes bodies);
- *   the engine only inspects it in-memory for language/menu keywords.
+ *   The engine only inspects free text in-memory for language/menu keywords;
+ *   any protected canary retention is handled outside the session model.
  * - No medical advice, no diagnosis, no real bookings — every confirmation
  *   is explicitly labelled a demonstration.
  * - Pure function: (session, inbound) -> replies + next session (+ booking).
@@ -68,8 +68,9 @@ export interface BotResult {
   readonly staffHandoff: boolean;
   /**
    * Free text the menu engine could not route (the fallback path). The
-   * webhook may hand it to the governed AI layer for a real answer; it is
-   * never stored — same in-memory-only discipline as keyword matching.
+   * webhook may hand it to the governed AI layer for a real answer. It is
+   * never stored in this session; protected canary retention is handled at
+   * the webhook/send boundary.
    */
   readonly aiQuery: string | null;
 }

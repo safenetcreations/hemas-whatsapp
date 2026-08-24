@@ -226,6 +226,46 @@ describe("Firestore read-repository input boundaries", () => {
       agentReply: true,
     });
 
+    const automatedMessage = buildLiveMessageDocument({
+      messageId: "message_live_2222222222222222",
+      contactId: ids.contactId,
+      conversationId: ids.conversationId,
+      message: {
+        ...inbound,
+        direction: "outbound",
+        automationSource: "governed_ai",
+      },
+      nowMs,
+    });
+    expect(
+      parseMessageMetadataDocument(
+        {
+          ...automatedMessage,
+          status: "read",
+          deliveredAt: messageTimestamp,
+          deliveryUpdatedAt: messageTimestamp,
+        },
+        "message_live_2222222222222222",
+        "workspace_safenet_demo",
+      ),
+    ).toMatchObject({
+      status: "read",
+      automationSource: "governed_ai",
+      deliveredAt: "2026-08-07T12:30:00.000Z",
+      deliveryUpdatedAt: "2026-08-07T12:30:00.000Z",
+    });
+    expect(() =>
+      parseMessageMetadataDocument(
+        {
+          ...automatedMessage,
+          automationSource: "governed_ai",
+          actorId: "agent-a",
+        },
+        "message_live_2222222222222222",
+        "workspace_safenet_demo",
+      ),
+    ).toThrowError(expect.objectContaining({ code: "invalid_data" }));
+
     expect(() =>
       parseContactDocument(
         { ...contact, liveCanary: false },

@@ -676,6 +676,16 @@
       "indexes": []
     },
     {
+      "collectionGroup": "protectedMessageContents",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "protectedMessageContents",
+      "fieldPath": "bodySha256",
+      "indexes": []
+    },
+    {
       "collectionGroup": "campaigns",
       "fieldPath": "templateVersionIds",
       "indexes": []
@@ -962,6 +972,24 @@
     },
     {
       "collectionGroup": "canary_inbound_return_routes",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "protectedMessageContents",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "protectedMessageAccessAudits",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "protectedMessageAccessQuotas",
       "fieldPath": "expireAt",
       "ttl": true,
       "indexes": []

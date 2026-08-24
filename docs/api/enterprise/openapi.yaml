@@ -1,0 +1,547 @@
+openapi: 3.1.0
+info:
+  title: Hemas Connect Enterprise WhatsApp Gateway
+  version: 0.1.0-demo
+  description: |
+    Governed bulk WhatsApp gateway proposed in the Enterprise Technical Proof
+    Pack, implemented against the synthetic provider lane only.
+
+    **Boundary.** This specification documents the demo/UAT surface. No live
+    provider dispatch exists in this codebase; a live lane requires the
+    Enterprise Technical Addendum. Requests that would need a live provider
+    fail closed with `live_dispatch_unavailable`.
+
+    **Idempotency.** Every mutating request requires an `Idempotency-Key`
+    header (16-128 chars of `[A-Za-z0-9._:-]`). Replaying the identical
+    payload returns the original result with `idempotent: true`; replaying a
+    different payload under the same key is a `409 operation_conflict`.
+
+    **Bulk semantics.** One job accepts 1-1,000 recipient items and fans out
+    as individually ledgered provider sends. Meta documents one `to` value
+    per send; there is no recipient-array provider call. Oversized batches
+    and duplicate recipients or client references are rejected, never
+    truncated or deduplicated.
+
+    **Custom key recovery.** Each item carries an opaque `clientReference`.
+    It is echoed in every `whatsapp.dlr.v1` callback for that item, which is
+    how a customer system correlates delivery status without storing
+    recipient numbers.
+
+    **Callback signing.** Outbound webhooks are signed with
+    HMAC-SHA256 over `"{timestampMs}.{eventId}.{rawBody}"` using the
+    32-byte key returned once at configuration time. Verify with a
+    constant-time comparison against the `X-Hemas-Signature-256` header
+    (`sha256=<hex>`), and reject events older than your replay window.
+  contact:
+    name: Safe Net Creations — Hemas Connect
+  license:
+    name: Proprietary — Safe Net Creations (Enterprise Technical Addendum draft)
+    url: https://demo.hemas-connect.example/license
+servers:
+  - url: http://127.0.0.1:5001/demo-hemas-connect/us-central1/enterpriseWhatsappApi
+    description: Firebase emulator (synthetic provider, governed demo data)
+  - url: https://addendum-pending.invalid
+    description: Production endpoint — assigned only under the Enterprise Technical Addendum
+security:
+  - firebaseIdToken: []
+tags:
+  - name: Bulk Jobs
+    description: Asynchronous bulk template send jobs with an item ledger.
+  - name: Callbacks
+    description: Customer-configurable DLR and inbound-reply webhook routing.
+paths:
+  /v1/whatsapp/bulk-jobs:
+    post:
+      tags: [Bulk Jobs]
+      operationId: submitBulkJob
+      summary: Submit a bulk template send job
+      description: |
+        Validates the whole batch atomically, reserves the job under the
+        Idempotency-Key, writes one ledger item per recipient and queues
+        asynchronous dispatch. Returns `202` with the job snapshot.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkJobRequest"
+            examples:
+              visitSummaryCta:
+                summary: 2 recipients, dynamic-URL CTA template
+                value:
+                  clientBatchId: batch_demo_20260824_001
+                  template:
+                    templateName: hemas_visit_summary_cta
+                    bodyParams: ["Amara"]
+                    ctaSuffix: visits/v-2026-08-0042
+                  items:
+                    - to: "+94771234567"
+                      clientReference: crm-0001
+                    - to: "+94770000001"
+                      clientReference: crm-0002
+      responses:
+        "202":
+          description: Job accepted (or identical replay of an accepted job).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkJobResult"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/OperationConflict"
+        "503":
+          $ref: "#/components/responses/LiveDispatchUnavailable"
+  /v1/whatsapp/bulk-jobs/{jobId}:
+    get:
+      tags: [Bulk Jobs]
+      operationId: getBulkJob
+      summary: Read a bulk job snapshot
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^bulkjob_[0-9a-f]{24}$"
+      responses:
+        "200":
+          description: Current job snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkJobResult"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Unknown job id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /v1/whatsapp/callbacks:
+    put:
+      tags: [Callbacks]
+      operationId: configureCallbacks
+      summary: Configure DLR and reply callback URLs
+      description: |
+        Sets the customer-owned webhook destinations. Each stream is
+        independently configurable; `null` disables a stream. Every
+        successful call rotates the signing secret and returns the new key
+        exactly once — it is never readable again.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallbackConfigRequest"
+      responses:
+        "200":
+          description: Configuration stored; signing key returned once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallbackConfigResult"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+webhooks:
+  whatsappDlr:
+    post:
+      tags: [Callbacks]
+      operationId: onWhatsappDlr
+      summary: Delivery status callback (whatsapp.dlr.v1)
+      description: |
+        Sent to the configured `dlrUrl` for every normalized delivery status
+        of a bulk item, echoing the item's `clientReference`. Delivery status
+        only advances (`sent` → `delivered` → `read`); `failed` is terminal.
+        Retries use the delivery's `eventId`, so consumers deduplicate on it.
+      parameters:
+        - $ref: "#/components/parameters/SignatureHeader"
+        - $ref: "#/components/parameters/EventIdHeader"
+        - $ref: "#/components/parameters/TimestampHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DlrCallbackEvent"
+      responses:
+        "2XX":
+          description: Acknowledge within 10s; any 2xx completes the delivery.
+  whatsappReply:
+    post:
+      tags: [Callbacks]
+      operationId: onWhatsappReply
+      summary: Inbound reply callback (whatsapp.reply.v1)
+      description: |
+        Sent to the configured `replyUrl` for inbound replies. The payload is
+        content-free by default: `text` is non-null only when the governed
+        protected-inbox policy allows it (public inbound OFF and the sender
+        is an allowlisted tester).
+      parameters:
+        - $ref: "#/components/parameters/SignatureHeader"
+        - $ref: "#/components/parameters/EventIdHeader"
+        - $ref: "#/components/parameters/TimestampHeader"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplyCallbackEvent"
+      responses:
+        "2XX":
+          description: Acknowledge within 10s; any 2xx completes the delivery.
+components:
+  securitySchemes:
+    firebaseIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Firebase Auth ID token for a verified operator identity holding the
+        enterprise gateway claim and an active scoped workspace membership.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._:-]{16,128}$"
+      description: Binds this exact payload to a durable, replayable operation.
+    SignatureHeader:
+      name: X-Hemas-Signature-256
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: "^sha256=[0-9a-f]{64}$"
+      description: HMAC-SHA256 over `"{timestampMs}.{eventId}.{rawBody}"`.
+    EventIdHeader:
+      name: X-Hemas-Event-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: "^evt_[0-9a-f]{32}$"
+    TimestampHeader:
+      name: X-Hemas-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9]{13}$"
+      description: Epoch milliseconds at signing time.
+  responses:
+    ValidationError:
+      description: The request violates the intake contract.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            batchTooLarge:
+              value:
+                error: batch_too_large
+                message: Bulk jobs accept at most 1000 items.
+            duplicateRecipient:
+              value:
+                error: duplicate_recipient
+                message: Bulk jobs cannot address the same recipient twice.
+    AuthenticationRequired:
+      description: Missing or unverifiable bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Verified identity without the gateway claim or membership.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    OperationConflict:
+      description: Idempotency-Key already bound to a different payload, or the job is mid-flight.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    LiveDispatchUnavailable:
+      description: A non-synthetic provider mode was requested; no live lane exists pre-Addendum.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error, message]
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_idempotency_key
+            - invalid_client_batch_id
+            - invalid_template
+            - invalid_items
+            - batch_too_large
+            - invalid_recipient
+            - duplicate_recipient
+            - invalid_client_reference
+            - duplicate_client_reference
+            - invalid_variables
+            - operation_conflict
+            - operation_in_progress
+            - invalid_evidence
+            - job_not_found
+            - authentication_required
+            - forbidden
+            - live_dispatch_unavailable
+            - invalid_callback_config
+            - invalid_callback_url
+            - method_not_allowed
+        message:
+          type: string
+    BulkJobRequest:
+      type: object
+      required: [clientBatchId, template, items]
+      additionalProperties: false
+      properties:
+        clientBatchId:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{8,64}$"
+          description: Customer-side batch label, echoed in results and DLRs.
+        template:
+          $ref: "#/components/schemas/TemplateSelection"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/BulkItem"
+    BulkItem:
+      type: object
+      required: [to, clientReference]
+      additionalProperties: false
+      properties:
+        to:
+          type: string
+          description: Recipient in E.164 (with or without `+`). Never stored raw; the ledger keeps a salted hash and last four digits.
+          examples: ["+94771234567"]
+        clientReference:
+          type: string
+          pattern: "^[A-Za-z0-9._:-]{1,128}$"
+          description: Opaque customer key echoed in every DLR for this item.
+    TemplateSelection:
+      type: object
+      required: [templateName]
+      additionalProperties: false
+      properties:
+        templateName:
+          type: string
+          enum:
+            - hemas_canary_hello
+            - hemas_welcome_visual
+            - hemas_wellness_reminder
+            - hemas_visit_summary_cta
+            - hemas_lab_report_ready
+          description: Governed catalogue only; free-form templates are rejected.
+        languageCode:
+          type: string
+          enum: [en_US]
+          default: en_US
+        bodyParams:
+          type: array
+          maxItems: 3
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+          description: Must match the template's declared parameter count exactly.
+        headerMedia:
+          $ref: "#/components/schemas/MediaDescriptor"
+        ctaSuffix:
+          type: string
+          pattern: "^[A-Za-z0-9._~/-]{1,256}$"
+          description: |
+            Dynamic-URL button suffix appended to the template's fixed HTTPS
+            base URL. Accepted only for templates that declare a dynamic URL
+            button; path re-anchoring (`..`, leading `/`, `//`) is rejected.
+    MediaDescriptor:
+      type: object
+      required: [kind, mimeType, sizeBytes, link]
+      additionalProperties: false
+      description: |
+        Declared media checked against the WhatsApp Cloud API acceptance
+        matrix. Template headers accept image, video and document; audio is
+        valid only for session media messages, never template headers.
+      properties:
+        kind:
+          type: string
+          enum: [image, video, audio, document]
+        mimeType:
+          type: string
+          description: |
+            image: image/jpeg, image/png (≤5 MiB).
+            video: video/mp4, video/3gpp (≤16 MiB).
+            audio: audio/aac, audio/amr, audio/mpeg, audio/mp4, audio/ogg (≤16 MiB).
+            document: pdf, doc(x), xls(x), ppt(x), text/plain (≤100 MiB).
+        sizeBytes:
+          type: integer
+          minimum: 1
+        link:
+          type: string
+          format: uri
+          description: Public HTTPS URL without credentials; private hosts rejected.
+    BulkJobResult:
+      type: object
+      required:
+        - jobId
+        - clientBatchId
+        - status
+        - itemCount
+        - queuedCount
+        - sentCount
+        - notSentCount
+        - suppressedCount
+        - idempotent
+      additionalProperties: false
+      properties:
+        jobId:
+          type: string
+          pattern: "^bulkjob_[0-9a-f]{24}$"
+        clientBatchId:
+          type: string
+        status:
+          type: string
+          enum: [accepted, dispatching, completed, completed_partial]
+        itemCount:
+          type: integer
+          minimum: 1
+        queuedCount:
+          type: integer
+          minimum: 0
+        sentCount:
+          type: integer
+          minimum: 0
+        notSentCount:
+          type: integer
+          minimum: 0
+        suppressedCount:
+          type: integer
+          minimum: 0
+        idempotent:
+          type: boolean
+          description: True when this response replays a previously recorded result.
+    CallbackConfigRequest:
+      type: object
+      required: [dlrUrl, replyUrl]
+      additionalProperties: false
+      properties:
+        dlrUrl:
+          type: ["string", "null"]
+          format: uri
+          description: Public HTTPS destination for whatsapp.dlr.v1, or null to disable.
+        replyUrl:
+          type: ["string", "null"]
+          format: uri
+          description: Public HTTPS destination for whatsapp.reply.v1, or null to disable.
+    CallbackConfigResult:
+      type: object
+      required: [endpointId, dlrUrl, replyUrl, secretVersion, signingKey]
+      additionalProperties: false
+      properties:
+        endpointId:
+          type: string
+          pattern: "^cbend_[0-9a-f]{20}$"
+        dlrUrl:
+          type: ["string", "null"]
+        replyUrl:
+          type: ["string", "null"]
+        secretVersion:
+          type: integer
+          minimum: 1
+        signingKey:
+          type: string
+          pattern: "^[A-Za-z0-9+/]{43}=$"
+          description: Base64 32-byte HMAC key. Returned exactly once per rotation.
+    DlrCallbackEvent:
+      type: object
+      required: [event, eventId, occurredAtMs, data]
+      additionalProperties: false
+      properties:
+        event:
+          const: whatsapp.dlr.v1
+        eventId:
+          type: string
+          pattern: "^evt_[0-9a-f]{32}$"
+        occurredAtMs:
+          type: integer
+        data:
+          type: object
+          required:
+            - clientBatchId
+            - clientReference
+            - providerMessageId
+            - status
+            - recipientLast4
+          additionalProperties: false
+          properties:
+            clientBatchId:
+              type: string
+            clientReference:
+              type: string
+              description: The exact opaque key supplied on the bulk item.
+            providerMessageId:
+              type: string
+            status:
+              type: string
+              enum: [sent, delivered, read, failed]
+            recipientLast4:
+              type: string
+              pattern: "^[0-9]{4}$"
+    ReplyCallbackEvent:
+      type: object
+      required: [event, eventId, occurredAtMs, data]
+      additionalProperties: false
+      properties:
+        event:
+          const: whatsapp.reply.v1
+        eventId:
+          type: string
+          pattern: "^evt_[0-9a-f]{32}$"
+        occurredAtMs:
+          type: integer
+        data:
+          type: object
+          required: [conversationKey, senderLast4, messageType, text]
+          additionalProperties: false
+          properties:
+            conversationKey:
+              type: string
+              pattern: "^[0-9a-f]{10}$"
+              description: Stable opaque key for the sender's conversation; never a phone number.
+            senderLast4:
+              type: string
+              pattern: "^[0-9]{4}$"
+            messageType:
+              type: string
+              pattern: "^[a-z_]{2,32}$"
+            text:
+              type: ["string", "null"]
+              maxLength: 1024
+              description: Present only under the protected-inbox eligibility policy.

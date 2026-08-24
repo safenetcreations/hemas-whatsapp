@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.hemas-connect.example/schemas/callback-config-request.schema.json",
+  "title": "Hemas Enterprise callback configuration request",
+  "description": "PUT /v1/whatsapp/callbacks body. Both keys are required; null disables a stream; at least one stream must be configured. Destinations must be public HTTPS without credentials or fragments. Every successful call rotates the HMAC signing secret, which is returned exactly once in the response.",
+  "type": "object",
+  "required": ["dlrUrl", "replyUrl"],
+  "additionalProperties": false,
+  "properties": {
+    "dlrUrl": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 512
+    },
+    "replyUrl": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 512
+    }
+  },
+  "anyOf": [
+    { "properties": { "dlrUrl": { "type": "string" } } },
+    { "properties": { "replyUrl": { "type": "string" } } }
+  ]
+}

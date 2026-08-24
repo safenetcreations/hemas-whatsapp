@@ -29,8 +29,20 @@ import {
   sendDocIdForWamid,
   shouldAdvanceSendStatus,
 } from "../lite/campaigns.js";
-import { LITE_REPLY_OPERATIONS_COLLECTION } from "../lite/contracts.js";
+import {
+  LITE_LOCATION_ID,
+  LITE_REPLY_OPERATIONS_COLLECTION,
+  LITE_TEAM_ID,
+} from "../lite/contracts.js";
 import { METRICS_COLLECTION, metricsDayId } from "../lite/metrics.js";
+import {
+  LITE_PROTECTED_MESSAGE_CONTENTS_COLLECTION,
+  LITE_PROTECTED_MESSAGE_RETENTION_ENV,
+  buildProtectedMessageContentDocument,
+  extractProtectedOutboundContent,
+  protectedBotEffectContentId,
+  type ExtractedProtectedMessageContent,
+} from "../lite/protected-messages.js";
 import {
   META_CANARY_INBOUND_COLLECTION,
   META_CANARY_OUTBOUND_COLLECTION,
@@ -177,6 +189,100 @@ function outbox(db: Firestore) {
   return workspace(db).collection(META_CANARY_OUTBOX_COLLECTION);
 }
 
+type ProtectedBotDispatchContent = ExtractedProtectedMessageContent & {
+  readonly source: "menu_bot" | "governed_ai";
+};
+
+const PROTECTED_RETENTION_DAY_MS = 24 * 60 * 60 * 1_000;
+
+function protectedBotSource(
+  replySource: "ai_transient" | "durable",
+): ProtectedBotDispatchContent["source"] {
+  return replySource === "ai_transient" ? "governed_ai" : "menu_bot";
+}
+
+function sameProtectedDocumentValue(left: unknown, right: unknown): boolean {
+  if (left instanceof Timestamp || right instanceof Timestamp) {
+    return left instanceof Timestamp &&
+      right instanceof Timestamp &&
+      left.toMillis() === right.toMillis();
+  }
+  return left === right;
+}
+
+/**
+ * Validate an existing reservation without projecting or logging its text.
+ * Rebuilding the exact document also verifies its hash, retention window,
+ * provenance flags, and complete key set.
+ */
+function assertReservedProtectedBotContent(input: {
+  readonly raw: unknown;
+  readonly id: string;
+  readonly conversationId: string;
+  readonly source: ProtectedBotDispatchContent["source"];
+  readonly nowMs: number;
+  readonly expectedContent?: ExtractedProtectedMessageContent;
+  readonly allowExpired?: boolean;
+}): { readonly expired: boolean } {
+  const data = asRecord(input.raw);
+  try {
+    const expired =
+      typeof data?.expiresAtMs === "number" &&
+      data.expiresAtMs <= input.nowMs;
+    if (
+      !data ||
+      !(data.createdAt instanceof Timestamp) ||
+      !(data.updatedAt instanceof Timestamp) ||
+      !(data.expireAt instanceof Timestamp) ||
+      typeof data.expiresAtMs !== "number" ||
+      !Number.isSafeInteger(data.expiresAtMs) ||
+      data.expiresAtMs !== data.expireAt.toMillis() ||
+      data.updatedAt.toMillis() > input.nowMs ||
+      (!input.allowExpired && expired)
+    ) {
+      throw new Error("invalid_timestamps");
+    }
+    const createdAtMs = data.createdAt.toMillis();
+    const retentionDays =
+      (data.expiresAtMs - createdAtMs) / PROTECTED_RETENTION_DAY_MS;
+    const actualContent = input.expectedContent ?? {
+      contentKind: data.contentKind as ExtractedProtectedMessageContent["contentKind"],
+      text: data.text as string,
+    };
+    const expected = buildProtectedMessageContentDocument({
+      id: input.id,
+      workspaceId: META_CANARY_WORKSPACE_ID,
+      conversationId: input.conversationId,
+      messageId: null,
+      direction: "outbound",
+      source: input.source,
+      contentKind: actualContent.contentKind,
+      text: actualContent.text,
+      teamId: LITE_TEAM_ID,
+      locationId: LITE_LOCATION_ID,
+      state: "reserved",
+      createdAtMs,
+      nowMs: data.updatedAt.toMillis(),
+      retentionDays,
+    });
+    const expectedRecord = expected as unknown as Record<string, unknown>;
+    const actualKeys = Object.keys(data).sort();
+    const expectedKeys = Object.keys(expectedRecord).sort();
+    if (
+      actualKeys.length !== expectedKeys.length ||
+      actualKeys.some((key, index) => key !== expectedKeys[index]) ||
+      expectedKeys.some((key) =>
+        !sameProtectedDocumentValue(data[key], expectedRecord[key])
+      )
+    ) {
+      throw new Error("document_mismatch");
+    }
+    return { expired };
+  } catch {
+    throw new Error("protected_bot_content_invalid");
+  }
+}
+
 /**
  * Read only the current automation gates needed before any inbound text can be
  * sent to the AI provider. No message body is accepted or returned here.
@@ -246,6 +352,90 @@ function requiredMs(value: unknown, label: string): number {
     throw new Error(`invalid_${label}`);
   }
   return value;
+}
+
+export type CanaryPortalMessageProjectionTarget = {
+  readonly messageId: string;
+  readonly agentReply: boolean;
+  readonly automationSource?: "menu_bot" | "governed_ai";
+};
+
+/** Resolve a provider route to the content-free portal message it represents. */
+export function canaryPortalMessageProjectionTarget(input: {
+  readonly targetKind:
+    | "manual_template"
+    | "meta_outbox_effect"
+    | "lite_agent_reply"
+    | "lite_booking_notification";
+  readonly targetId: string;
+  readonly target: unknown;
+  readonly providerMessageRef: string;
+}): CanaryPortalMessageProjectionTarget | null {
+  if (input.targetKind === "lite_agent_reply") {
+    return {
+      messageId: `message_live_${sha256Hex(`${input.targetId}:agent`).slice(0, 16)}`,
+      agentReply: true,
+    };
+  }
+  if (input.targetKind !== "meta_outbox_effect") return null;
+  const effect = parseCanaryOutboxRecord(input.target);
+  if (
+    !effect ||
+    effect.effectKind !== "graph_bot_reply" ||
+    isPublicInboundEffect(effect) ||
+    effect.resultProviderMessageId !== input.providerMessageRef
+  ) {
+    return null;
+  }
+  const inboundProviderRef = requiredString(
+    effect.payload.providerMessageRef,
+    /^.{1,512}$/,
+    "provider_message_ref",
+  );
+  const replyIndex = effect.payload.replyIndex;
+  if (!Number.isSafeInteger(replyIndex) || (replyIndex as number) < 0 ||
+      (replyIndex as number) > 20) {
+    throw new Error("invalid_reply_index");
+  }
+  const outboundMessageRef = canaryOutboundBridgeMessageRef(
+    input.providerMessageRef,
+    inboundProviderRef,
+    replyIndex as number,
+  );
+  const automationSource = effect.dispatchReplySource === "ai_transient"
+    ? "governed_ai" as const
+    : effect.dispatchReplySource === "durable"
+      ? "menu_bot" as const
+      : undefined;
+  return {
+    messageId:
+      `message_live_${sha256Hex(`${outboundMessageRef}:outbound`).slice(0, 16)}`,
+    agentReply: false,
+    ...(automationSource ? { automationSource } : {}),
+  };
+}
+
+export function isCanaryPortalMessageProjectionValid(input: {
+  readonly message: unknown;
+  readonly target: CanaryPortalMessageProjectionTarget;
+}): boolean {
+  const message = asRecord(input.message);
+  return Boolean(
+    message &&
+    message.id === input.target.messageId &&
+    message.workspaceId === META_CANARY_WORKSPACE_ID &&
+    message.direction === "outbound" &&
+    message.externalDispatch === "dispatched" &&
+    message.metadataOnly === true &&
+    message.synthetic === true &&
+    message.liveCanary === true &&
+    (input.target.automationSource === undefined ||
+      message.automationSource === undefined ||
+      message.automationSource === input.target.automationSource) &&
+    (input.target.agentReply
+      ? message.agentReply === true && typeof message.actorId === "string"
+      : message.agentReply !== true && message.actorId === null),
+  );
 }
 
 function welcomeMediaId(value: unknown): string | null {
@@ -943,6 +1133,28 @@ async function processCampaignStatus(
       ) {
         throw new Error("provider_status_target_not_materialized");
       }
+      const portalMessageTarget = canaryPortalMessageProjectionTarget({
+        targetKind: routed.targetKind,
+        targetId: routed.targetId,
+        target: targetSnapshot.data(),
+        providerMessageRef,
+      });
+      const portalMessageRef = portalMessageTarget
+        ? workspace(db).collection("messages").doc(portalMessageTarget.messageId)
+        : null;
+      const portalMessageSnapshot = portalMessageRef
+        ? await transaction.get(portalMessageRef)
+        : null;
+      if (
+        portalMessageTarget &&
+        (!portalMessageSnapshot?.exists ||
+          !isCanaryPortalMessageProjectionValid({
+            message: portalMessageSnapshot.data(),
+            target: portalMessageTarget,
+          }))
+      ) {
+        throw new Error("provider_status_message_not_materialized");
+      }
       if (shouldAdvanceSendStatus(targetRecord?.deliveryStatus ?? "sent", status)) {
         transaction.set(
           targetRef,
@@ -953,6 +1165,41 @@ async function processCampaignStatus(
           },
           { merge: true },
         );
+      }
+      if (portalMessageTarget && portalMessageRef && portalMessageSnapshot) {
+        const portalMessage = asRecord(portalMessageSnapshot.data());
+        if (!portalMessage) throw new Error("provider_status_message_not_materialized");
+        const statusAdvances = shouldAdvanceSendStatus(
+          portalMessage.status ?? "sent",
+          status,
+        );
+        const sourceNeedsBackfill = Boolean(
+          portalMessageTarget.automationSource &&
+          portalMessage.automationSource === undefined,
+        );
+        if (statusAdvances || sourceNeedsBackfill) {
+          const observedAt = Timestamp.fromMillis(nowMs);
+          const reachedDelivery = status === "delivered" || status === "read";
+          transaction.set(
+            portalMessageRef,
+            {
+              ...(statusAdvances
+                ? {
+                  status,
+                  deliveryUpdatedAt: observedAt,
+                  updatedAt: observedAt,
+                  ...(reachedDelivery && !(portalMessage.deliveredAt instanceof Timestamp)
+                    ? { deliveredAt: observedAt }
+                    : {}),
+                }
+                : {}),
+              ...(sourceNeedsBackfill
+                ? { automationSource: portalMessageTarget.automationSource }
+                : {}),
+            },
+            { merge: true },
+          );
+        }
       }
     }
     const completed = completeCanaryOutboxRecord({
@@ -1459,6 +1706,7 @@ async function markDispatchStarted(input: {
   readonly nowMs: number;
   readonly templateOutboundId?: string;
   readonly dispatchReplySource?: "ai_transient" | "durable";
+  readonly protectedBotContent?: ProtectedBotDispatchContent;
 }): Promise<
   | { readonly action: "dispatch"; readonly record: CanaryOutboxRecord }
   | { readonly action: "suppressed"; readonly record: CanaryOutboxRecord }
@@ -1512,15 +1760,45 @@ async function markDispatchStarted(input: {
       transaction.set(ref, dispatching, { merge: false });
       return { action: "dispatch" as const, record: dispatching };
     }
+    if (
+      current.effectKind === "graph_bot_reply" &&
+      (
+        !input.protectedBotContent ||
+        !input.dispatchReplySource ||
+        input.protectedBotContent.source !== protectedBotSource(
+          input.dispatchReplySource,
+        )
+      )
+    ) {
+      throw new Error("protected_bot_content_required");
+    }
+    if (
+      current.effectKind !== "graph_bot_reply" &&
+      input.protectedBotContent
+    ) {
+      throw new Error("protected_bot_content_wrong_effect");
+    }
     const ids = liveIds(input.recipient);
     const contactId = ids.contactId;
     const contactRef = workspace(input.db).collection("contacts").doc(contactId);
     const conversationRef = workspace(input.db)
       .collection("conversations")
       .doc(ids.conversationId);
-    const [contactSnapshot, conversationSnapshot] = await Promise.all([
+    const protectedContentId = input.protectedBotContent
+      ? protectedBotEffectContentId(current.id)
+      : null;
+    const protectedContentRef = protectedContentId
+      ? conversationRef
+        .collection(LITE_PROTECTED_MESSAGE_CONTENTS_COLLECTION)
+        .doc(protectedContentId)
+      : null;
+    const [contactSnapshot, conversationSnapshot, protectedContentSnapshot] =
+      await Promise.all([
       transaction.get(contactRef),
       transaction.get(conversationRef),
+      protectedContentRef
+        ? transaction.get(protectedContentRef)
+        : Promise.resolve(null),
     ]);
     let suppression = decideCanaryGraphSuppression({
       effectKind: current.effectKind,
@@ -1565,11 +1843,54 @@ async function markDispatchStarted(input: {
       }
       return { action: "suppressed" as const, record: completed };
     }
+    if (
+      protectedContentRef &&
+      protectedContentId &&
+      protectedContentSnapshot &&
+      input.protectedBotContent
+    ) {
+      if (protectedContentSnapshot.exists) {
+        assertReservedProtectedBotContent({
+          raw: protectedContentSnapshot.data(),
+          id: protectedContentId,
+          conversationId: ids.conversationId,
+          source: input.protectedBotContent.source,
+          nowMs: input.nowMs,
+          expectedContent: input.protectedBotContent,
+        });
+      } else {
+        transaction.create(
+          protectedContentRef,
+          buildProtectedMessageContentDocument({
+            id: protectedContentId,
+            workspaceId: META_CANARY_WORKSPACE_ID,
+            conversationId: ids.conversationId,
+            messageId: null,
+            direction: "outbound",
+            source: input.protectedBotContent.source,
+            contentKind: input.protectedBotContent.contentKind,
+            text: input.protectedBotContent.text,
+            teamId: LITE_TEAM_ID,
+            locationId: LITE_LOCATION_ID,
+            state: "reserved",
+            nowMs: input.nowMs,
+            retentionDays:
+              process.env[LITE_PROTECTED_MESSAGE_RETENTION_ENV],
+          }),
+        );
+      }
+    }
     const dispatching = markCanaryOutboxDispatchStarted(
       current,
       input.leaseToken,
       input.nowMs,
       input.dispatchReplySource,
+      protectedContentId
+        ? {
+          conversationId: ids.conversationId,
+          contentId: protectedContentId,
+        }
+        : undefined,
     );
     transaction.set(ref, dispatching, { merge: false });
     if (input.templateOutboundId) {
@@ -1606,15 +1927,52 @@ async function completeGraphEffect(input: {
     const current = parseCanaryOutboxRecord(effectSnapshot.data());
     if (!current) throw new Error("invalid_outbox_record");
 
-    let contactSnapshot;
-    let conversationSnapshot;
+    let contactSnapshot: DocumentSnapshot | undefined;
+    let conversationSnapshot: DocumentSnapshot | undefined;
     let ids: ReturnType<typeof liveIds> | null = null;
+    let protectedContentRef: DocumentReference | null = null;
+    let protectedContentSnapshot: DocumentSnapshot | null = null;
+    let protectedBotContent: ProtectedBotDispatchContent | null = null;
     if (input.botPlan && !isPublicInboundEffect(current)) {
+      if (current.effectKind !== "graph_bot_reply") {
+        throw new Error("protected_bot_content_wrong_effect");
+      }
+      const extracted = extractProtectedOutboundContent(input.botPlan.reply);
+      if (!extracted) throw new Error("protected_bot_content_required");
+      protectedBotContent = {
+        ...extracted,
+        source: protectedBotSource(input.botPlan.replySource),
+      };
       ids = liveIds(input.recipient);
-      [contactSnapshot, conversationSnapshot] = await Promise.all([
+      const protectedContentId = protectedBotEffectContentId(current.id);
+      if (
+        current.protectedConversationId !== ids.conversationId ||
+        current.protectedContentId !== protectedContentId
+      ) {
+        throw new Error("protected_bot_reference_invalid");
+      }
+      protectedContentRef = ws
+        .collection("conversations")
+        .doc(ids.conversationId)
+        .collection(LITE_PROTECTED_MESSAGE_CONTENTS_COLLECTION)
+        .doc(protectedContentId);
+      [contactSnapshot, conversationSnapshot, protectedContentSnapshot] =
+        await Promise.all([
         transaction.get(ws.collection("contacts").doc(ids.contactId)),
         transaction.get(ws.collection("conversations").doc(ids.conversationId)),
+        transaction.get(protectedContentRef),
       ]);
+      if (!protectedContentSnapshot.exists) {
+        throw new Error("protected_bot_content_missing");
+      }
+      assertReservedProtectedBotContent({
+        raw: protectedContentSnapshot.data(),
+        id: protectedContentId,
+        conversationId: ids.conversationId,
+        source: protectedBotContent.source,
+        nowMs: input.nowMs,
+        expectedContent: protectedBotContent,
+      });
     }
     const routeTarget = input.templateOutboundId
       ? { targetKind: "manual_template" as const, targetId: input.templateOutboundId }
@@ -1700,6 +2058,9 @@ async function completeGraphEffect(input: {
         purpose: input.botPlan.purpose,
         staffHandoff: input.botPlan.staffHandoff,
         last4: input.recipient.slice(-4),
+        automationSource: input.botPlan.replySource === "ai_transient"
+          ? "governed_ai" as const
+          : "menu_bot" as const,
       };
       transaction.set(
         ws.collection("contacts").doc(ids.contactId),
@@ -1731,6 +2092,17 @@ async function completeGraphEffect(input: {
         { merge: false },
       );
       const messageId = `message_live_${sha256Hex(`${message.waMessageId}:outbound`).slice(0, 16)}`;
+      if (protectedContentRef && protectedBotContent) {
+        transaction.set(
+          protectedContentRef,
+          {
+            messageId,
+            state: "materialized",
+            updatedAt: Timestamp.fromMillis(input.nowMs),
+          },
+          { merge: true },
+        );
+      }
       transaction.set(
         ws.collection("messages").doc(messageId),
         buildLiveMessageDocument({
@@ -1869,7 +2241,11 @@ export async function reconcileFatalCanaryGraphEffect(input: {
     let conversationSnapshot: DocumentSnapshot | null = null;
     let messageRef: DocumentReference | null = null;
     let messageSnapshot: DocumentSnapshot | null = null;
-    if (confirmedSent && effect.effectKind === "graph_bot_reply") {
+    let protectedContentRef: DocumentReference | null = null;
+    let protectedContentSnapshot: DocumentSnapshot | null = null;
+    let protectedConversationId: string | null = null;
+    let protectedContentExpired = false;
+    if (effect.effectKind === "graph_bot_reply") {
       if (
         effect.payload.replySource === "ai_transient" &&
         effect.dispatchReplySource === undefined
@@ -1883,38 +2259,117 @@ export async function reconcileFatalCanaryGraphEffect(input: {
         // expired route or retaining a plaintext destination.
         botPlan = null;
       } else {
-      botRecipient = await recipientFor(
-        input.db,
-        effect,
-        "",
-        input.publicInboundRoute,
-        nowMs,
-        transaction,
-        input.returnRouteAssetSha256,
-      );
-      if (!botRecipient) throw new Error("fatal_resolution_recipient_unavailable");
-      botPlan = effect.dispatchReplySource === "ai_transient"
-        ? { ...reconstructed, replyType: "text", replySource: "ai_transient" }
-        : reconstructed;
-      botIds = liveIds(botRecipient);
-      const contactRef = ws.collection("contacts").doc(botIds.contactId);
-      const conversationRef = ws.collection("conversations").doc(botIds.conversationId);
-      const outboundMessageRef = canaryOutboundBridgeMessageRef(
-        providerMessageId,
-        botPlan.inboundProviderRef,
-        botPlan.replyIndex,
-      );
-      const messageId =
-        `message_live_${sha256Hex(`${outboundMessageRef}:outbound`).slice(0, 16)}`;
-      messageRef = ws.collection("messages").doc(messageId);
-      [contactSnapshot, conversationSnapshot, messageSnapshot] = await Promise.all([
-        transaction.get(contactRef),
-        transaction.get(conversationRef),
-        transaction.get(messageRef),
-      ]);
-      if (messageSnapshot.exists) {
-        throw new Error("fatal_resolution_bridge_message_collision");
-      }
+        const persistedProtectedConversationId = effect.protectedConversationId;
+        const persistedProtectedContentId = effect.protectedContentId;
+        if (
+          (persistedProtectedConversationId === undefined) !==
+            (persistedProtectedContentId === undefined)
+        ) {
+          throw new Error("fatal_resolution_protected_reference_invalid");
+        }
+        if (
+          persistedProtectedConversationId &&
+          persistedProtectedContentId
+        ) {
+          if (
+            persistedProtectedContentId !==
+              protectedBotEffectContentId(effect.id)
+          ) {
+            throw new Error("fatal_resolution_protected_reference_invalid");
+          }
+          protectedConversationId = persistedProtectedConversationId;
+          protectedContentRef = ws
+            .collection("conversations")
+            .doc(persistedProtectedConversationId)
+            .collection(LITE_PROTECTED_MESSAGE_CONTENTS_COLLECTION)
+            .doc(persistedProtectedContentId);
+        }
+        botRecipient = await recipientFor(
+          input.db,
+          effect,
+          "",
+          input.publicInboundRoute,
+          nowMs,
+          transaction,
+          input.returnRouteAssetSha256,
+        );
+        if (!botRecipient) {
+          if (confirmedSent) {
+            throw new Error("fatal_resolution_recipient_unavailable");
+          }
+        } else {
+          botIds = liveIds(botRecipient);
+          const conversationRef = ws
+            .collection("conversations")
+            .doc(botIds.conversationId);
+          const protectedContentId = protectedBotEffectContentId(effect.id);
+          if (
+            protectedContentRef &&
+            (protectedConversationId !== botIds.conversationId ||
+              persistedProtectedContentId !== protectedContentId)
+          ) {
+            throw new Error("fatal_resolution_protected_reference_mismatch");
+          }
+          protectedConversationId = botIds.conversationId;
+          protectedContentRef ??= conversationRef
+            .collection(LITE_PROTECTED_MESSAGE_CONTENTS_COLLECTION)
+            .doc(protectedContentId);
+
+          if (confirmedSent && providerMessageId) {
+            botPlan = effect.dispatchReplySource === "ai_transient"
+              ? { ...reconstructed, replyType: "text", replySource: "ai_transient" }
+              : reconstructed;
+            const contactRef = ws.collection("contacts").doc(botIds.contactId);
+            const outboundMessageRef = canaryOutboundBridgeMessageRef(
+              providerMessageId,
+              botPlan.inboundProviderRef,
+              botPlan.replyIndex,
+            );
+            const messageId =
+              `message_live_${sha256Hex(`${outboundMessageRef}:outbound`).slice(0, 16)}`;
+            messageRef = ws.collection("messages").doc(messageId);
+            [
+              contactSnapshot,
+              conversationSnapshot,
+              messageSnapshot,
+              protectedContentSnapshot,
+            ] = await Promise.all([
+              transaction.get(contactRef),
+              transaction.get(conversationRef),
+              transaction.get(messageRef),
+              transaction.get(protectedContentRef),
+            ]);
+            if (messageSnapshot.exists) {
+              throw new Error("fatal_resolution_bridge_message_collision");
+            }
+          }
+        }
+
+        if (!confirmedSent && protectedContentRef) {
+          protectedContentSnapshot = await transaction.get(protectedContentRef);
+        }
+
+        if (
+          protectedContentSnapshot?.exists &&
+          protectedConversationId &&
+          protectedContentRef
+        ) {
+          const expectedContent = effect.dispatchReplySource === "ai_transient"
+            ? undefined
+            : extractProtectedOutboundContent(reconstructed.reply) ?? undefined;
+          const validation = assertReservedProtectedBotContent({
+            raw: protectedContentSnapshot.data(),
+            id: protectedContentRef.id,
+            conversationId: protectedConversationId,
+            source: effect.dispatchReplySource === "ai_transient"
+              ? "governed_ai"
+              : "menu_bot",
+            nowMs,
+            allowExpired: true,
+            ...(expectedContent ? { expectedContent } : {}),
+          });
+          protectedContentExpired = validation.expired;
+        }
       }
     }
 
@@ -1969,6 +2424,25 @@ export async function reconcileFatalCanaryGraphEffect(input: {
       );
     }
 
+    if (protectedContentRef && protectedContentSnapshot?.exists) {
+      if (protectedContentExpired) {
+        // TTL deletion is asynchronous. Treat expired text as unavailable now
+        // so provider-evidence reconciliation is deterministic either side of
+        // the background TTL sweep.
+        transaction.delete(protectedContentRef);
+      } else if (!confirmedSent) {
+        transaction.set(
+          protectedContentRef,
+          {
+            messageId: null,
+            state: "not_sent",
+            updatedAt: Timestamp.fromMillis(nowMs),
+          },
+          { merge: true },
+        );
+      }
+    }
+
     if (
       confirmedSent &&
       providerMessageId &&
@@ -1993,6 +2467,9 @@ export async function reconcileFatalCanaryGraphEffect(input: {
         purpose: botPlan.purpose,
         staffHandoff: botPlan.staffHandoff,
         last4: botRecipient.slice(-4),
+        automationSource: botPlan.replySource === "ai_transient"
+          ? "governed_ai" as const
+          : "menu_bot" as const,
       };
       transaction.set(
         ws.collection("contacts").doc(botIds.contactId),
@@ -2033,6 +2510,21 @@ export async function reconcileFatalCanaryGraphEffect(input: {
           nowMs,
         }),
       );
+      if (
+        protectedContentRef &&
+        protectedContentSnapshot?.exists &&
+        !protectedContentExpired
+      ) {
+        transaction.set(
+          protectedContentRef,
+          {
+            messageId: messageRef.id,
+            state: "materialized",
+            updatedAt: Timestamp.fromMillis(nowMs),
+          },
+          { merge: true },
+        );
+      }
       metricWrite(transaction, input.db, nowMs, { botReplies: 1 });
     }
 
@@ -2098,6 +2590,16 @@ async function processGraphEffect(input: {
     throw new Error("invalid_graph_effect_kind");
   }
 
+  let protectedBotContent: ProtectedBotDispatchContent | undefined;
+  if (botPlan && !isPublicInboundEffect(input.claimed)) {
+    const extracted = extractProtectedOutboundContent(body);
+    if (!extracted) throw new Error("protected_bot_content_required");
+    protectedBotContent = {
+      ...extracted,
+      source: protectedBotSource(botPlan.replySource),
+    };
+  }
+
   const dispatch = await markDispatchStarted({
     db: input.db,
     effectId: input.claimed.id,
@@ -2106,6 +2608,7 @@ async function processGraphEffect(input: {
     nowMs: input.nowMs,
     ...(templateOutboundId ? { templateOutboundId } : {}),
     ...(botPlan ? { dispatchReplySource: botPlan.replySource } : {}),
+    ...(protectedBotContent ? { protectedBotContent } : {}),
   });
   if (dispatch.action === "suppressed") return "suppressed";
   const sent = await sendGraphMessage(

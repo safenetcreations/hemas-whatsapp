@@ -8,7 +8,11 @@ import type {
   CanaryBotMessage,
   CanaryInboundRecord,
 } from "../src/meta-canary/contracts.js";
-import { extractCanaryInboundBatch } from "../src/meta-canary/contracts.js";
+import {
+  extractAllowlistedCanaryBotMessages,
+  extractCanaryInboundBatch,
+  parseRecipientAllowlist,
+} from "../src/meta-canary/contracts.js";
 import {
   persistCanaryWebhookBatch,
 } from "../src/meta-canary/index.js";
@@ -399,6 +403,165 @@ test(
     } finally {
       globalThis.fetch = originalFetch;
     }
+
+    await db.recursiveDelete(workspaceRef);
+    await deleteApp(app);
+  },
+);
+
+test(
+  "allowlisted AI reply projects delivered and read evidence into its portal message",
+  { skip: !RUN_EMULATOR },
+  async () => {
+    const app = getApps().find(
+      (candidate) => candidate.name === "allowlisted-dlr-projection-test",
+    ) ?? initializeApp(
+      { projectId: PROJECT_ID },
+      "allowlisted-dlr-projection-test",
+    );
+    const db: Firestore = getHemasFirestore(app);
+    const workspaceRef = db.collection("workspaces").doc(WORKSPACE_ID);
+    await db.recursiveDelete(workspaceRef);
+
+    const sender = "94770000009";
+    const inboundProviderMessageId = "wamid.allowlisted-dlr-inbound";
+    const inboundAtMs = Date.now();
+    const inboundPayload = {
+      object: "whatsapp_business_account",
+      entry: [{
+        id: "synthetic-business-account",
+        changes: [{
+          field: "messages",
+          value: {
+            metadata: { phone_number_id: PHONE_ASSET },
+            messages: [{
+              id: inboundProviderMessageId,
+              from: sender,
+              type: "text",
+              timestamp: String(Math.floor(inboundAtMs / 1_000)),
+              text: { body: "What services do you offer?" },
+            }],
+          },
+        }],
+      }],
+    };
+    const inboundBatch = extractCanaryInboundBatch(inboundPayload, sha256Hex);
+    const allowlistedMessages = extractAllowlistedCanaryBotMessages(
+      inboundPayload,
+      parseRecipientAllowlist(sender),
+    );
+    const persisted = await persistCanaryWebhookBatch({
+      db,
+      records: inboundBatch.records,
+      allowlistedMessages,
+      optOuts: [],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set(),
+      publicSameEnvelopeSuppressedMessageIds: new Set(),
+      planMode: "bot",
+      occurredAtMs: inboundAtMs,
+    });
+
+    const providerReplyId = "wamid.allowlisted-dlr-reply";
+    const previousAllowlist = process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS;
+    const originalFetch = globalThis.fetch;
+    process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS = sender;
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      messages: [{ id: providerReplyId }],
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+    try {
+      const processed = await processCanaryOutboxBatch({
+        db,
+        effectIds: persisted.effectIds,
+        leaseOwner: "http_webhook",
+        phoneNumberId: PHONE_ASSET,
+        accessToken: "emulator-only-token",
+        maxEffects: 20,
+        transientBotOverrides: [{
+          receiptId: inboundBatch.records[0]!.id,
+          reply: {
+            type: "text",
+            text: { preview_url: false, body: "Synthetic governed AI answer." },
+          },
+        }],
+      });
+      assert.equal(processed.retryable, 0);
+      assert.equal(processed.fatal, 0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (previousAllowlist === undefined) {
+        delete process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS;
+      } else {
+        process.env.HEMAS_META_ALLOWLISTED_RECIPIENTS = previousAllowlist;
+      }
+    }
+
+    const outboundMessages = await workspaceRef
+      .collection("messages")
+      .where("direction", "==", "outbound")
+      .get();
+    assert.equal(outboundMessages.size, 1);
+    const outboundMessage = outboundMessages.docs[0]!;
+    assert.equal(outboundMessage.get("status"), "sent");
+    assert.equal(outboundMessage.get("automationSource"), "governed_ai");
+    assert.equal(outboundMessage.get("deliveryUpdatedAt"), undefined);
+
+    const statusReceivedAtMs = Date.now();
+    const statusBatch = extractCanaryInboundBatch({
+      object: "whatsapp_business_account",
+      entry: [{
+        id: "synthetic-business-account",
+        changes: [{
+          field: "messages",
+          value: {
+            metadata: { phone_number_id: PHONE_ASSET },
+            statuses: [
+              {
+                id: providerReplyId,
+                status: "delivered",
+                timestamp: String(Math.floor(statusReceivedAtMs / 1_000)),
+              },
+              {
+                id: providerReplyId,
+                status: "read",
+                timestamp: String(Math.floor((statusReceivedAtMs + 1_000) / 1_000)),
+              },
+            ],
+          },
+        }],
+      }],
+    }, sha256Hex);
+    const persistedStatuses = await persistCanaryWebhookBatch({
+      db,
+      records: statusBatch.records,
+      allowlistedMessages: [],
+      optOuts: [],
+      inboundReturnRoutes: new Map(),
+      publicInboundMessageIds: new Set(),
+      publicSameEnvelopeSuppressedMessageIds: new Set(),
+      planMode: "none",
+      occurredAtMs: statusReceivedAtMs,
+    });
+    const processedStatuses = await processCanaryOutboxBatch({
+      db,
+      effectIds: persistedStatuses.effectIds,
+      leaseOwner: "http_webhook",
+      phoneNumberId: PHONE_ASSET,
+      accessToken: "emulator-only-token",
+      maxEffects: 20,
+    });
+    assert.equal(processedStatuses.retryable, 0);
+    assert.equal(processedStatuses.fatal, 0);
+
+    const projected = await outboundMessage.ref.get();
+    assert.equal(projected.get("status"), "read");
+    assert.equal(projected.get("automationSource"), "governed_ai");
+    assert.ok(projected.get("deliveredAt") instanceof Timestamp);
+    assert.ok(projected.get("deliveryUpdatedAt") instanceof Timestamp);
+    assert.equal(projected.get("providerMessageId"), undefined);
 
     await db.recursiveDelete(workspaceRef);
     await deleteApp(app);

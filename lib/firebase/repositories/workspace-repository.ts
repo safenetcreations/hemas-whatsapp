@@ -270,10 +270,12 @@ const messageMetadataDocumentSchema = z
     receivedAt: timestampValue.nullable(),
     sentAt: timestampValue.nullable(),
     deliveredAt: timestampValue.nullable(),
+    deliveryUpdatedAt: timestampValue.optional(),
     metadataOnly: z.literal(true),
     synthetic: z.literal(true),
     liveCanary: z.literal(true).optional(),
     agentReply: z.literal(true).optional(),
+    automationSource: z.enum(["menu_bot", "governed_ai"]).optional(),
     schemaVersion: z.literal(1),
     createdAt: timestampValue,
     updatedAt: timestampValue,
@@ -331,6 +333,34 @@ const messageMetadataDocumentSchema = z
         code: "custom",
         path: ["agentReply"],
         message: "Agent replies require an attributed live outbound provider dispatch",
+      });
+    }
+
+    if (
+      data.automationSource !== undefined &&
+      (data.liveCanary !== true ||
+        data.direction !== "outbound" ||
+        data.externalDispatch !== "dispatched" ||
+        data.actorId !== null ||
+        data.agentReply === true)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["automationSource"],
+        message: "Automation provenance requires an unattributed live bot dispatch",
+      });
+    }
+
+    if (
+      data.deliveryUpdatedAt !== undefined &&
+      (data.liveCanary !== true ||
+        data.direction !== "outbound" ||
+        !["delivered", "read", "failed"].includes(data.status))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["deliveryUpdatedAt"],
+        message: "Delivery evidence requires a terminal live outbound status",
       });
     }
   });
@@ -466,11 +496,17 @@ export type ConsentRecordDTO = Omit<
 
 export type MessageMetadataDTO = Omit<
   MessageMetadataDocument,
-  "receivedAt" | "sentAt" | "deliveredAt" | "createdAt" | "updatedAt"
+  | "receivedAt"
+  | "sentAt"
+  | "deliveredAt"
+  | "deliveryUpdatedAt"
+  | "createdAt"
+  | "updatedAt"
 > & {
   readonly receivedAt: string | null;
   readonly sentAt: string | null;
   readonly deliveredAt: string | null;
+  readonly deliveryUpdatedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 };
@@ -548,11 +584,15 @@ export function parseMessageMetadataDocument(
       "invalid_data",
     );
   }
+  const { deliveryUpdatedAt, ...withoutDeliveryUpdatedAt } = parsed;
   return {
-    ...parsed,
+    ...withoutDeliveryUpdatedAt,
     receivedAt: timestampToIso(parsed.receivedAt),
     sentAt: timestampToIso(parsed.sentAt),
     deliveredAt: timestampToIso(parsed.deliveredAt),
+    ...(deliveryUpdatedAt
+      ? { deliveryUpdatedAt: deliveryUpdatedAt.toDate().toISOString() }
+      : {}),
     createdAt: parsed.createdAt.toDate().toISOString(),
     updatedAt: parsed.updatedAt.toDate().toISOString(),
   };

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.hemas-connect.example/schemas/bulk-job-result.schema.json",
+  "title": "Hemas Enterprise WhatsApp bulk job result",
+  "description": "Returned by POST (202) and GET (200) /v1/whatsapp/bulk-jobs. Counts always sum to itemCount.",
+  "type": "object",
+  "required": [
+    "jobId",
+    "clientBatchId",
+    "status",
+    "itemCount",
+    "queuedCount",
+    "sentCount",
+    "notSentCount",
+    "suppressedCount",
+    "idempotent"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "jobId": {
+      "type": "string",
+      "pattern": "^bulkjob_[0-9a-f]{24}$"
+    },
+    "clientBatchId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{8,64}$"
+    },
+    "status": {
+      "enum": ["accepted", "dispatching", "completed", "completed_partial"]
+    },
+    "itemCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000
+    },
+    "queuedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sentCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "notSentCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "suppressedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "idempotent": {
+      "type": "boolean"
+    }
+  }
+}

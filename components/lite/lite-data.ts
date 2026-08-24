@@ -5,8 +5,8 @@
  *
  * Every query matches the deny-by-default Firestore rules for scoped
  * operational roles: fixed workspace path, explicit teamId + locationId
- * filters, bounded limits. Message documents are metadata-only by design —
- * the UI renders direction/type/time, never bodies (which do not exist).
+ * filters, bounded limits. Firestore message documents remain metadata-only;
+ * retained text is retrieved separately through an authorised callable.
  */
 
 import {
@@ -43,6 +43,7 @@ export interface LiteConversation {
   readonly detectedLanguage: string;
   readonly unreadCount: number;
   readonly liveCanary: boolean;
+  readonly synthetic: boolean;
   readonly lastMessageAtMs: number;
   readonly serviceWindowExpiresAtMs: number;
 }
@@ -51,11 +52,32 @@ export interface LiteMessage {
   readonly id: string;
   readonly conversationId: string;
   readonly direction: "inbound" | "outbound";
-  readonly type: string;
-  readonly status: string;
+  readonly type: "text" | "interactive" | "image" | "video" | "document" | "audio" | "template" | "other";
+  readonly status: "received" | "pending" | "sent" | "delivered" | "read" | "failed";
   readonly actorId: string | null;
   readonly agentReply: boolean;
+  readonly automationSource: "menu_bot" | "governed_ai" | "agent" | null;
   readonly createdAtMs: number;
+  readonly sentAtMs: number;
+  readonly deliveredAtMs: number;
+  readonly readAtMs: number;
+  readonly failedAtMs: number;
+  readonly deliveryUpdatedAtMs: number;
+}
+
+export interface LiteProtectedMessage {
+  readonly messageId: string;
+  readonly text: string;
+}
+
+export interface LiteProtectedAuthorityFingerprintInput {
+  readonly userId: string | null;
+  readonly emailVerified: boolean;
+  readonly memberRole: string | null;
+  readonly conversationId: string | null;
+  readonly assigneeId: string | null;
+  readonly liveCanary: boolean;
+  readonly synthetic: boolean;
 }
 
 export interface LiteContact {
@@ -70,6 +92,206 @@ export interface LiteContact {
 
 function toMillis(value: unknown): number {
   return value instanceof Timestamp ? value.toMillis() : 0;
+}
+
+const OUTBOUND_MESSAGE_STATUSES = new Set([
+  "pending",
+  "sent",
+  "delivered",
+  "read",
+  "failed",
+] as const);
+
+const SAFE_MESSAGE_TYPES = new Set([
+  "text",
+  "interactive",
+  "image",
+  "video",
+  "document",
+  "audio",
+  "template",
+] as const);
+
+function safeMessageType(value: unknown): LiteMessage["type"] {
+  if (typeof value !== "string") return "other";
+  const normalized = value.trim().toLowerCase();
+  return SAFE_MESSAGE_TYPES.has(
+    normalized as Exclude<LiteMessage["type"], "other">,
+  )
+    ? (normalized as LiteMessage["type"])
+    : "other";
+}
+
+function outboundMessageStatus(value: unknown): LiteMessage["status"] {
+  if (typeof value !== "string") return "pending";
+  const normalized = value.trim().toLowerCase();
+  return OUTBOUND_MESSAGE_STATUSES.has(
+    normalized as "pending" | "sent" | "delivered" | "read" | "failed",
+  )
+    ? (normalized as LiteMessage["status"])
+    : "pending";
+}
+
+/**
+ * Project a Firestore message into the content-free Lite inbox model.
+ *
+ * The allowlist is deliberate: provider identifiers, destinations, message
+ * bodies and arbitrary metadata can never cross this parser into the UI.
+ * Timestamp fields are tolerant so older canary records remain readable while
+ * newer records can show delivery/read callback evidence.
+ */
+export function parseLiteMessageDocument(
+  id: string,
+  value: Record<string, unknown>,
+): LiteMessage {
+  const direction = value.direction === "outbound" ? "outbound" : "inbound";
+  const sentAtMs = toMillis(value.sentAt);
+  const deliveredAtMs = toMillis(value.deliveredAt);
+  const readAtMs = toMillis(value.readAt);
+  const failedAtMs = toMillis(value.failedAt);
+  const deliveryUpdatedAtMs = toMillis(value.deliveryUpdatedAt);
+  const rawStatus = outboundMessageStatus(value.status);
+  const status: LiteMessage["status"] =
+    direction === "inbound"
+      ? "received"
+      : rawStatus === "failed" || failedAtMs > 0
+        ? "failed"
+        : rawStatus === "read" || readAtMs > 0
+          ? "read"
+          : rawStatus === "delivered" || deliveredAtMs > 0
+            ? "delivered"
+            : rawStatus;
+  const agentReply = value.agentReply === true;
+  const persistedSource = value.automationSource;
+  const automationSource: LiteMessage["automationSource"] =
+    persistedSource === "menu_bot" ||
+    persistedSource === "governed_ai" ||
+    persistedSource === "agent"
+      ? persistedSource
+      : agentReply
+        ? "agent"
+        : null;
+
+  return {
+    id,
+    conversationId:
+      typeof value.conversationId === "string" ? value.conversationId : "",
+    direction,
+    type: safeMessageType(value.type),
+    status,
+    actorId: typeof value.actorId === "string" ? value.actorId : null,
+    agentReply,
+    automationSource,
+    createdAtMs: toMillis(value.createdAt),
+    sentAtMs,
+    deliveredAtMs,
+    readAtMs,
+    failedAtMs,
+    deliveryUpdatedAtMs,
+  };
+}
+
+const LITE_MESSAGE_ID_PATTERN = /^message_[a-z0-9_]{3,100}$/;
+const MAX_PROTECTED_MESSAGES = 60;
+const MAX_PROTECTED_TEXT_LENGTH = 4_096;
+export const LITE_PROTECTED_REAUTHORIZE_INTERVAL_MS = 30_000;
+
+/**
+ * Bind retained plaintext to the exact browser authority/assignment snapshot.
+ * This value is an in-memory cache key, not an authentication credential.
+ */
+export function buildLiteProtectedAuthorityFingerprint(
+  input: LiteProtectedAuthorityFingerprintInput,
+): string | null {
+  if (
+    !input.userId ||
+    !input.emailVerified ||
+    !input.memberRole ||
+    !input.conversationId ||
+    !input.liveCanary ||
+    !input.synthetic
+  ) {
+    return null;
+  }
+  return JSON.stringify([
+    "lite-protected-authority-v1",
+    LITE_WORKSPACE_ID,
+    LITE_TEAM_ID,
+    LITE_LOCATION_ID,
+    input.userId,
+    input.memberRole,
+    input.conversationId,
+    input.assigneeId,
+  ]);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const keys = Object.keys(value);
+  return (
+    keys.length === expected.length &&
+    keys.every((key) => expected.includes(key))
+  );
+}
+
+/**
+ * Validate the complete protected-content projection before it reaches UI state.
+ *
+ * The callable may only return requested message IDs and exact text. Any extra
+ * field, duplicate, invalid ID, or oversized value rejects the whole response
+ * so provider identifiers and arbitrary backend data cannot leak into the page.
+ */
+export function parseLiteProtectedMessagesResponse(
+  value: unknown,
+  requestedMessageIds: readonly string[],
+): readonly LiteProtectedMessage[] {
+  const requested = new Set(requestedMessageIds);
+  if (
+    requested.size !== requestedMessageIds.length ||
+    requested.size > MAX_PROTECTED_MESSAGES ||
+    requestedMessageIds.some((messageId) => !LITE_MESSAGE_ID_PATTERN.test(messageId))
+  ) {
+    throw new Error("Protected message request is invalid.");
+  }
+  if (!isPlainRecord(value) || !hasExactKeys(value, ["messages"])) {
+    throw new Error("Protected message response is invalid.");
+  }
+  if (
+    !Array.isArray(value.messages) ||
+    value.messages.length > MAX_PROTECTED_MESSAGES ||
+    value.messages.length > requested.size
+  ) {
+    throw new Error("Protected message response is invalid.");
+  }
+
+  const seen = new Set<string>();
+  return value.messages.map((row): LiteProtectedMessage => {
+    if (
+      !isPlainRecord(row) ||
+      !hasExactKeys(row, ["messageId", "text"]) ||
+      typeof row.messageId !== "string" ||
+      !LITE_MESSAGE_ID_PATTERN.test(row.messageId) ||
+      !requested.has(row.messageId) ||
+      seen.has(row.messageId) ||
+      typeof row.text !== "string" ||
+      row.text.length === 0 ||
+      row.text.length > MAX_PROTECTED_TEXT_LENGTH
+    ) {
+      throw new Error("Protected message response is invalid.");
+    }
+    seen.add(row.messageId);
+    return { messageId: row.messageId, text: row.text };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +358,7 @@ export function useLiteConversations(
               typeof data.detectedLanguage === "string" ? data.detectedLanguage : "en",
             unreadCount: typeof data.unreadCount === "number" ? data.unreadCount : 0,
             liveCanary: data.liveCanary === true,
+            synthetic: data.synthetic === true,
             lastMessageAtMs: toMillis(data.lastMessageAt),
             serviceWindowExpiresAtMs: toMillis(data.serviceWindowExpiresAt),
           } satisfies LiteConversation;
@@ -204,20 +427,7 @@ export function useLiteMessages(conversationId: string | null): ListenerState<Li
       (snapshot) => {
         if (!active) return;
         const rows = snapshot.docs
-          .map((record) => {
-            const data = record.data();
-            return {
-              id: record.id,
-              conversationId:
-                typeof data.conversationId === "string" ? data.conversationId : "",
-              direction: data.direction === "outbound" ? "outbound" : "inbound",
-              type: typeof data.type === "string" ? data.type : "text",
-              status: typeof data.status === "string" ? data.status : "sent",
-              actorId: typeof data.actorId === "string" ? data.actorId : null,
-              agentReply: data.agentReply === true,
-              createdAtMs: toMillis(data.createdAt),
-            } satisfies LiteMessage;
-          })
+          .map((record) => parseLiteMessageDocument(record.id, record.data()))
           .reverse();
         setState({ rows, loading: false, error: null });
       },
@@ -231,6 +441,190 @@ export function useLiteMessages(conversationId: string | null): ListenerState<Li
     };
   }, [conversationId]);
 
+  return state;
+}
+
+export interface LiteProtectedMessagesState {
+  readonly textByMessageId: ReadonlyMap<string, string>;
+  readonly protectedLoading: boolean;
+  readonly protectedError: string | null;
+}
+
+type LiteProtectedMessagesInternalState = LiteProtectedMessagesState & {
+  readonly requestKey: string | null;
+};
+
+const EMPTY_PROTECTED_MESSAGE_TEXT: ReadonlyMap<string, string> = new Map();
+
+function emptyProtectedMessagesState(
+  requestKey: string | null,
+  protectedLoading = false,
+  protectedError: string | null = null,
+): LiteProtectedMessagesInternalState {
+  return {
+    requestKey,
+    textByMessageId: EMPTY_PROTECTED_MESSAGE_TEXT,
+    protectedLoading,
+    protectedError,
+  };
+}
+
+/**
+ * Retrieve the retained text projection for the currently visible metadata
+ * set. Browser-readable Firestore records remain content-free; this hook only
+ * trusts the strict callable response parser above.
+ */
+export function useLiteProtectedMessages(
+  conversationId: string | null,
+  messageIds: readonly string[],
+  authorityFingerprint: string | null,
+): LiteProtectedMessagesState {
+  const [state, setState] = useState<LiteProtectedMessagesInternalState>(() =>
+    emptyProtectedMessagesState(null),
+  );
+  const messageIdKey = useMemo(
+    () => [...new Set(messageIds)].sort().join(","),
+    [messageIds],
+  );
+  const requestedMessageIds = useMemo(
+    () => (messageIdKey ? messageIdKey.split(",") : []),
+    [messageIdKey],
+  );
+  const requestInvalid =
+    requestedMessageIds.length > MAX_PROTECTED_MESSAGES ||
+    requestedMessageIds.some((messageId) => !LITE_MESSAGE_ID_PATTERN.test(messageId));
+  const requestKey = useMemo(
+    () =>
+      conversationId &&
+      authorityFingerprint &&
+      requestedMessageIds.length > 0 &&
+      !requestInvalid
+        ? JSON.stringify([conversationId, messageIdKey, authorityFingerprint])
+        : null,
+    [
+      authorityFingerprint,
+      conversationId,
+      messageIdKey,
+      requestInvalid,
+      requestedMessageIds.length,
+    ],
+  );
+
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+
+    if (requestInvalid) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setState(
+          emptyProtectedMessagesState(
+            null,
+            false,
+            "Protected message content is unavailable.",
+          ),
+        );
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    if (!conversationId || !requestKey) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setState(emptyProtectedMessagesState(null));
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    const refresh = async (): Promise<void> => {
+      if (
+        !active ||
+        inFlight ||
+        (typeof document !== "undefined" && document.visibilityState === "hidden")
+      ) {
+        return;
+      }
+      inFlight = true;
+      // Never display text while its current authority is being revalidated.
+      setState(emptyProtectedMessagesState(requestKey, true));
+      try {
+        const callable = httpsCallable(liteFunctions(), "liteListProtectedMessages", {
+          timeout: 20_000,
+        });
+        const result = await callable({
+          conversationId,
+          messageIds: requestedMessageIds,
+        });
+        if (
+          !active ||
+          (typeof document !== "undefined" && document.visibilityState === "hidden")
+        ) {
+          return;
+        }
+        const rows = parseLiteProtectedMessagesResponse(
+          result.data,
+          requestedMessageIds,
+        );
+        setState({
+          requestKey,
+          textByMessageId: new Map(
+            rows.map((row) => [row.messageId, row.text] as const),
+          ),
+          protectedLoading: false,
+          protectedError: null,
+        });
+      } catch {
+        if (!active) return;
+        setState(
+          emptyProtectedMessagesState(
+            requestKey,
+            false,
+            "Protected message content is unavailable.",
+          ),
+        );
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") {
+        setState(emptyProtectedMessagesState(requestKey));
+        return;
+      }
+      void refresh();
+    };
+
+    const interval = setInterval(() => {
+      void refresh();
+    }, LITE_PROTECTED_REAUTHORIZE_INTERVAL_MS);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    queueMicrotask(() => {
+      void refresh();
+    });
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [conversationId, requestInvalid, requestKey, requestedMessageIds]);
+
+  if (requestInvalid) {
+    return emptyProtectedMessagesState(
+      null,
+      false,
+      "Protected message content is unavailable.",
+    );
+  }
+  if (!requestKey) return emptyProtectedMessagesState(null);
+  if (state.requestKey !== requestKey) {
+    return emptyProtectedMessagesState(requestKey, true);
+  }
   return state;
 }
 

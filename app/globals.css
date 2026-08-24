@@ -13,6 +13,22 @@
   --danger: #c74242;
   --warning: #9b6300;
   --success: #15705d;
+
+  /* Hemas Connect Lite — derived from the approved Hemas Hospitals teal/orange lockup. */
+  --lite-brand: #007392;
+  --lite-brand-strong: #005f79;
+  --lite-brand-bright: #1392b6;
+  --lite-brand-soft: #e8f6f8;
+  --lite-accent: #f37610;
+  --lite-ink: #172f38;
+  --lite-ink-secondary: #304b55;
+  --lite-muted: #5f6b72;
+  --lite-canvas: #f5f8f8;
+  --lite-surface: #ffffff;
+  --lite-line: #dce7ea;
+  --lite-line-strong: #c7d8dd;
+  --lite-sidebar: #073f50;
+  --lite-sidebar-strong: #052f3c;
 }
 
 * {
@@ -31,6 +47,7 @@ body {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -38,6 +55,12 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+input,
+select,
+textarea {
+  color-scheme: light;
 }
 
 button,
@@ -55,8 +78,65 @@ a {
 }
 
 .scrollbar-subtle {
-  scrollbar-color: #c6d3ce transparent;
+  scrollbar-color: #b8cbd0 transparent;
   scrollbar-width: thin;
+}
+
+.font-display {
+  font-family: var(--font-display), Raleway, Inter, ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.lite-canvas {
+  background:
+    radial-gradient(circle at 98% 0%, rgba(19, 146, 182, 0.08), transparent 26rem),
+    linear-gradient(180deg, #f9fbfb 0%, var(--lite-canvas) 21rem);
+  font-family:
+    var(--font-body), "Open Sans", Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.lite-canvas :focus-visible {
+  outline-color: rgba(0, 115, 146, 0.38);
+}
+
+.lite-canvas ::selection {
+  background: #cceef2;
+  color: #12303a;
+}
+
+.lite-sidebar-surface {
+  background:
+    linear-gradient(160deg, rgba(19, 146, 182, 0.2), transparent 36%),
+    linear-gradient(180deg, var(--lite-sidebar) 0%, var(--lite-sidebar-strong) 100%);
+}
+
+.lite-sidebar-surface :focus-visible {
+  outline-color: #ffffff;
+}
+
+.lite-sidebar-surface::before {
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%);
+  background-position: 0 0, 16px 16px;
+  background-size: 32px 32px;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.lite-logo-glow {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 14px 36px rgba(1, 32, 42, 0.2);
+}
+
+@media (min-width: 1024px) {
+  .lite-main-scroll {
+    min-height: calc(100dvh - 72px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

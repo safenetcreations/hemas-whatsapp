@@ -1,9 +1,19 @@
 "use client";
 
+import { Activity, Bot, CalendarCheck2, Gauge, Megaphone, MessageCircle, UserRoundCheck } from "lucide-react";
 import { useMemo } from "react";
 import { useLiteAuth } from "@/components/lite/lite-auth";
 import { useLiteMetrics, type LiteDailyMetrics } from "@/components/lite/lite-data";
 import { publicEnv } from "@/lib/config/public-env";
+import {
+  LITE_PANEL,
+  LiteMetricCard,
+  LiteNotice,
+  LitePageHeader,
+  LiteSectionHeader,
+  LiteStatus,
+  liteCx,
+} from "@/components/lite/lite-ui";
 
 const MONTHLY_ACTION_ALLOWANCE = 10_000; // Demo packaging allowance; final commercial plan pending.
 const isLocalSyntheticDemo = publicEnv.appStage === "demo";
@@ -48,89 +58,127 @@ export default function LiteAnalyticsPage() {
   const maxBar = Math.max(1, ...last14.map((row) => row.inboundMessages + row.botReplies));
 
   const cards = [
-    { label: "Messages in", value: totals.inboundMessages },
-    { label: "Bot replies", value: totals.botReplies },
-    { label: "AI answers", value: totals.aiAnswers },
-    { label: "Bookings", value: totals.bookings },
-    { label: "Agent replies", value: totals.agentReplies },
-    { label: "Campaign sends", value: totals.campaignSends },
+    { label: "Messages in", value: totals.inboundMessages, icon: MessageCircle, accent: "teal" as const },
+    { label: "Bot replies", value: totals.botReplies, icon: Activity, accent: "blue" as const },
+    { label: "AI answers", value: totals.aiAnswers, icon: Bot, accent: "violet" as const },
+    { label: "Bookings", value: totals.bookings, icon: CalendarCheck2, accent: "orange" as const },
+    { label: "Agent replies", value: totals.agentReplies, icon: UserRoundCheck, accent: "teal" as const },
+    { label: "Campaign sends", value: totals.campaignSends, icon: Megaphone, accent: "blue" as const },
   ] as const;
+  const reportingMonth = monthRows[0]?.day
+    ? new Date(`${monthRows[0].day.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString("en-GB", {
+        month: "long",
+        year: "numeric",
+      })
+    : "Current month";
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h1 className="text-xl font-semibold text-slate-900">Analytics</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Automatic aggregate counter contract — this month ({monthRows.length} recorded day
-          {monthRows.length === 1 ? "" : "s"}). {isLocalSyntheticDemo
-            ? "The local emulator uses content-free synthetic fixtures with zero campaign sends."
-            : "UAT reads content-free telemetry from the governed allowlisted canary path."} These
-          are not production Hemas performance claims.
-        </p>
-      </section>
+    <div className="space-y-6">
+      <LitePageHeader
+        eyebrow="Performance visibility"
+        title="Analytics"
+        description={`Content-free activity for ${reportingMonth} across ${monthRows.length} recorded day${monthRows.length === 1 ? "" : "s"}. These are governed canary counters, not production Hemas performance claims.`}
+        actions={<LiteStatus tone="brand">{reportingMonth}</LiteStatus>}
+      />
 
-      {metrics.error ? (
-        <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{metrics.error}</p>
-      ) : null}
-      {metrics.loading ? <p className="text-xs text-slate-400">Loading aggregate counters…</p> : null}
+      {metrics.error ? <LiteNotice tone="danger">Aggregate activity is temporarily unavailable.</LiteNotice> : null}
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" aria-label="Activity totals">
         {cards.map((card) => (
-          <div
+          <LiteMetricCard
             key={card.label}
-            className="rounded-2xl border border-blue-900/5 bg-white p-4 shadow-sm"
-          >
-            <p className="text-2xl font-semibold text-blue-700">
-              {metrics.loading ? "–" : card.value}
-            </p>
-            <p className="mt-1 text-[11px] font-medium text-slate-500">{card.label}</p>
-          </div>
+            label={card.label}
+            value={metrics.loading ? "–" : metrics.error ? "Unavailable" : card.value}
+            detail={reportingMonth}
+            icon={card.icon}
+            accent={card.accent}
+          />
         ))}
       </section>
 
-      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Governed actions this month</h2>
-          <span className="text-xs text-slate-500">
-            {totals.apiRequests.toLocaleString()} / {MONTHLY_ACTION_ALLOWANCE.toLocaleString()} (demo allowance)
-          </span>
-        </div>
-        <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+      <section className={liteCx(LITE_PANEL, "p-5 sm:p-6")}>
+        <LiteSectionHeader
+          title="Governed actions"
+          description="Monthly consumption against the current demonstration allowance."
+          icon={Gauge}
+          action={
+            <span className="text-sm font-bold text-[var(--lite-ink-secondary)] [font-variant-numeric:tabular-nums]">
+              {totals.apiRequests.toLocaleString()} / {MONTHLY_ACTION_ALLOWANCE.toLocaleString()}
+            </span>
+          }
+        />
+        <div
+          className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-label="Governed actions used this month"
+          aria-valuemin={0}
+          aria-valuemax={MONTHLY_ACTION_ALLOWANCE}
+          aria-valuenow={Math.min(MONTHLY_ACTION_ALLOWANCE, totals.apiRequests)}
+          aria-valuetext={`${totals.apiRequests.toLocaleString()} of ${MONTHLY_ACTION_ALLOWANCE.toLocaleString()} governed actions used`}
+        >
           <div
             className={`h-full rounded-full transition-all ${
-              quotaPct > 90 ? "bg-rose-500" : quotaPct > 70 ? "bg-amber-500" : "bg-blue-500"
+              quotaPct > 90
+                ? "bg-rose-500"
+                : quotaPct > 70
+                  ? "bg-amber-500"
+                  : "bg-gradient-to-r from-[var(--lite-brand)] to-[var(--lite-brand-bright)]"
             }`}
-            style={{ width: `${Math.max(2, quotaPct)}%` }}
+            style={{ width: `${quotaPct}%` }}
           />
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">
-          Every governed action counts here — inbound, bot, AI, agent replies and campaign sends.
-          This is a demo consumption counter derived from governed canary actions; it is not an
-          API-request count, provider invoice, or finalized commercial quota.
+        <p className="mt-3 max-w-4xl text-xs leading-5 text-[var(--lite-muted)]">
+          Inbound activity, bot and AI answers, agent replies, bookings, and campaign sends all
+          contribute to this governed demo counter. It is not a provider invoice or finalized
+          commercial quota.
         </p>
       </section>
 
-      <section className="rounded-2xl border border-blue-900/5 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">Last 14 recorded days — conversation volume</h2>
-        <div className="mt-4 flex h-36 items-end gap-1.5">
+      <section className={liteCx(LITE_PANEL, "p-5 sm:p-6")}>
+        <LiteSectionHeader
+          title="Conversation volume"
+          description={`Last ${last14.length || 14} recorded days · inbound messages plus bot replies`}
+          icon={Activity}
+          action={<LiteStatus tone={isLocalSyntheticDemo ? "neutral" : "success"}>{isLocalSyntheticDemo ? "Synthetic" : "Canary live"}</LiteStatus>}
+        />
+        <div className="mt-6 flex h-48 items-end gap-2 border-b border-l border-[var(--lite-line)] px-2 pt-3 sm:gap-3">
           {last14.length === 0 ? (
-            <p className="text-xs text-slate-400">Counters appear after governed activity is recorded.</p>
+            <p className="self-center text-sm text-[var(--lite-muted)]">Counters appear after governed activity is recorded.</p>
           ) : (
             last14.map((row) => {
               const volume = row.inboundMessages + row.botReplies;
               return (
-                <div key={row.id} className="group flex flex-1 flex-col items-center gap-1">
+                <div key={row.id} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                  <span className="text-[11px] font-bold text-[var(--lite-muted)] [font-variant-numeric:tabular-nums]">
+                    {volume}
+                  </span>
                   <div
-                    className="w-full rounded-t-lg bg-blue-500/80 transition group-hover:bg-[#1863DC]"
-                    style={{ height: `${Math.max(4, Math.round((volume / maxBar) * 120))}px` }}
-                    title={`${row.day}: ${volume} messages`}
+                    className="w-full max-w-12 rounded-t-lg bg-gradient-to-t from-[var(--lite-brand)] to-[var(--lite-brand-bright)] transition group-hover:brightness-110"
+                    style={{ height: `${Math.max(4, Math.round((volume / maxBar) * 132))}px` }}
+                    title={`${row.day}: ${volume} total messages`}
                   />
-                  <span className="text-[9px] text-slate-400">{row.day.slice(8)}</span>
+                  <span className="pb-2 text-[10px] font-semibold text-[var(--lite-muted)]">{row.day.slice(8)}</span>
                 </div>
               );
             })
           )}
         </div>
+        {last14.length > 0 ? (
+          <table className="sr-only">
+            <caption>Accessible conversation volume by recorded day</caption>
+            <thead><tr><th>Date</th><th>Inbound</th><th>Bot replies</th><th>Total</th></tr></thead>
+            <tbody>
+              {last14.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.day}</td>
+                  <td>{row.inboundMessages}</td>
+                  <td>{row.botReplies}</td>
+                  <td>{row.inboundMessages + row.botReplies}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
       </section>
     </div>
   );

@@ -6,11 +6,11 @@ import { FRESH_BOT_SESSION } from "./engine.js";
 /**
  * Live canary INBOX BRIDGE.
  *
- * Mirrors real (governed, content-free) canary conversations into the same
+ * Mirrors real governed canary conversations into the same
  * Firestore shapes the portal inbox already renders for the synthetic seed:
- * contacts, conversations and metadata-only messages. Message bodies are
- * NEVER written — direction, type, language and timestamps only, exactly
- * like the seeded metadata-only records.
+ * contacts, conversations and metadata-only messages. Exact eligible canary
+ * text is isolated in a separate backend-only, short-retention collection;
+ * these bridge documents contain direction/type/language/timestamps only.
  */
 
 export const BRIDGE_WORKSPACE_ID = "workspace_safenet_demo";
@@ -198,7 +198,7 @@ export function buildLiveConversationDocument(
       : Timestamp.fromMillis(input.nowMs + 15 * 60 * 1000),
     lastMessageAt: now,
     handoffSummary:
-      "Live WhatsApp canary conversation via the trilingual menu bot. Metadata only — message bodies are never stored.",
+      "Live WhatsApp canary conversation via the trilingual menu bot. Operational records are metadata-only; authorized short-lived text is retained separately.",
     unreadCount:
       input.message.direction === "inbound"
         ? Math.min(100_000, existingUnread + 1)
@@ -240,6 +240,9 @@ export function buildLiveMessageDocument(input: LiveMessageDocumentInput): Recor
     metadataOnly: true,
     synthetic: true,
     liveCanary: true,
+    ...(input.message.automationSource
+      ? { automationSource: input.message.automationSource }
+      : {}),
     schemaVersion: 1,
     createdAt: now,
     updatedAt: now,
@@ -340,6 +343,8 @@ export interface BridgeMessageInput {
   readonly purpose: "general_support" | "appointment" | "laboratory";
   readonly staffHandoff: boolean;
   readonly last4: string;
+  /** Content-free provenance for automated outbound demo replies. */
+  readonly automationSource?: "menu_bot" | "governed_ai";
 }
 
 /** Ensure contact + conversation exist and append a metadata-only message. */

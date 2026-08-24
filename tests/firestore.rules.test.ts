@@ -97,6 +97,14 @@ const backendOnlyCanaryCollections = [
   "canary_campaign_recipient_operations",
   "canary_campaign_reconciliations",
   "canary_provider_message_routes",
+  "protectedMessageAccessQuotas",
+] as const;
+
+const backendOnlyEnterpriseCollections = [
+  "enterprise_bulk_item_secrets",
+  "enterprise_bulk_send_receipts",
+  "enterprise_callback_secrets",
+  "enterprise_callback_deliveries",
 ] as const;
 
 let testEnvironment: RulesTestEnvironment;
@@ -2294,8 +2302,8 @@ async function seedPhase5RulesFixtures(): Promise<void> {
   });
 }
 
-describe("public canary retention configuration", () => {
-  it("enables unindexed timestamp TTL fields for every public-test collection", () => {
+describe("canary retention configuration", () => {
+  it("enables unindexed timestamp TTL fields for every short-retention collection", () => {
     const indexes = JSON.parse(
       readFileSync(resolve(process.cwd(), "firestore.indexes.json"), "utf8"),
     ) as { fieldOverrides?: Array<Record<string, unknown>> };
@@ -2317,6 +2325,9 @@ describe("public canary retention configuration", () => {
       "canary_inbound_events",
       "canary_webhook_outbox",
       "canary_provider_message_routes",
+      "protectedMessageContents",
+      "protectedMessageAccessAudits",
+      "protectedMessageAccessQuotas",
     ]));
   });
 });
@@ -2592,6 +2603,152 @@ describe("default deny and tenant isolation", () => {
         await assertFails(deleteDoc(controlPlaneDoc));
       }
     }
+  });
+
+  it("keeps enterprise bulk secrets, receipts and callback lanes backend-only", async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      for (const collectionName of backendOnlyEnterpriseCollections) {
+        await setDoc(
+          doc(
+            context.firestore(),
+            "workspaces",
+            WORKSPACE_A,
+            collectionName,
+            "control-plane-fixture",
+          ),
+          {
+            workspaceId: WORKSPACE_A,
+            containsMessageContent: false,
+            synthetic: true,
+          },
+        );
+      }
+    });
+
+    for (const uid of ["admin-a", "supervisor-a", "agent-a", "analyst-a"]) {
+      const db = testEnvironment.authenticatedContext(uid).firestore();
+      for (const collectionName of backendOnlyEnterpriseCollections) {
+        const controlPlaneDoc = doc(
+          db,
+          "workspaces",
+          WORKSPACE_A,
+          collectionName,
+          "control-plane-fixture",
+        );
+        await assertFails(getDoc(controlPlaneDoc));
+        await assertFails(
+          getDocs(
+            query(
+              collection(db, "workspaces", WORKSPACE_A, collectionName),
+              limit(1),
+            ),
+          ),
+        );
+        await assertFails(setDoc(controlPlaneDoc, { forged: true }));
+        await assertFails(updateDoc(controlPlaneDoc, { forged: true }));
+        await assertFails(deleteDoc(controlPlaneDoc));
+      }
+    }
+  });
+
+  it("serves enterprise bulk ledgers as member read models and callback config to admins only", async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), "workspaces", WORKSPACE_A, "enterprise_bulk_jobs", "bulkjob-fixture"),
+        {
+          id: "bulkjob-fixture",
+          workspaceId: WORKSPACE_A,
+          clientBatchId: "batch_demo_20260824_001",
+          status: "dispatching",
+          itemCount: 2,
+          queuedCount: 1,
+          sentCount: 1,
+          notSentCount: 0,
+          suppressedCount: 0,
+          containsMessageContent: false,
+          synthetic: true,
+        },
+      );
+      await setDoc(
+        doc(
+          context.firestore(),
+          "workspaces",
+          WORKSPACE_A,
+          "enterprise_bulk_job_items",
+          "bulkitem-fixture",
+        ),
+        {
+          id: "bulkitem-fixture",
+          workspaceId: WORKSPACE_A,
+          jobId: "bulkjob-fixture",
+          clientBatchId: "batch_demo_20260824_001",
+          toNumberSha256: "f".repeat(64),
+          toNumberLast4: "4567",
+          clientReference: "crm-0001",
+          status: "sent",
+          containsMessageContent: false,
+          synthetic: true,
+        },
+      );
+      await setDoc(
+        doc(
+          context.firestore(),
+          "workspaces",
+          WORKSPACE_A,
+          "enterprise_callback_endpoints",
+          "cbend-fixture",
+        ),
+        {
+          id: "cbend-fixture",
+          workspaceId: WORKSPACE_A,
+          dlrUrl: "https://api.hemas-crm.example/webhooks/dlr",
+          replyUrl: null,
+          secretVersion: 1,
+          synthetic: true,
+        },
+      );
+    });
+
+    const agentDb = testEnvironment.authenticatedContext("agent-a").firestore();
+    const adminDb = testEnvironment.authenticatedContext("admin-a").firestore();
+
+    await assertSucceeds(
+      getDoc(doc(agentDb, "workspaces", WORKSPACE_A, "enterprise_bulk_jobs", "bulkjob-fixture")),
+    );
+    await assertSucceeds(
+      getDoc(
+        doc(agentDb, "workspaces", WORKSPACE_A, "enterprise_bulk_job_items", "bulkitem-fixture"),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(agentDb, "workspaces", WORKSPACE_A, "enterprise_bulk_jobs", "forged"),
+        { id: "forged", workspaceId: WORKSPACE_A, containsMessageContent: false },
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(adminDb, "workspaces", WORKSPACE_A, "enterprise_bulk_jobs", "bulkjob-fixture"),
+        { sentCount: 2 },
+      ),
+    );
+
+    await assertFails(
+      getDoc(
+        doc(agentDb, "workspaces", WORKSPACE_A, "enterprise_callback_endpoints", "cbend-fixture"),
+      ),
+    );
+    await assertSucceeds(
+      getDoc(
+        doc(adminDb, "workspaces", WORKSPACE_A, "enterprise_callback_endpoints", "cbend-fixture"),
+      ),
+    );
+    await assertFails(
+      updateDoc(
+        doc(adminDb, "workspaces", WORKSPACE_A, "enterprise_callback_endpoints", "cbend-fixture"),
+        { dlrUrl: "https://attacker.example/hook" },
+      ),
+    );
   });
 
   it("allows only bounded patient-list queries that prove an agent's exact scope", async () => {
@@ -3012,6 +3169,191 @@ describe("immutable consent and metadata-only message read models", () => {
     );
     await assertFails(updateDoc(messageRef, { status: "delivered" }));
     await assertFails(deleteDoc(messageRef));
+  });
+
+  it("keeps protected conversation message content backend-only for every browser role", async () => {
+    const protectedPath = [
+      "workspaces",
+      WORKSPACE_A,
+      "conversations",
+      "conversation-1",
+      "protectedMessageContents",
+      "protected-message-1",
+    ] as const;
+    const protectedCollectionPath = [
+      "workspaces",
+      WORKSPACE_A,
+      "conversations",
+      "conversation-1",
+      "protectedMessageContents",
+    ] as const;
+    const accessAuditPath = [
+      "workspaces",
+      WORKSPACE_A,
+      "protectedMessageAccessAudits",
+      "protected-access-1",
+    ] as const;
+    const accessQuotaPath = [
+      "workspaces",
+      WORKSPACE_A,
+      "protectedMessageAccessQuotas",
+      "protected-quota-1",
+    ] as const;
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await setDoc(doc(db, ...protectedPath), {
+        id: "protected-message-1",
+        workspaceId: WORKSPACE_A,
+        conversationId: "conversation-1",
+        messageId: "message-allowed",
+        teamId: "outpatient",
+        locationId: "wattala",
+        direction: "inbound",
+        source: "whatsapp_user",
+        contentKind: "text",
+        text: "synthetic protected fixture",
+        bodySha256: "a".repeat(64),
+        bodyLength: 27,
+        state: "materialized",
+        containsMessageContent: true,
+        containsPlaintextSender: false,
+        liveCanary: true,
+        synthetic: true,
+        createdAt: now(),
+        updatedAt: now(),
+        expiresAtMs: now().toMillis() + 60_000,
+        expireAt: Timestamp.fromMillis(now().toMillis() + 60_000),
+        schemaVersion: 1,
+      });
+      await setDoc(doc(db, ...accessAuditPath), {
+        id: "protected-access-1",
+        workspaceId: WORKSPACE_A,
+        actorUid: "agent-a",
+        actorRole: "agent",
+        conversationId: "conversation-1",
+        teamId: "outpatient",
+        locationId: "wattala",
+        action: "conversation.protected_text_viewed",
+        accessMode: "agent_assigned_self",
+        outcome: "allowed",
+        recordCount: 1,
+        purpose: "canary_support",
+        containsMessageContent: false,
+        occurredAt: now(),
+        schemaVersion: 1,
+      });
+      const quotaWindowStartMs = Math.floor(now().toMillis() / 60_000) * 60_000;
+      await setDoc(doc(db, ...accessQuotaPath), {
+        id: "protected-quota-1",
+        workspaceId: WORKSPACE_A,
+        actorUid: "agent-a",
+        requestCount: 1,
+        limit: 6,
+        windowStartMs: quotaWindowStartMs,
+        windowStartedAt: Timestamp.fromMillis(quotaWindowStartMs),
+        lastRequestAt: now(),
+        expiresAtMs: quotaWindowStartMs + 300_000,
+        expireAt: Timestamp.fromMillis(quotaWindowStartMs + 300_000),
+        containsMessageContent: false,
+        schemaVersion: 1,
+      });
+    });
+
+    const unauthenticatedDb = testEnvironment.unauthenticatedContext().firestore();
+    const agentDb = testEnvironment.authenticatedContext("agent-a").firestore();
+    const supervisorDb = testEnvironment.authenticatedContext("supervisor-a").firestore();
+    const adminDb = testEnvironment.authenticatedContext("admin-a").firestore();
+    const analystDb = testEnvironment.authenticatedContext("analyst-a").firestore();
+
+    for (const db of [unauthenticatedDb, agentDb, supervisorDb, adminDb, analystDb]) {
+      await assertFails(getDoc(doc(db, ...protectedPath)));
+      await assertFails(getDocs(query(collection(db, ...protectedCollectionPath), limit(60))));
+      await assertFails(getDoc(doc(db, ...accessAuditPath)));
+      await assertFails(getDoc(doc(db, ...accessQuotaPath)));
+      await assertFails(
+        getDocs(
+          query(
+            collection(db, "workspaces", WORKSPACE_A, "protectedMessageAccessAudits"),
+            limit(60),
+          ),
+        ),
+      );
+      await assertFails(
+        getDocs(
+          query(
+            collection(db, "workspaces", WORKSPACE_A, "protectedMessageAccessQuotas"),
+            limit(1),
+          ),
+        ),
+      );
+      await assertFails(
+        setDoc(
+          doc(
+            db,
+            ...protectedCollectionPath,
+            `forged-${db === adminDb ? "admin" : db === supervisorDb ? "supervisor" : "other"}`,
+          ),
+          {
+            workspaceId: WORKSPACE_A,
+            conversationId: "conversation-1",
+            messageId: "message-forged",
+            text: "forged browser content",
+          },
+        ),
+      );
+      await assertFails(
+        setDoc(
+          doc(
+            db,
+            "workspaces",
+            WORKSPACE_A,
+            "protectedMessageAccessAudits",
+            `forged-${db === adminDb ? "admin" : db === supervisorDb ? "supervisor" : "other"}`,
+          ),
+          {
+            workspaceId: WORKSPACE_A,
+            actorUid: "forged",
+            recordCount: 60,
+          },
+        ),
+      );
+      await assertFails(
+        setDoc(
+          doc(
+            db,
+            "workspaces",
+            WORKSPACE_A,
+            "protectedMessageAccessQuotas",
+            `forged-${db === adminDb ? "admin" : db === supervisorDb ? "supervisor" : "other"}`,
+          ),
+          {
+            workspaceId: WORKSPACE_A,
+            actorUid: "forged",
+            requestCount: 0,
+          },
+        ),
+      );
+    }
+
+    await assertFails(updateDoc(doc(adminDb, ...protectedPath), { text: "overwritten" }));
+    await assertFails(deleteDoc(doc(adminDb, ...protectedPath)));
+    await assertFails(updateDoc(doc(adminDb, ...accessAuditPath), { recordCount: 99 }));
+    await assertFails(deleteDoc(doc(adminDb, ...accessAuditPath)));
+    await assertFails(updateDoc(doc(adminDb, ...accessQuotaPath), { requestCount: 0 }));
+    await assertFails(deleteDoc(doc(adminDb, ...accessQuotaPath)));
+    await assertFails(
+      getDoc(
+        doc(
+          agentDb,
+          "workspaces",
+          WORKSPACE_B,
+          "conversations",
+          "conversation-b",
+          "protectedMessageContents",
+          "protected-message-b",
+        ),
+      ),
+    );
   });
 });
 

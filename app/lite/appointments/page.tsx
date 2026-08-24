@@ -1,9 +1,20 @@
 "use client";
 
+import { CalendarDays, Check, Clock3, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { createLiteBookingOperationId } from "@/components/lite/booking-operation";
 import { useLiteAuth } from "@/components/lite/lite-auth";
 import { liteSetBooking, useLiteBookings } from "@/components/lite/lite-data";
+import {
+  LITE_BUTTON_PRIMARY,
+  LITE_BUTTON_SECONDARY,
+  LITE_PANEL,
+  LiteEmptyState,
+  LiteNotice,
+  LitePageHeader,
+  LiteStatus,
+  liteCx,
+} from "@/components/lite/lite-ui";
 
 const DEPT: Record<string, string> = {
   dept_general: "General Consultation", dept_cardiology: "Cardiology", dept_ortho: "Orthopaedics",
@@ -16,9 +27,9 @@ const SLOT: Record<string, string> = {
 };
 const LANG: Record<string, string> = { en: "EN", si: "සිං", ta: "தமி" };
 const STATUS_STYLE: Record<string, string> = {
-  requested: "bg-amber-100 text-amber-800",
-  confirmed: "bg-[#1863DC] text-white",
-  cancelled: "bg-slate-200 text-slate-500",
+  requested: "border-amber-200 bg-amber-50 text-amber-800",
+  confirmed: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  cancelled: "border-slate-200 bg-slate-50 text-slate-500",
 };
 
 export default function LiteAppointmentsPage() {
@@ -30,6 +41,7 @@ export default function LiteAppointmentsPage() {
     readonly operationId: string;
   } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeTone, setNoticeTone] = useState<"success" | "danger">("success");
 
   const act = async (id: string, next: "confirmed" | "cancelled") => {
     const key = `${id}:${next}`;
@@ -40,6 +52,7 @@ export default function LiteAppointmentsPage() {
     retryOperation.current = { key, operationId };
     setBusy(key);
     setNotice(null);
+    setNoticeTone("success");
     try {
       const r = await liteSetBooking(id, next, operationId);
       setNotice(
@@ -51,6 +64,7 @@ export default function LiteAppointmentsPage() {
       );
       retryOperation.current = null;
     } catch (error) {
+      setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : "Action failed.");
     } finally {
       setBusy(null);
@@ -65,67 +79,102 @@ export default function LiteAppointmentsPage() {
   const days = [...byDay.keys()].sort();
 
   return (
-    <div className="space-y-5">
-      <section>
-        <h1 className="text-xl font-semibold text-slate-900">Appointments</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Governed canary appointment requests from WhatsApp — selections only, with no patient
-          name, phone number, or clinical content stored in this view.
-        </p>
-      </section>
+    <div className="space-y-6">
+      <LitePageHeader
+        eyebrow="Care coordination"
+        title="Appointments"
+        description="Review booking requests received from WhatsApp and manage their confirmation status without exposing names, phone numbers, or clinical content."
+        actions={
+          <LiteStatus tone={bookings.error ? "danger" : bookings.loading ? "neutral" : "brand"}>
+            {bookings.error
+              ? "Unavailable"
+              : bookings.loading
+                ? "Loading"
+                : `${bookings.rows.length} requests`}
+          </LiteStatus>
+        }
+      />
 
-      {notice ? (
-        <p className="rounded-xl bg-blue-50 px-4 py-2.5 text-xs text-blue-800">{notice}</p>
-      ) : null}
+      {notice ? <LiteNotice tone={noticeTone}>{notice}</LiteNotice> : null}
       {bookings.error ? (
-        <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">{bookings.error}</p>
+        <LiteNotice tone="danger">Appointment requests are temporarily unavailable.</LiteNotice>
       ) : null}
-      {bookings.loading ? <p className="text-xs text-slate-400">Loading bookings…</p> : null}
+      {bookings.loading ? (
+        <div className="grid gap-4 lg:grid-cols-2" aria-busy="true">
+          {[0, 1].map((row) => (
+            <div key={row} className="h-56 animate-pulse rounded-2xl bg-white" />
+          ))}
+        </div>
+      ) : null}
       {!bookings.loading && bookings.rows.length === 0 && !bookings.error ? (
-        <p className="rounded-xl bg-white px-4 py-6 text-center text-xs text-slate-400">
-          No bookings yet — on WhatsApp send <b>menu → Book appointment</b>, pick a department,
-          date and time, and it lands here with a reference number.
-        </p>
+        <div className={LITE_PANEL}>
+          <LiteEmptyState
+            icon={CalendarDays}
+            title="No appointment requests yet"
+            description="On WhatsApp, send MENU, choose Book appointment, and select a department, date, and time. The governed request will appear here."
+          />
+        </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-2">
         {days.map((day) => (
-          <section key={day} className="rounded-2xl border border-blue-900/5 bg-white shadow-sm">
-            <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5">
-              <span className="text-sm font-semibold text-slate-800">
+          <section key={day} className={liteCx(LITE_PANEL, "overflow-hidden")}>
+            <header className="flex items-center gap-3 border-b border-[var(--lite-line)] bg-[#fbfdfd] px-5 py-4">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--lite-brand-soft)] text-[var(--lite-brand)]">
+                <CalendarDays size={19} aria-hidden="true" />
+              </span>
+              <span className="font-display text-base font-bold text-[var(--lite-ink)]">
                 {new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
-                  weekday: "short", day: "2-digit", month: "short",
+                  weekday: "long", day: "2-digit", month: "short",
                 })}
               </span>
-              <span className="ml-auto text-[10px] uppercase tracking-wide text-slate-400">
+              <span className="ml-auto text-xs font-semibold text-[var(--lite-muted)]">
                 {byDay.get(day)?.length} booking{(byDay.get(day)?.length ?? 0) === 1 ? "" : "s"}
               </span>
             </header>
-            <ul>
+            <ul className="divide-y divide-[var(--lite-line)]">
               {(byDay.get(day) ?? []).map((b) => (
-                <li key={b.id} className="border-b border-slate-50 px-4 py-3 last:border-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-blue-700">{SLOT[b.slotId] ?? b.slotId}</span>
-                    <span className="text-sm text-slate-700">{DEPT[b.departmentId] ?? b.departmentId}</span>
-                    <span className="rounded bg-slate-100 px-1 text-[9px] font-semibold">{LANG[b.language] ?? b.language}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${STATUS_STYLE[b.status] ?? STATUS_STYLE.requested}`}>
-                      {b.status}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] text-slate-500">{b.reference}</span>
-                    <span className="text-[11px] text-slate-400">
-                      Canary visitor · opaque ref {b.visitorKey.slice(0, 6)}
-                    </span>
-                    <span className="ml-auto flex gap-1.5">
+                <li key={b.id} className="px-5 py-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[var(--lite-line)] bg-white text-[var(--lite-brand)]">
+                        <Clock3 size={18} aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-display text-[15px] font-bold text-[var(--lite-ink)]">
+                            {SLOT[b.slotId] ?? b.slotId}
+                          </span>
+                          <span className="rounded-full border border-[var(--lite-line)] bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-[var(--lite-muted)]">
+                            {LANG[b.language] ?? b.language}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-bold capitalize ${STATUS_STYLE[b.status] ?? STATUS_STYLE.requested}`}
+                          >
+                            {b.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-[var(--lite-ink-secondary)]">
+                          {DEPT[b.departmentId] ?? b.departmentId}
+                        </p>
+                        <p className="mt-1.5 text-xs text-[var(--lite-muted)]">
+                          <span className="font-mono">{b.reference}</span>
+                          <span aria-hidden="true"> · </span>
+                          Canary visitor · opaque ref {b.visitorKey.slice(0, 6)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 sm:justify-end">
                       {b.status !== "confirmed" ? (
                         <button
                           type="button"
                           disabled={busy !== null}
                           onClick={() => void act(b.id, "confirmed")}
-                          className="rounded-full bg-[#1863DC] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#0F56C4] disabled:opacity-40"
+                          className={`${LITE_BUTTON_PRIMARY} min-h-10 flex-1 px-3 text-xs sm:flex-none`}
+                          aria-label={`Confirm appointment ${b.reference}`}
                         >
-                          {busy === `${b.id}:confirmed` ? "…" : "Confirm"}
+                          <Check size={15} aria-hidden="true" />
+                          {busy === `${b.id}:confirmed` ? "Confirming…" : "Confirm"}
                         </button>
                       ) : null}
                       {b.status !== "cancelled" ? (
@@ -133,12 +182,14 @@ export default function LiteAppointmentsPage() {
                           type="button"
                           disabled={busy !== null}
                           onClick={() => void act(b.id, "cancelled")}
-                          className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 disabled:opacity-40"
+                          className={`${LITE_BUTTON_SECONDARY} min-h-10 flex-1 px-3 text-xs hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 sm:flex-none`}
+                          aria-label={`Cancel appointment ${b.reference}`}
                         >
-                          {busy === `${b.id}:cancelled` ? "…" : "Cancel"}
+                          <X size={15} aria-hidden="true" />
+                          {busy === `${b.id}:cancelled` ? "Cancelling…" : "Cancel"}
                         </button>
                       ) : null}
-                    </span>
+                    </div>
                   </div>
                 </li>
               ))}
