@@ -50,11 +50,26 @@ export interface ContactWorkspaceReads {
   readonly listContacts: (
     db: Firestore,
     input: ScopedContactListInput,
+    options?: { readonly tolerant?: boolean },
   ) => Promise<readonly ContactListItemDTO[]>;
   readonly listConsentRecords: (
     db: Firestore,
     input: ConsentListInput,
+    options?: { readonly tolerant?: boolean },
   ) => Promise<readonly ConsentRecordDTO[]>;
+}
+
+export type ContactWorkspaceLoadOptions = Readonly<{
+  /**
+   * Skip records from another lane (schema mismatch / impossible scope join)
+   * instead of failing the whole directory. Governed cloud demo only.
+   */
+  readonly tolerant?: boolean;
+}>;
+
+export interface ContactWorkspaceLoadResult {
+  readonly records: readonly ContactDirectoryRecord[];
+  readonly excluded: number;
 }
 
 const defaultReads: ContactWorkspaceReads = {
@@ -166,7 +181,19 @@ export async function loadContactWorkspace(
   db: Firestore,
   authority: PatientRecordAuthority,
   reads: ContactWorkspaceReads = defaultReads,
+  options?: ContactWorkspaceLoadOptions,
 ): Promise<readonly ContactDirectoryRecord[]> {
+  return (await loadContactWorkspaceWithExclusions(db, authority, reads, options)).records;
+}
+
+export async function loadContactWorkspaceWithExclusions(
+  db: Firestore,
+  authority: PatientRecordAuthority,
+  reads: ContactWorkspaceReads = defaultReads,
+  options?: ContactWorkspaceLoadOptions,
+): Promise<ContactWorkspaceLoadResult> {
+  const readOptions = options?.tolerant ? ({ tolerant: true } as const) : undefined;
+  let excluded = 0;
   try {
     const [teams, locations] = await Promise.all([
       reads.listTeams(db, { workspaceId: authority.workspaceId, pageSize: PAGE_SIZE }),
@@ -183,7 +210,7 @@ export async function loadContactWorkspace(
 
     const contactBatches = await Promise.all(
       contactInputsForPlan(authority.workspaceId, plan).map((input) =>
-        reads.listContacts(db, input),
+        readOptions ? reads.listContacts(db, input, readOptions) : reads.listContacts(db, input),
       ),
     );
     const contacts = [...dedupeById(contactBatches.flat())].sort(
@@ -191,26 +218,52 @@ export async function loadContactWorkspace(
     );
     const teamMap = new Map(teams.map((team) => [team.id, team]));
     const locationMap = new Map(locations.map((location) => [location.id, location]));
-    contacts.forEach((contact) =>
-      assertContactScope({
-        workspaceId: authority.workspaceId,
-        contact,
-        plan,
-        teamMap,
-        locationMap,
-      }),
-    );
+    const scoped: typeof contacts = [];
+    for (const contact of contacts) {
+      try {
+        assertContactScope({
+          workspaceId: authority.workspaceId,
+          contact,
+          plan,
+          teamMap,
+          locationMap,
+        });
+        scoped.push(contact);
+      } catch (error) {
+        if (
+          readOptions &&
+          error instanceof ContactWorkspaceDataError &&
+          error.code === "invalid_join"
+        ) {
+          excluded += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
 
-    return Promise.all(
-      contacts.map(async (contact): Promise<ContactDirectoryRecord> => {
+    const records = await Promise.all(
+      scoped.map(async (contact): Promise<ContactDirectoryRecord | null> => {
         const consentRecords = dedupeById(
-          await reads.listConsentRecords(db, {
-            workspaceId: authority.workspaceId,
-            contactId: contact.id,
-            teamId: contact.teamId,
-            locationId: contact.locationId,
-            pageSize: PAGE_SIZE,
-          }),
+          await (readOptions
+            ? reads.listConsentRecords(
+                db,
+                {
+                  workspaceId: authority.workspaceId,
+                  contactId: contact.id,
+                  teamId: contact.teamId,
+                  locationId: contact.locationId,
+                  pageSize: PAGE_SIZE,
+                },
+                readOptions,
+              )
+            : reads.listConsentRecords(db, {
+                workspaceId: authority.workspaceId,
+                contactId: contact.id,
+                teamId: contact.teamId,
+                locationId: contact.locationId,
+                pageSize: PAGE_SIZE,
+              })),
         );
         if (
           consentRecords.some(
@@ -221,6 +274,10 @@ export async function loadContactWorkspace(
               consent.locationId !== contact.locationId,
           )
         ) {
+          if (readOptions) {
+            excluded += 1;
+            return null;
+          }
           throw new ContactWorkspaceDataError(
             "Consent evidence did not match its contact and team-location scope.",
             "invalid_join",
@@ -232,6 +289,10 @@ export async function loadContactWorkspace(
         };
       }),
     );
+    return {
+      records: records.filter((record): record is ContactDirectoryRecord => record !== null),
+      excluded,
+    };
   } catch (error) {
     if (error instanceof ContactWorkspaceDataError) throw error;
     const sourceCode =

@@ -32,6 +32,7 @@ import {
   type AppointmentActionState,
   useAppointmentWorkspace,
 } from "./use-appointment-workspace";
+import { CLOUD_DEMO_STAGE, DATA_SOURCE_SHORT, DATA_SOURCE, FUNCTIONS_SOURCE, READS_LABEL } from "@/lib/firebase/boundary-copy";
 
 type AppointmentStatus = AppointmentDTO["status"];
 
@@ -100,12 +101,12 @@ function AppointmentBoundary() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-bold text-slate-950 sm:text-[15px]">
-                Authenticated emulator evidence
+                {READS_LABEL.charAt(0).toUpperCase() + READS_LABEL.slice(1)} · evidence
               </h2>
               <StatusPill tone="warning" dot>No HIS connection</StatusPill>
             </div>
             <p className="mt-1.5 max-w-4xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
-              Reads use authenticated Firestore emulator queries. The two request-only transitions use one audited local Functions transaction on 127.0.0.1, with externalCalls=0. All records are synthetic; no Meta, WhatsApp, SMS, email, Hemas, or appointment-system adapter is called.
+              Reads use authenticated {DATA_SOURCE_SHORT} queries. The two request-only transitions use one audited Functions transaction on {FUNCTIONS_SOURCE}, with externalCalls=0. All records are synthetic; no Meta, WhatsApp, SMS, email, Hemas, or appointment-system adapter is called.
             </p>
           </div>
         </div>
@@ -126,7 +127,7 @@ function AppointmentLoading() {
   return (
     <section
       className="grid gap-5 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]"
-      aria-label="Loading persisted appointments from the local Firestore emulator"
+      aria-label={`Loading persisted appointments from ${DATA_SOURCE}`}
       aria-busy="true"
     >
       <div className="rounded-2xl border border-[var(--line)] bg-white p-4">
@@ -168,7 +169,7 @@ function AppointmentFailure({ message, retry }: { message: string; retry: () => 
             onClick={retry}
             className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white hover:bg-rose-800"
           >
-            <RefreshCcw size={15} aria-hidden="true" /> Retry local emulator load
+            <RefreshCcw size={15} aria-hidden="true" /> Retry load
           </button>
         </div>
       </div>
@@ -291,7 +292,7 @@ function AppointmentList({
     <section className="min-w-0 rounded-2xl border border-[var(--line)] bg-white p-3 shadow-[0_1px_2px_rgba(23,34,31,0.03)] sm:p-4" aria-labelledby="persisted-appointments-title">
       <div className="px-1 pb-3">
         <h2 id="persisted-appointments-title" className="text-[15px] font-bold text-slate-950">Persisted appointments</h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">Bounded emulator query · {records.length} synthetic record{records.length === 1 ? "" : "s"}</p>
+        <p className="mt-1 text-xs text-[var(--muted)]">Bounded {DATA_SOURCE_SHORT} query · {records.length} synthetic record{records.length === 1 ? "" : "s"}</p>
       </div>
       <div className="space-y-2">
         {records.map((record) => {
@@ -489,8 +490,8 @@ function VerifiedAppointmentWorkspace({ session }: { session: VerifiedWorkspaceS
         <div>
           <div className="mb-2 flex flex-wrap gap-2">
             <StatusPill tone="success" dot>Authenticated workspace</StatusPill>
-            <StatusPill tone="info" dot>Firestore emulator</StatusPill>
-            <StatusPill tone="info" dot>Functions emulator</StatusPill>
+            <StatusPill tone="info" dot>{DATA_SOURCE_SHORT}</StatusPill>
+            <StatusPill tone="info" dot>{CLOUD_DEMO_STAGE ? "Governed Functions" : "Functions emulator"}</StatusPill>
           </div>
           <h1 className="text-2xl font-bold tracking-[-0.035em] text-slate-950 sm:text-3xl">Appointment journey workspace</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
@@ -502,7 +503,7 @@ function VerifiedAppointmentWorkspace({ session }: { session: VerifiedWorkspaceS
           onClick={workspace.retry}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
         >
-          <RefreshCcw size={16} aria-hidden="true" /> Reload emulator evidence
+          <RefreshCcw size={16} aria-hidden="true" /> Reload evidence
         </button>
       </section>
 
@@ -517,7 +518,7 @@ function VerifiedAppointmentWorkspace({ session }: { session: VerifiedWorkspaceS
         <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
           <History className="mx-auto text-slate-400" size={25} aria-hidden="true" />
           <h2 className="mt-3 text-base font-bold text-slate-800">No persisted appointments in this verified scope</h2>
-          <p className="mx-auto mt-1.5 max-w-2xl text-sm leading-6 text-slate-600">The bounded emulator query succeeded and returned no records. A domain fixture was not substituted.</p>
+          <p className="mx-auto mt-1.5 max-w-2xl text-sm leading-6 text-slate-600">The bounded {DATA_SOURCE_SHORT} query succeeded and returned no records. A domain fixture was not substituted.</p>
         </section>
       ) : null}
 

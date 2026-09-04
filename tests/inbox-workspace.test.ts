@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assembleInboxRecords,
+  assembleInboxRecordsWithExclusions,
   buildInboxScopePlan,
   describeInboxWorkspaceError,
   filterInboxRecords,
@@ -265,5 +266,24 @@ describe("persisted inbox workspace model", () => {
         new InboxWorkspaceDataError("safe", "load_failed", "firestore/permission-denied"),
       ),
     ).toContain("denied");
+  });
+  it("in tolerant mode skips another lane's unjoinable conversation and counts it, while strict mode still fails closed", () => {
+    const otherLane = { ...conversation, id: "conv_live_canary", contactId: "contact_live_af0611f559" };
+    const input = {
+      workspaceId,
+      conversations: [conversation, otherLane],
+      contacts: [contact],
+      teams: [team(contact.teamId, [contact.locationId])],
+      locations: [location(contact.locationId)],
+      consentByContactId: new Map([[contact.id, [consent]]]),
+      messagesByConversationId: new Map([[conversation.id, [message]]]),
+    };
+
+    expect(() => assembleInboxRecords(input)).toThrow(InboxWorkspaceDataError);
+
+    const tolerant = assembleInboxRecordsWithExclusions(input, { tolerant: true });
+    expect(tolerant.records).toHaveLength(1);
+    expect(tolerant.records[0]?.conversation.id).toBe(conversation.id);
+    expect(tolerant.excluded).toBe(1);
   });
 });

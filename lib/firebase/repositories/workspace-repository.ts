@@ -542,6 +542,37 @@ function parseInput<T>(schema: z.ZodType<T>, value: unknown): T {
   return parseOrThrow(schema, value, "Repository input");
 }
 
+/**
+ * Optional read behaviour. `tolerant: true` skips documents that fail schema
+ * validation (`invalid_data`) instead of failing the whole list — used only by
+ * the governed cloud demo, where the Lite canary lane shares these collections.
+ * Every other error still propagates unchanged.
+ */
+export type ListReadOptions = Readonly<{ tolerant?: boolean }>;
+
+function collectParsed<T>(
+  documents: readonly { readonly id: string; data(): unknown }[],
+  parse: (data: unknown, id: string) => T,
+  options: ListReadOptions | undefined,
+): T[] {
+  const results: T[] = [];
+  for (const record of documents) {
+    try {
+      results.push(parse(record.data(), record.id));
+    } catch (error) {
+      if (
+        options?.tolerant &&
+        error instanceof WorkspaceAccessError &&
+        error.code === "invalid_data"
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  return results;
+}
+
 function timestampToIso(value: Timestamp | null): string | null {
   return value === null ? null : value.toDate().toISOString();
 }
@@ -778,6 +809,7 @@ function scopedConstraints(input: ScopedListInput): QueryConstraint[] {
 export async function listScopedConversations(
   db: Firestore,
   rawInput: ConversationListInput,
+  options?: ListReadOptions,
 ): Promise<readonly ConversationListItemDTO[]> {
   const input = prepareConversationListInput(rawInput);
   const constraints = scopedConstraints(input);
@@ -790,14 +822,17 @@ export async function listScopedConversations(
   const snapshot = await getDocs(
     query(collection(db, "workspaces", input.workspaceId, "conversations"), ...constraints),
   );
-  return snapshot.docs.map((record) =>
-    parseConversationDocument(record.data(), record.id, input.workspaceId),
+  return collectParsed(
+    snapshot.docs,
+    (data, id) => parseConversationDocument(data, id, input.workspaceId),
+    options,
   );
 }
 
 export async function listScopedContacts(
   db: Firestore,
   rawInput: ScopedListInput,
+  options?: ListReadOptions,
 ): Promise<readonly ContactListItemDTO[]> {
   const input = prepareScopedListInput(rawInput);
   const constraints = scopedConstraints(input);
@@ -807,14 +842,17 @@ export async function listScopedContacts(
   const snapshot = await getDocs(
     query(collection(db, "workspaces", input.workspaceId, "contacts"), ...constraints),
   );
-  return snapshot.docs.map((record) =>
-    parseContactDocument(record.data(), record.id, input.workspaceId),
+  return collectParsed(
+    snapshot.docs,
+    (data, id) => parseContactDocument(data, id, input.workspaceId),
+    options,
   );
 }
 
 export async function listConsentRecordsForContact(
   db: Firestore,
   rawInput: ConsentRecordListInput,
+  options?: ListReadOptions,
 ): Promise<readonly ConsentRecordDTO[]> {
   const input = prepareConsentRecordListInput(rawInput);
   const snapshot = await getDocs(
@@ -828,10 +866,10 @@ export async function listConsentRecordsForContact(
     ),
   );
 
-  return snapshot.docs.map((record) => {
-    const parsed = parseOrThrow(consentRecordDocumentSchema, record.data(), "Consent record");
+  return collectParsed(snapshot.docs, (data, id) => {
+    const parsed = parseOrThrow(consentRecordDocumentSchema, data, "Consent record");
     if (
-      parsed.id !== record.id ||
+      parsed.id !== id ||
       parsed.workspaceId !== input.workspaceId ||
       parsed.contactId !== input.contactId ||
       parsed.teamId !== input.teamId ||
@@ -849,12 +887,13 @@ export async function listConsentRecordsForContact(
       createdAt: parsed.createdAt.toDate().toISOString(),
       updatedAt: parsed.updatedAt.toDate().toISOString(),
     };
-  });
+  }, options);
 }
 
 export async function listConversationMessageMetadata(
   db: Firestore,
   rawInput: MessageMetadataListInput,
+  options?: ListReadOptions,
 ): Promise<readonly MessageMetadataDTO[]> {
   const input = prepareMessageMetadataListInput(rawInput);
   const snapshot = await getDocs(
@@ -868,10 +907,10 @@ export async function listConversationMessageMetadata(
     ),
   );
 
-  return snapshot.docs.map((record) => {
+  return collectParsed(snapshot.docs, (data, id) => {
     const parsed = parseMessageMetadataDocument(
-      record.data(),
-      record.id,
+      data,
+      id,
       input.workspaceId,
     );
     if (
@@ -885,5 +924,5 @@ export async function listConversationMessageMetadata(
       );
     }
     return parsed;
-  });
+  }, options);
 }

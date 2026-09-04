@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthSessionProvider } from "@/components/auth/auth-session";
 import { LoginCard } from "@/components/auth/login-card";
 
-export const metadata: Metadata = { title: "Local demo access" };
+export const metadata: Metadata = { title: "Sign in" };
 
 export default function LoginPage() {
   return (

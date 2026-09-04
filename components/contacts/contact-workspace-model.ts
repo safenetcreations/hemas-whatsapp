@@ -1,3 +1,4 @@
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 import type { ConsentStatus, SupportedLanguage } from "@/lib/domain";
 import type { SafeContactTag } from "@/lib/firebase/repositories";
 import type {
@@ -92,12 +93,12 @@ export function safeContactLoadMessage(error: unknown): string {
     return "Firestore denied this directory request. Re-authenticate the synthetic workspace and try again.";
   }
   if (code.includes("failed-precondition")) {
-    return "The local contact query needs its approved Firestore index before it can run.";
+    return "The contact query needs its approved Firestore index before it can run.";
   }
   if (code.includes("unavailable") || code.includes("network")) {
-    return "The local Firestore emulator is unavailable. Start the emulators, seed them, and retry.";
+    return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} is unavailable. Check the connection and retry.`;
   }
-  return "The synthetic contact directory could not be loaded from the Firestore emulator.";
+  return `The synthetic contact directory could not be loaded from ${DATA_SOURCE}.`;
 }
 
 export function safeContactSaveMessage(error: unknown): string {
@@ -106,7 +107,7 @@ export function safeContactSaveMessage(error: unknown): string {
     return "Firestore denied this preference change. No contact data was changed.";
   }
   if (code.includes("unavailable") || code.includes("network")) {
-    return "The local Firestore emulator is unavailable. Your unsaved changes remain in this browser.";
+    return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} is unavailable. Your unsaved changes remain in this browser.`;
   }
   return "The preference change could not be saved. Your unsaved changes remain in this browser.";
 }

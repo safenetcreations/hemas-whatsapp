@@ -18,6 +18,7 @@ import {
   connectionCentreFailure,
   validateConnectionCentreResult,
 } from "./connection-centre-data";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export type ConnectionCentreLoadState =
   | {
@@ -97,7 +98,7 @@ function successfulState(
       status: "empty",
       inventory,
       message:
-        "No governed synthetic v1 inventory is present in the local Firestore emulator. All three fixed records are absent; no connection state was inferred.",
+        `No governed synthetic v1 inventory is present in ${DATA_SOURCE}. All three fixed records are absent; no connection state was inferred.`,
     };
   }
   return { status: "ready", inventory, message: null };

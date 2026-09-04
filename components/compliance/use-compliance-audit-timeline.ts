@@ -1,5 +1,6 @@
 "use client";
 
+import { CLOUD_DEMO_STAGE } from "@/lib/firebase/boundary-copy";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -177,8 +178,9 @@ export function complianceAuditFailureState(
     status: "error",
     events: [],
     nextCursor: null,
-    message:
-      "The local minimized audit timeline is unavailable. No cloud or raw Firestore fallback was attempted.",
+    message: CLOUD_DEMO_STAGE
+      ? "The minimized audit timeline is not enabled in this cloud demonstration yet; it is projected by a governed Functions endpoint that is switched on during the discovery phase. No raw Firestore fallback was attempted."
+      : "The local minimized audit timeline is unavailable. No cloud or raw Firestore fallback was attempted.",
   };
 }
 

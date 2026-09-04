@@ -48,6 +48,7 @@ import {
   automationControlsLocked,
   useAutomationWorkspace,
 } from "./use-automation-workspace";
+import { DATA_SOURCE_SHORT, DATA_SOURCE, FUNCTIONS_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export {
   automationWorkspaceAuthorityKey,
@@ -139,8 +140,8 @@ function SafetyBoundary() {
               </StatusPill>
             </div>
             <p className="mt-1.5 max-w-3xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
-              Catalogue and operation state come only from no-cache Firebase emulator reads.
-              Controls call fixed localhost Functions, then require exact aggregate, immutable
+              Catalogue and operation state come only from no-cache {DATA_SOURCE_SHORT} reads.
+              Controls call {FUNCTIONS_SOURCE}, then require exact aggregate, immutable
               event, redacted audit, lifecycle pointer, revision, and result-fingerprint evidence.
             </p>
           </div>
@@ -218,7 +219,7 @@ function LoadingPane() {
       />
       <p className="mt-3 text-sm font-bold text-slate-900">Loading authoritative evidence</p>
       <p className="mt-1 text-xs text-slate-500">
-        Reading bounded catalogues and exact aggregate pointers from the Firestore emulator.
+        Reading bounded catalogues and exact aggregate pointers from {DATA_SOURCE}.
       </p>
     </section>
   );

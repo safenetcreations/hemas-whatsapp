@@ -61,6 +61,7 @@ import type {
   VerifiedWorkspaceSession,
   WorkspaceRole,
 } from "@/lib/firebase/workspace-session-model";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export const SYNTHETIC_AUTOMATION_RUN_ID =
   "automation_run_synthetic_appointment_001";
@@ -2127,7 +2128,7 @@ export function describeAutomationWorkspaceError(error: unknown): string {
   ) {
     return "Persisted Phase 5 evidence failed an exact schema, activation, event, audit, pointer, or result-fingerprint join. The view stayed closed.";
   }
-  return "The local Firestore emulator could not load authoritative Phase 5 evidence. No cache, fixture, secret collection, or cloud fallback was used.";
+  return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} could not load authoritative Phase 5 evidence. No cache, fixture or secret-collection fallback was used.`;
 }
 
 export function roleCanReadAnyAutomationFamily(role: WorkspaceRole): boolean {

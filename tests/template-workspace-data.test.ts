@@ -325,6 +325,7 @@ describe("authenticated Template Studio read model", () => {
       flowVariantCount: 0,
       flowDefinitionCount: 0,
       languageCount: 0,
+      excluded: 0,
     });
 
     const failedReads: TemplateWorkspaceReads = {

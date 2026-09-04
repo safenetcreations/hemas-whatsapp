@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceSession } from "@/components/auth/workspace-session";
 import type { SupportedLanguage } from "@/lib/domain";
 import { getLocalEmulatorFirestore } from "@/lib/firebase/auth-emulator";
+import { CLOUD_DEMO_STAGE, DATA_SOURCE, DATA_SOURCE_SHORT, TOLERANT_READS } from "@/lib/firebase/boundary-copy";
 import {
   updateSyntheticContactPreferences,
   type SafeContactTag,
@@ -52,7 +53,7 @@ type DirectoryLoadState = "loading" | "ready" | "error";
 function DirectorySkeleton() {
   return (
     <section
-      aria-label="Loading contacts from the local Firestore emulator"
+      aria-label={`Loading contacts from ${DATA_SOURCE}`}
       aria-busy="true"
       className="grid min-h-[68dvh] gap-3 md:h-full md:min-h-0 md:grid-cols-[320px_minmax(0,1fr)]"
     >
@@ -130,13 +131,18 @@ export function ContactsWorkspace() {
 
   const queryDirectory = useCallback(async (): Promise<readonly ContactDirectoryRecord[]> => {
     if (!workspaceId || !workspaceRole || !workspaceScopeMode) return [];
-    return loadContactWorkspace(getLocalEmulatorFirestore(), {
-      workspaceId,
-      role: workspaceRole,
-      scopeMode: workspaceScopeMode,
-      teamIds: teamIdsKey ? teamIdsKey.split("\u001f") : [],
-      locationIds: locationIdsKey ? locationIdsKey.split("\u001f") : [],
-    });
+    return loadContactWorkspace(
+      getLocalEmulatorFirestore(),
+      {
+        workspaceId,
+        role: workspaceRole,
+        scopeMode: workspaceScopeMode,
+        teamIds: teamIdsKey ? teamIdsKey.split("\u001f") : [],
+        locationIds: locationIdsKey ? locationIdsKey.split("\u001f") : [],
+      },
+      undefined,
+      { tolerant: TOLERANT_READS },
+    );
   }, [locationIdsKey, teamIdsKey, workspaceId, workspaceRole, workspaceScopeMode]);
 
   const installRecords = useCallback(
@@ -173,7 +179,7 @@ export function ContactsWorkspace() {
           installRecords(nextRecords);
           setLoadState("ready");
           setAnnouncement(
-            `${nextRecords.length} synthetic contacts loaded from the local Firestore emulator.`,
+            `${nextRecords.length} synthetic contacts loaded from ${DATA_SOURCE}.`,
           );
         })
         .catch((error: unknown) => {
@@ -367,7 +373,7 @@ export function ContactsWorkspace() {
         message: `Saving against Firestore revision ${contact.preferenceRevision}…`,
       },
     }));
-    setAnnouncement("Saving synthetic contact preferences to the local Firestore emulator.");
+    setAnnouncement(`Saving synthetic contact preferences to ${DATA_SOURCE}.`);
 
     try {
       const result = await updateSyntheticContactPreferences(getLocalEmulatorFirestore(), {
@@ -384,7 +390,7 @@ export function ContactsWorkspace() {
       });
       if (!confirmed) {
         const message =
-          "The update completed, but the authoritative emulator record could not be reloaded. Refresh before making another change.";
+          "The update completed, but the authoritative record could not be reloaded. Refresh before making another change.";
         setSaveStatuses((current) => ({
           ...current,
           [contact.id]: { kind: "error", message },
@@ -474,7 +480,7 @@ export function ContactsWorkspace() {
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               Inspect minimum-necessary synthetic records, persist governed preferences and
-              review immutable consent evidence through authenticated Firestore emulator reads.
+              review immutable consent evidence through authenticated {DATA_SOURCE_SHORT} reads.
             </p>
           </div>
         </div>
@@ -554,10 +560,10 @@ export function ContactsWorkspace() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-emerald-950">
-            Authenticated local Firestore system of record
+            {CLOUD_DEMO_STAGE ? "Authenticated cloud Firestore system of record" : "Authenticated local Firestore system of record"}
           </p>
           <p className="mt-0.5 text-[11px] leading-5 text-emerald-800">
-            Bounded emulator reads and optimistic synthetic preference writes only. Consent,
+            Bounded {DATA_SOURCE_SHORT} reads and optimistic synthetic preference writes only. Consent,
             STOP and source suppression evidence remain immutable.
           </p>
         </div>
@@ -615,8 +621,10 @@ export function ContactsWorkspace() {
             <ContactRound size={28} className="mx-auto text-slate-400" aria-hidden="true" />
             <h2 className="mt-3 text-sm font-bold text-slate-900">No synthetic contacts seeded</h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              The authenticated workspace query succeeded but returned no contacts. Seed the
-              local emulators, then refresh this directory.
+              The authenticated workspace query succeeded but returned no synthetic contacts.
+              {CLOUD_DEMO_STAGE
+                ? " Live WhatsApp contacts are captured in the Lite workspace."
+                : " Seed the local emulators, then refresh this directory."}
             </p>
             <button
               type="button"

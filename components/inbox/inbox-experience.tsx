@@ -1,5 +1,6 @@
 "use client";
 
+import { CLOUD_DEMO_STAGE, DATA_SOURCE, DATA_SOURCE_SHORT } from "@/lib/firebase/boundary-copy";
 import {
   AlertTriangle,
   Bot,
@@ -194,7 +195,7 @@ function VerifiedInboxExperience({ session }: { session: VerifiedWorkspaceSessio
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--brand)]">Patient operations</p>
             <h1 className="mt-1 text-2xl font-bold tracking-[-0.035em] text-slate-950 sm:text-3xl">Shared inbox</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              Read tenant-scoped synthetic conversations, consent evidence and body-free message metadata from the local Firebase emulators.
+              Read tenant-scoped synthetic conversations, consent evidence and body-free message metadata from {DATA_SOURCE}.
             </p>
           </div>
         </div>
@@ -219,9 +220,10 @@ function VerifiedInboxExperience({ session }: { session: VerifiedWorkspaceSessio
           <FlaskConical size={17} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-amber-950">Local persisted read model — controls remain temporary</p>
+          <p className="text-xs font-bold text-amber-950">{CLOUD_DEMO_STAGE ? "Governed cloud read model — controls remain temporary" : "Local persisted read model — controls remain temporary"}</p>
           <p className="mt-0.5 text-[11px] leading-5 text-amber-800">
-            Reads come only from the authenticated Firestore emulator. Takeover, resume and reply controls make no Firebase write, Meta call or Hemas-system request.
+            Reads come only from the authenticated {DATA_SOURCE_SHORT}. Takeover, resume and reply controls make no Firebase write, Meta call or Hemas-system request.
+            {CLOUD_DEMO_STAGE ? " Live WhatsApp conversations are handled in the Lite workspace." : ""}
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-amber-300 bg-white px-3 py-1.5 text-[10px] font-bold text-amber-800 sm:self-auto">
@@ -231,10 +233,17 @@ function VerifiedInboxExperience({ session }: { session: VerifiedWorkspaceSessio
 
       <div className="sr-only" aria-live="polite" aria-atomic="true">{activityAnnouncement}</div>
 
+      {workspace.status === "ready" && workspace.excluded > 0 ? (
+        <p className="rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 text-[11px] leading-5 text-[var(--muted)]" role="note">
+          {workspace.excluded} record{workspace.excluded === 1 ? "" : "s"} from another lane (live WhatsApp canary) {workspace.excluded === 1 ? "was" : "were"} not shown here.
+          {CLOUD_DEMO_STAGE ? " Open the Lite workspace inbox to work those conversations." : ""}
+        </p>
+      ) : null}
+
       {workspace.status === "loading" ? (
         <WorkspaceLoadCard
           kind="loading"
-          message="Verifying the tenant and loading bounded emulator queries. No fixture fallback is used."
+          message={`Verifying the tenant and loading bounded queries from ${DATA_SOURCE}. No fixture fallback is used.`}
           onRetry={workspace.retry}
         />
       ) : workspace.status === "error" ? (
@@ -248,7 +257,7 @@ function VerifiedInboxExperience({ session }: { session: VerifiedWorkspaceSessio
       ) : records.length === 0 ? (
         <WorkspaceLoadCard
           kind="empty"
-          message="The authenticated, tenant-scoped query completed successfully but returned no synthetic conversations."
+          message={`The authenticated, tenant-scoped query completed successfully but returned no synthetic conversations.${workspace.status === "ready" && workspace.excluded > 0 ? ` ${workspace.excluded} live-canary record${workspace.excluded === 1 ? "" : "s"} belong to the Lite workspace.` : ""}`}
           onRetry={workspace.retry}
         />
       ) : (

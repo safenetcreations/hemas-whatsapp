@@ -28,6 +28,7 @@ import {
   type AutomationWorkspaceResult,
   type CareOperationRecord,
 } from "./automation-workspace-data";
+import { FUNCTIONS_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export type AutomationWorkspaceLoadState =
   | { readonly status: "loading"; readonly result: null; readonly message: null }
@@ -103,7 +104,7 @@ function actionFailureMessage(
         ? String(error.code)
         : "";
   if (code === "identity_mismatch" || code === "authentication_required") {
-    return `The verified local Firebase Auth identity could not authorize ${label}. Sign in to the seeded emulator account again.`;
+    return `The verified Firebase Auth identity could not authorize ${label}. Sign in to the demo account again.`;
   }
   if (code === "permission_denied" || code === "access_denied") {
     return `This verified role or exact team-and-location scope cannot request ${label}.`;
@@ -112,7 +113,7 @@ function actionFailureMessage(
     return `The governed ${family} service refused ${label} in the current persisted state.`;
   }
   if (code === "emulator_unavailable") {
-    return `The localhost Functions emulator could not process ${label}. No cloud fallback was attempted.`;
+    return `${FUNCTIONS_SOURCE.charAt(0).toUpperCase()}${FUNCTIONS_SOURCE.slice(1)} could not process ${label}. No fallback was attempted.`;
   }
   if (code === "invalid_request" || code === "invalid_response") {
     return `The ${label} callable failed its strict request or response contract. No result was assumed.`;
@@ -121,9 +122,9 @@ function actionFailureMessage(
     return `The ${label} result failed its exact aggregate, event, audit, pointer, or result-fingerprint reconciliation. Fresher authoritative state was retained, but success was not shown.`;
   }
   if (code === "unsafe_endpoint") {
-    return `${label} was blocked because the callable was not the approved 127.0.0.1 emulator endpoint.`;
+    return `${label} was blocked because the callable was not the approved governed Functions endpoint.`;
   }
-  return `${label} did not complete through the governed localhost transaction. No Meta, Hemas, provider, or external action was attempted.`;
+  return `${label} did not complete through the governed transaction. No Meta, Hemas, provider, or external action was attempted.`;
 }
 
 export function useAutomationWorkspace(session: VerifiedWorkspaceSession) {
@@ -225,7 +226,7 @@ export function useAutomationWorkspace(session: VerifiedWorkspaceSession) {
         status: "working",
         family: "automation",
         action,
-        message: `Calling one revision-bound ${label} transaction on 127.0.0.1…`,
+        message: `Calling one revision-bound ${label} transaction on ${FUNCTIONS_SOURCE}…`,
       });
       try {
         const request = await buildAutomationActionRequest({

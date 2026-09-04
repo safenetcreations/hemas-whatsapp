@@ -35,6 +35,7 @@ import type {
   LaboratoryWorkflowView,
 } from "./laboratory-workspace-data";
 import { useLaboratoryWorkspace } from "./use-laboratory-workspace";
+import { DATA_SOURCE_SHORT, READS_LABEL } from "@/lib/firebase/boundary-copy";
 
 type LabTab = "collection" | "report-ready";
 type CollectionStatus = "requested" | "scheduled" | "collected" | "cancelled";
@@ -228,7 +229,7 @@ function PersistedWorkflowCard({
     {
       label: "Last metadata update",
       value: displayDate(record.updatedAt),
-      detail: "Firestore emulator evidence",
+      detail: `${DATA_SOURCE_SHORT} evidence`,
       icon: Clock3,
     },
   ] as const;
@@ -440,7 +441,7 @@ export function LaboratoryJourneyWorkspace() {
         <div>
           <div className="mb-2 flex flex-wrap gap-2">
             <StatusPill tone="success" dot>
-              Authenticated emulator reads
+              {READS_LABEL.charAt(0).toUpperCase() + READS_LABEL.slice(1)}
             </StatusPill>
             <StatusPill tone="warning" dot>
               No LIMS or messaging connection
@@ -841,7 +842,7 @@ export function LaboratoryJourneyWorkspace() {
                         onClick={laboratory.retry}
                         className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-red-800 px-3 text-xs font-bold text-white hover:bg-red-900"
                       >
-                        <RefreshCcw size={14} aria-hidden="true" /> Retry emulator read
+                        <RefreshCcw size={14} aria-hidden="true" /> Retry read
                       </button>
                     </div>
                   </div>
@@ -856,7 +857,7 @@ export function LaboratoryJourneyWorkspace() {
                 <SafeEmptyState
                   icon="shield"
                   title="No persisted laboratory metadata in scope"
-                  description="The authenticated emulator returned no backend-owned workflow records for this workspace scope. No fixture fallback or readiness claim was shown."
+                  description={`The authenticated ${DATA_SOURCE_SHORT} returned no backend-owned workflow records for this workspace scope. No fixture fallback or readiness claim was shown.`}
                   action={
                     <button
                       type="button"

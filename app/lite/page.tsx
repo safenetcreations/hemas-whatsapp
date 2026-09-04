@@ -108,7 +108,7 @@ export default function LiteDashboardPage() {
     {
       label: "Appointments",
       value: metricValue(totals.bookings),
-      detail: month ? `Requested in ${month}` : "Current reporting month",
+      detail: month ? `Requested in ${month} · open requests on the board` : "Current reporting month",
       icon: CalendarCheck2,
       accent: "orange" as const,
     },

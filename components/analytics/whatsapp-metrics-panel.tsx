@@ -28,6 +28,7 @@ import {
   buildWhatsAppMetricsCsv,
   type WhatsAppDailyMetric,
 } from "./whatsapp-metrics-model";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 const isLocalSyntheticDemo = publicEnv.appStage === "demo";
 
@@ -315,7 +316,7 @@ export function WhatsAppMetricsPanel() {
             </p>
             <p className="mt-2 max-w-3xl text-[11px] leading-5 text-emerald-800">
               {isLocalSyntheticDemo
-                ? "The local emulator seeds aggregate-only fixture days so management can review the dashboard. Campaign sends remain zero."
+                ? `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} holds aggregate-only fixture days so management can review the dashboard. Campaign sends remain zero.`
                 : "This status confirms an authorized aggregate snapshot, not provider delivery, clinical outcomes or production readiness."}
             </p>
           </div>

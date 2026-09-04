@@ -1,3 +1,4 @@
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 import type { Firestore } from "firebase/firestore";
 import {
   listFlowCatalogue,
@@ -94,6 +95,8 @@ export type TemplateWorkspaceResult = {
   readonly flowVariantCount: number;
   readonly flowDefinitionCount: number;
   readonly languageCount: number;
+  /** Catalogue records skipped in tolerant mode (another lane's records). */
+  readonly excluded: number;
 };
 
 export function selectVisibleTemplateAsset(
@@ -114,12 +117,23 @@ export interface TemplateWorkspaceReads {
   readonly listTemplates: (
     db: Firestore,
     input: CatalogueListInput,
+    options?: { readonly tolerant?: boolean },
   ) => Promise<readonly TemplateCatalogueItemDTO[]>;
   readonly listFlows: (
     db: Firestore,
     input: CatalogueListInput,
+    options?: { readonly tolerant?: boolean },
   ) => Promise<readonly FlowCatalogueItemDTO[]>;
 }
+
+export type TemplateWorkspaceLoadOptions = Readonly<{
+  /**
+   * Skip catalogue records from another lane (schema mismatch, hash drift or a
+   * join that cannot be made) instead of failing the whole studio. Governed
+   * cloud demo only; local runs keep the strict fail-closed behaviour.
+   */
+  readonly tolerant?: boolean;
+}>;
 
 const defaultReads: TemplateWorkspaceReads = {
   listTemplates: listTemplateCatalogue,
@@ -459,23 +473,78 @@ function assertCompleteFlowVariants(
   }
 }
 
-export function assembleTemplateWorkspace(input: {
-  readonly session: VerifiedWorkspaceSession;
-  readonly templates: readonly TemplateCatalogueItemDTO[];
-  readonly flows: readonly FlowCatalogueItemDTO[];
-}): TemplateWorkspaceResult {
+function collectAssets<Input, Output>(
+  records: readonly Input[],
+  build: (record: Input) => Output,
+  tolerant: boolean,
+): { readonly assets: Output[]; readonly excluded: number } {
+  const assets: Output[] = [];
+  let excluded = 0;
+  for (const record of records) {
+    try {
+      assets.push(build(record));
+    } catch (error) {
+      if (
+        tolerant &&
+        error instanceof TemplateWorkspaceDataError &&
+        error.code === "invalid_join"
+      ) {
+        excluded += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { assets, excluded };
+}
+
+export function assembleTemplateWorkspace(
+  input: {
+    readonly session: VerifiedWorkspaceSession;
+    readonly templates: readonly TemplateCatalogueItemDTO[];
+    readonly flows: readonly FlowCatalogueItemDTO[];
+  },
+  options?: TemplateWorkspaceLoadOptions,
+): TemplateWorkspaceResult {
   assertSyntheticWorkspaceSession(input.session);
-  const templates = input.templates.map((record) =>
-    templateAsset(record, input.session.workspaceId),
+  const tolerant = options?.tolerant === true;
+  const templateResult = collectAssets(
+    input.templates,
+    (record) => templateAsset(record, input.session.workspaceId),
+    tolerant,
   );
-  const flows = input.flows.map((record) =>
-    flowAsset(record, input.session.workspaceId),
+  const flowResult = collectAssets(
+    input.flows,
+    (record) => flowAsset(record, input.session.workspaceId),
+    tolerant,
   );
+  const templates = templateResult.assets;
+  let flows = flowResult.assets;
+  let excluded = templateResult.excluded + flowResult.excluded;
+  if (tolerant) {
+    // Keep only complete singular-language Flow definitions the safe renderer
+    // knows; anything else belongs to another lane and is counted, not shown.
+    const known = new Set(safeFlowRenderers.map((renderer) => renderer.definitionId));
+    const complete = flows.filter((flow) => {
+      if (!known.has(flow.definitionId)) return false;
+      const variants = flows.filter((candidate) => candidate.definitionId === flow.definitionId);
+      return (
+        variants.length === CATALOGUE_LANGUAGES.length &&
+        CATALOGUE_LANGUAGES.every((language) =>
+          variants.some((variant) => variant.language === language),
+        )
+      );
+    });
+    excluded += flows.length - complete.length;
+    flows = complete;
+  }
   const assets: readonly TemplateStudioAsset[] = [...templates, ...flows];
   assertUniqueAssetIdentities(assets);
-  assertCompleteFlowVariants(flows);
-  if (assets.length > 0 && flows.length === 0) {
-    invalidJoin("The persisted catalogue omitted every governed Flow definition.");
+  if (!tolerant) {
+    assertCompleteFlowVariants(flows);
+    if (assets.length > 0 && flows.length === 0) {
+      invalidJoin("The persisted catalogue omitted every governed Flow definition.");
+    }
   }
   return {
     assets,
@@ -483,6 +552,7 @@ export function assembleTemplateWorkspace(input: {
     flowVariantCount: flows.length,
     flowDefinitionCount: new Set(flows.map((flow) => flow.definitionId)).size,
     languageCount: new Set(assets.map((asset) => asset.language)).size,
+    excluded,
   };
 }
 
@@ -490,15 +560,17 @@ export async function loadTemplateWorkspace(
   db: Firestore,
   session: VerifiedWorkspaceSession,
   reads: TemplateWorkspaceReads = defaultReads,
+  options?: TemplateWorkspaceLoadOptions,
 ): Promise<TemplateWorkspaceResult> {
   assertSyntheticWorkspaceSession(session);
+  const readOptions = options?.tolerant ? ({ tolerant: true } as const) : undefined;
   try {
     const input = { workspaceId: session.workspaceId, pageSize: PAGE_SIZE } as const;
     const [templates, flows] = await Promise.all([
-      reads.listTemplates(db, input),
-      reads.listFlows(db, input),
+      readOptions ? reads.listTemplates(db, input, readOptions) : reads.listTemplates(db, input),
+      readOptions ? reads.listFlows(db, input, readOptions) : reads.listFlows(db, input),
     ]);
-    return assembleTemplateWorkspace({ session, templates, flows });
+    return assembleTemplateWorkspace({ session, templates, flows }, options);
   } catch (error) {
     if (error instanceof TemplateWorkspaceDataError) throw error;
     throw new TemplateWorkspaceDataError(
@@ -521,5 +593,5 @@ export function describeTemplateWorkspaceError(error: unknown): string {
       return "Firestore Rules denied this catalogue read for the verified membership.";
     }
   }
-  return "The local Firestore catalogue could not be loaded. No fixture fallback was shown.";
+  return `The catalogue could not be loaded from ${DATA_SOURCE}. No fixture fallback was shown.`;
 }

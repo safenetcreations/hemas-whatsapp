@@ -515,9 +515,22 @@ function catalogueConstraints(input: CatalogueListInput): QueryConstraint[] {
   return constraints;
 }
 
+/**
+ * `tolerant: true` skips documents that fail the catalogue schema or the
+ * content-hash check (`invalid_data`) instead of failing the whole list. Used
+ * only by the governed cloud demo, where the Lite canary lane stores its own
+ * approved-template records in the same collection.
+ */
+export type CatalogueReadOptions = Readonly<{ tolerant?: boolean }>;
+
+function isSkippableCatalogueError(error: unknown): boolean {
+  return error instanceof TemplateRepositoryError && error.code === "invalid_data";
+}
+
 export async function listTemplateCatalogue(
   db: Firestore,
   rawInput: CatalogueListInput,
+  options?: CatalogueReadOptions,
 ): Promise<readonly TemplateCatalogueItemDTO[]> {
   const input = parseListInput(rawInput);
   const snapshot = await getDocs(
@@ -526,10 +539,20 @@ export async function listTemplateCatalogue(
       ...catalogueConstraints(input),
     ),
   );
-  const templates = snapshot.docs.map((record) =>
-    parseTemplateCatalogueDocument(record.data(), record.id, input.workspaceId),
-  );
-  return Promise.all(templates.map(verifyTemplateContentHash));
+  const verified: TemplateCatalogueItemDTO[] = [];
+  for (const record of snapshot.docs) {
+    try {
+      verified.push(
+        await verifyTemplateContentHash(
+          parseTemplateCatalogueDocument(record.data(), record.id, input.workspaceId),
+        ),
+      );
+    } catch (error) {
+      if (options?.tolerant && isSkippableCatalogueError(error)) continue;
+      throw error;
+    }
+  }
+  return verified;
 }
 
 export async function getTemplateCatalogueItem(
@@ -551,6 +574,7 @@ export async function getTemplateCatalogueItem(
 export async function listFlowCatalogue(
   db: Firestore,
   rawInput: CatalogueListInput,
+  options?: CatalogueReadOptions,
 ): Promise<readonly FlowCatalogueItemDTO[]> {
   const input = parseListInput(rawInput);
   const snapshot = await getDocs(
@@ -559,7 +583,14 @@ export async function listFlowCatalogue(
       ...catalogueConstraints(input),
     ),
   );
-  return snapshot.docs.map((record) =>
-    parseFlowCatalogueDocument(record.data(), record.id, input.workspaceId),
-  );
+  const flows: FlowCatalogueItemDTO[] = [];
+  for (const record of snapshot.docs) {
+    try {
+      flows.push(parseFlowCatalogueDocument(record.data(), record.id, input.workspaceId));
+    } catch (error) {
+      if (options?.tolerant && isSkippableCatalogueError(error)) continue;
+      throw error;
+    }
+  }
+  return flows;
 }

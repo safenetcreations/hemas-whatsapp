@@ -200,3 +200,21 @@ export function LiteEmptyState({
     </div>
   );
 }
+
+/**
+ * Human label for a booking day id such as `day_2026-08-13`. Legacy or
+ * malformed ids (earlier bot versions stored non-ISO day ids) must never
+ * render "Invalid Date"; they fall back to a neutral label.
+ */
+export function formatLiteBookingDay(dayId: string): string {
+  const day = dayId.replace(/^day_/, "").trim();
+  const timestamp = Date.parse(`${day}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(timestamp)) {
+    return "Date to be confirmed";
+  }
+  return new Date(timestamp).toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  });
+}

@@ -1,15 +1,59 @@
 # Hemas Connect implementation status
 
-Snapshot: **2026-08-12**
-Current product state: **local management-demo candidate with governed Enterprise
-synthetic data and a private, allowlisted Lite WhatsApp canary; not yet deployed or
-verified as live production**
+Snapshot: **2026-09-04**
+Current product state: **governed cloud demo deployed on Firebase App Hosting
+(`hemas-connect` backend, `hemas-whatsapp` project, stage `uat`) with a live,
+allowlisted Lite WhatsApp canary and a synthetic Enterprise workspace; not
+production, not connected to any Hemas system**
 
-This section is the authoritative current summary. The detailed 8 August snapshot
-below is retained only as historical implementation evidence and must not be used
-as the release status.
+This section is the authoritative current summary. The 12 August and 8 August
+snapshots below are retained only as historical implementation evidence and must
+not be used as the release status.
 
-## Current 12 August release summary
+## Current 4 September release summary
+
+- Deployed: the cloud demo lane serves
+  `https://hemas-connect--hemas-whatsapp.us-central1.hosted.app` (Lite at `/lite`,
+  Enterprise at `/`). Evaluator seats are provisioned privately; no credential is
+  embedded in the build.
+- Full smoke test of the deployed build on 4 September (`output/SMOKE_TEST_2026-09-04.md`):
+  every Lite module works with zero console errors; Enterprise Inbox, Contacts and
+  Templates failed to load because the Lite canary lane writes live records into
+  the same workspace collections and the strict Enterprise read models failed closed
+  on the first non-synthetic document.
+- Fixes in this release:
+  - **Tolerant read mode on the cloud stage** (`lib/firebase/boundary-copy.ts`,
+    `TOLERANT_READS`): Enterprise Inbox, Contacts and Template Studio skip and count
+    records that belong to another lane instead of failing the page; the count is
+    shown to the operator. Local emulator runs keep the strict fail-closed behaviour
+    the tests pin.
+  - **Stage-aware boundary copy**: user-visible "local Firestore emulator /
+    localhost / 127.0.0.1" wording now describes the governed cloud demo project on
+    the `uat` stage. Page titles "Local demo access" and "Local Settings" renamed.
+  - **Lite appointments**: legacy non-ISO booking day ids no longer render
+    "Invalid Date" (`formatLiteBookingDay`, unit-tested); unknown days sort last.
+  - Lite overview appointments counter relabelled; conversation rows and sidebar
+    links carry explicit accessible names.
+  - Compliance audit timeline shows a stage-aware notice when the projection
+    endpoint is not enabled in the cloud demo.
+- Known, not fixed in code (operational): message-text retention has expired for
+  all current Lite canary conversations (send fresh test conversations before a
+  demo); the demo administrator seat lacks the Lite admin claim; the 26 August
+  aggregate shows inbound without bot replies and needs a Functions-log check; one
+  failed internal image-campaign test remains visible in Lite campaign history.
+
+<!-- VALIDATION_SUMMARY_2026_09_04 -->
+Validation on the patched tree, Node 22.22, 4 September 2026:
+
+- ESLint and TypeScript: passed;
+- root unit/model/UI tests: 639/639 passed (53 files);
+- Firestore and Storage Rules: 93/93 passed in Standard emulators;
+- Functions: 401 passed, 6 emulator-dependent tests skipped, zero failed;
+- fresh seed and authenticated Functions emulator verification: passed;
+- Next.js production build: passed.
+
+## Previous 12 August release summary (historical)
+
 
 - Full and Lite use one Hemas-branded platform with explicit Enterprise-synthetic
   and Lite-canary truth boundaries. Public credential prefills and client-visible

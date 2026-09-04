@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLocalEmulatorFirestore } from "@/lib/firebase/auth-emulator";
+import { TOLERANT_READS } from "@/lib/firebase/boundary-copy";
 import type { VerifiedWorkspaceSession } from "@/lib/firebase/workspace-session-model";
 import {
   describeTemplateWorkspaceError,
@@ -79,7 +80,9 @@ export function useTemplateWorkspace(
     });
     void Promise.resolve()
       .then(() =>
-        loadTemplateWorkspace(getLocalEmulatorFirestore(), authority),
+        loadTemplateWorkspace(getLocalEmulatorFirestore(), authority, undefined, {
+          tolerant: TOLERANT_READS,
+        }),
       )
       .then(
         (result) => {

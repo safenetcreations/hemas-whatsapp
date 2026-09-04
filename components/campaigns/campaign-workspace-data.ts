@@ -36,6 +36,7 @@ import type {
   WorkspaceRole,
 } from "@/lib/firebase/workspace-session-model";
 import { assertSyntheticAggregateEvidence } from "./campaign-aggregate-validator";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export const SYNTHETIC_CAMPAIGN_ID = "campaign_synthetic_50k";
 const CAMPAIGN_PAGE_SIZE = 50;
@@ -1091,5 +1092,5 @@ export function describeCampaignWorkspaceError(error: unknown): string {
   ) {
     return "Persisted campaign evidence failed tenant, approval, template, or checkpoint validation, so the view stayed closed.";
   }
-  return "The local Firestore emulator could not load persisted campaign evidence. No fixture or cloud fallback was attempted.";
+  return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} could not load persisted campaign evidence. No fixture fallback was attempted.`;
 }

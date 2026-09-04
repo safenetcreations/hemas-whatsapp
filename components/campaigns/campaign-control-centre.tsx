@@ -36,6 +36,7 @@ import {
   campaignWorkspaceAuthorityKey,
   roleCanReadCampaignWorkspace,
 } from "./campaign-workspace-data";
+import { DATA_SOURCE, FUNCTIONS_SOURCE, READS_LABEL } from "@/lib/firebase/boundary-copy";
 
 export type { CampaignControlData } from "./campaign-control-data";
 
@@ -117,8 +118,8 @@ function ExternalSendingLock() {
               <StatusPill tone="danger" dot>Meta and Hemas disconnected</StatusPill>
             </div>
             <p className="mt-1.5 max-w-3xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
-              This page uses only authenticated localhost Firebase emulator reads and
-              one audited localhost callable for simulation controls. There is no Meta, Hemas,
+              This page uses only {READS_LABEL} from {DATA_SOURCE} and
+              one audited callable on {FUNCTIONS_SOURCE} for simulation controls. There is no Meta, Hemas,
               provider, patient, message, or other external network path.
             </p>
           </div>
@@ -250,7 +251,7 @@ function VerifiedCampaignWorkspace({ session }: { session: VerifiedWorkspaceSess
     <div className="space-y-6 lg:space-y-8">
       <Heading />
       {workspace.status === "loading" ? (
-        <WorkspaceStateCard kind="loading" message="Verifying the campaign role and loading bounded campaign, snapshot, template, event, and checkpoint reads from the local Firestore emulator." />
+        <WorkspaceStateCard kind="loading" message={`Verifying the campaign role and loading bounded campaign, snapshot, template, event, and checkpoint reads from ${DATA_SOURCE}. No fixture fallback is used.`} />
       ) : workspace.status === "denied" ? (
         <WorkspaceStateCard kind="denied" message={workspace.message} onRetry={workspace.retry} />
       ) : workspace.status === "error" ? (

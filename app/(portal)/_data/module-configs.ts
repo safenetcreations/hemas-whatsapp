@@ -247,13 +247,13 @@ export const moduleConfigs: Record<string, ModuleConfig> = {
     metrics: [
       { label: "Simulated messages", value: "50,000", detail: "No provider requests made" },
       { label: "Estimated Meta cost", value: "Not quoted", detail: "Pricing requires current verification" },
-      { label: "Firebase usage", value: "Local", detail: "Emulators do not create cloud charges" },
+      { label: "Firebase usage", value: "Governed demo", detail: "Synthetic workspace only; no production traffic" },
       { label: "Budget alerts", value: "3", detail: "Sample thresholds" },
     ],
     table: { title: "Synthetic usage ledger", description: "Values prove accounting behavior, not a bill", columns: ["Operation", "Quantity", "Period", "State"], rows: [
       { primary: "Campaign recipient simulation", secondary: "50,000 operations", third: "Current demo run", status: "No charge", tone: "success" },
       { primary: "AI safety review", secondary: "2,418 operations", third: "Sample month", status: "Estimated", tone: "info" },
-      { primary: "Firestore writes", secondary: "82,140 operations", third: "Local emulator", status: "Local", tone: "success" },
+      { primary: "Firestore writes", secondary: "82,140 operations", third: "Governed demo", status: "Demo", tone: "success" },
       { primary: "Secure-link events", secondary: "642 operations", third: "Sample month", status: "Simulated", tone: "neutral" },
     ]},
     guardrail: { title: "Cost truth boundary", description: "Actual costs depend on current Meta pricing, message category, recipient market, provider choices, Google region, and live volume.", checks: [...standardChecks, { label: "Live billing account", value: "None", ready: true }], href: "/analytics", linkLabel: "View sample volumes" },

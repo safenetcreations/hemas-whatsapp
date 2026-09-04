@@ -19,6 +19,7 @@ import {
   type CampaignWorkspaceRecord,
   type CampaignWorkspaceResult,
 } from "./campaign-workspace-data";
+import { FUNCTIONS_SOURCE } from "@/lib/firebase/boundary-copy";
 
 export type CampaignWorkspaceLoadState =
   | { readonly status: "loading"; readonly result: null; readonly message: null }
@@ -64,7 +65,7 @@ function actionFailureMessage(error: unknown, action: CampaignAction): string {
         ? String(error.code)
         : "";
   if (code === "identity_mismatch" || code === "authentication_required") {
-    return `The verified local Firebase Auth identity could not authorize ${label}. Sign in to the seeded emulator account again.`;
+    return `The verified Firebase Auth identity could not authorize ${label}. Sign in to the demo account again.`;
   }
   if (code === "permission_denied" || code === "access_denied") {
     return `The verified workspace role cannot request ${label} for this campaign.`;
@@ -73,7 +74,7 @@ function actionFailureMessage(error: unknown, action: CampaignAction): string {
     return `The audited synthetic campaign service refused ${label} in the current persisted state.`;
   }
   if (code === "emulator_unavailable") {
-    return `The local Functions emulator could not process ${label}. No cloud fallback was attempted.`;
+    return `${FUNCTIONS_SOURCE.charAt(0).toUpperCase()}${FUNCTIONS_SOURCE.slice(1)} could not process ${label}. No fallback was attempted.`;
   }
   if (code === "invalid_request" || code === "invalid_response") {
     return `The ${label} callable contract failed strict validation. No result was assumed.`;
@@ -82,7 +83,7 @@ function actionFailureMessage(error: unknown, action: CampaignAction): string {
     return `The ${label} response could not be matched to the persisted event, checkpoint, audit, and campaign evidence. Use Retry before relying on state.`;
   }
   if (code === "unsafe_endpoint") {
-    return `${label} was blocked because the endpoint was not the approved 127.0.0.1 Functions emulator.`;
+    return `${label} was blocked because the endpoint was not the approved governed Functions endpoint.`;
   }
   return `${label} did not complete through the audited local transaction. No Meta, Hemas, provider, or external action was attempted.`;
 }
@@ -182,7 +183,7 @@ export function useCampaignWorkspace(session: VerifiedWorkspaceSession) {
       setActionState({
         status: "working",
         action,
-        message: `Calling one revision-bound ${label} transaction on the localhost Functions emulator…`,
+        message: `Calling one revision-bound ${label} transaction on ${FUNCTIONS_SOURCE}…`,
       });
 
       try {

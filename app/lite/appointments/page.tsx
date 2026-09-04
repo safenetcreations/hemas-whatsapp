@@ -14,6 +14,7 @@ import {
   LitePageHeader,
   LiteStatus,
   liteCx,
+  formatLiteBookingDay,
 } from "@/components/lite/lite-ui";
 
 const DEPT: Record<string, string> = {
@@ -76,7 +77,12 @@ export default function LiteAppointmentsPage() {
     const day = b.dayId.replace(/^day_/, "") || "unknown";
     byDay.set(day, [...(byDay.get(day) ?? []), b]);
   }
-  const days = [...byDay.keys()].sort();
+  const days = [...byDay.keys()].sort((left, right) => {
+    const leftValid = /^\d{4}-\d{2}-\d{2}$/.test(left);
+    const rightValid = /^\d{4}-\d{2}-\d{2}$/.test(right);
+    if (leftValid !== rightValid) return leftValid ? -1 : 1;
+    return left.localeCompare(right);
+  });
 
   return (
     <div className="space-y-6">
@@ -124,9 +130,7 @@ export default function LiteAppointmentsPage() {
                 <CalendarDays size={19} aria-hidden="true" />
               </span>
               <span className="font-display text-base font-bold text-[var(--lite-ink)]">
-                {new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
-                  weekday: "long", day: "2-digit", month: "short",
-                })}
+                {formatLiteBookingDay(day)}
               </span>
               <span className="ml-auto text-xs font-semibold text-[var(--lite-muted)]">
                 {byDay.get(day)?.length} booking{(byDay.get(day)?.length ?? 0) === 1 ? "" : "s"}

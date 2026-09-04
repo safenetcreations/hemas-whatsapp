@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getLocalEmulatorFirestore } from "@/lib/firebase/auth-emulator";
+import { TOLERANT_READS } from "@/lib/firebase/boundary-copy";
 import type { WorkspaceRole } from "@/lib/firebase/workspace-session-model";
 import type { InboxConversationRecord } from "./types";
 import {
@@ -17,6 +18,7 @@ type LoadState =
       readonly records: readonly InboxConversationRecord[];
       readonly scopePlan: InboxScopePlan;
       readonly message: null;
+      readonly excluded: number;
     }
   | { readonly status: "error"; readonly records: readonly []; readonly scopePlan: null; readonly message: string };
 
@@ -57,7 +59,9 @@ export function useInboxWorkspace(input: {
     } as const;
 
     void Promise.resolve().then(() =>
-      loadInboxWorkspace(getLocalEmulatorFirestore(), authority),
+      loadInboxWorkspace(getLocalEmulatorFirestore(), authority, {
+        tolerant: TOLERANT_READS,
+      }),
     ).then(
       (result) => {
         if (!active) return;
@@ -66,6 +70,7 @@ export function useInboxWorkspace(input: {
           records: result.records,
           scopePlan: result.scopePlan,
           message: null,
+          excluded: result.excluded,
         });
       },
       (error: unknown) => {

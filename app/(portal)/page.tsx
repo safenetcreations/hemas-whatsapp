@@ -26,6 +26,7 @@ import { useWorkspaceSession } from "@/components/auth/workspace-session";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { isSafeDemo } from "@/lib/config/public-env";
+import { CLOUD_DEMO_STAGE } from "@/lib/firebase/boundary-copy";
 
 const queueRows = [
   { name: "General enquiries", open: 12, waiting: 3, sla: "6m", state: "Healthy" },
@@ -138,7 +139,7 @@ export default function OverviewPage() {
           </p>
           <div className="mt-5 space-y-3">
             {[
-              ["Enterprise Firebase emulator", "Ready", true],
+              [CLOUD_DEMO_STAGE ? "Enterprise cloud demo project" : "Enterprise Firebase emulator", "Ready", true],
               ["Lite WhatsApp canary", "Separate · gated", false],
               ["Hemas HIS / LIMS", "Locked", false],
               ["Real patient data", "Blocked", false],

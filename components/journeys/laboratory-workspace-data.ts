@@ -14,6 +14,7 @@ import {
   type LocationDTO,
   type TeamDTO,
 } from "@/lib/firebase/repositories";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 const MAX_WORKFLOW_RECORDS = 50;
 const MAX_EVENTS_PER_WORKFLOW = 25;
@@ -325,5 +326,5 @@ export function describeLaboratoryWorkspaceError(error: unknown): string {
   if (error instanceof LaboratoryWorkspaceDataError && error.code === "invalid_join") {
     return "Laboratory metadata failed tenant or team-location validation. Nothing was displayed.";
   }
-  return "The local Firestore emulator could not load laboratory metadata. No fallback fixture was shown.";
+  return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} could not load laboratory metadata. No fallback fixture was shown.`;
 }

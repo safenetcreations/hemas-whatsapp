@@ -1,5 +1,6 @@
 "use client";
 
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 import {
   Check,
   ChevronRight,
@@ -189,7 +190,7 @@ function WorkspaceStateCard({
               onClick={onRetry}
               className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
-              <RefreshCw size={13} aria-hidden="true" /> Retry local read
+              <RefreshCw size={13} aria-hidden="true" /> Retry read
             </button>
           ) : null}
         </div>
@@ -547,7 +548,7 @@ function PersistedTemplateStudio({ result }: { result: TemplateWorkspaceResult }
     <>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Template and Flow summary">
         {[
-          ["Persisted versions", String(result.assets.length), `${result.templateCount} templates · ${result.flowVariantCount} Flow variants`],
+          ["Persisted versions", String(result.assets.length), `${result.templateCount} templates · ${result.flowVariantCount} Flow variants${result.excluded > 0 ? ` · ${result.excluded} other-lane record${result.excluded === 1 ? "" : "s"} not shown` : ""}`],
           ["Flow journeys", String(result.flowDefinitionCount), "Six exact local renderer contracts"],
           ["Languages", String(result.languageCount), "English, Sinhala and Tamil are separate records"],
           ["Provider approved", "0", "All provider evidence is not submitted and unverified"],
@@ -917,7 +918,7 @@ function VerifiedTemplateStudio({ session }: { session: VerifiedWorkspaceSession
       {workspace.status === "loading" ? (
         <WorkspaceStateCard
           kind="loading"
-          message="Verifying the role and loading bounded template and Flow queries from the local Firestore emulator. No fixture fallback is used."
+          message={`Verifying the role and loading bounded template and Flow queries from ${DATA_SOURCE}. No fixture fallback is used.`}
         />
       ) : workspace.status === "denied" ? (
         <WorkspaceStateCard

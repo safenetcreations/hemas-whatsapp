@@ -295,6 +295,7 @@ function LiteSidebar({ onNavigate }: { onNavigate?: () => void }) {
                     key={item.href}
                     href={item.href}
                     onClick={onNavigate}
+                    aria-label={item.label}
                     aria-current={active ? "page" : undefined}
                     className={liteCx(
                       "group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition",

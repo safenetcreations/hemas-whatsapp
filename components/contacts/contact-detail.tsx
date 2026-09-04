@@ -1,5 +1,6 @@
 "use client";
 
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 import {
   ArrowLeft,
   Ban,
@@ -176,7 +177,7 @@ export function ContactDetail({
         <div className="flex items-start gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2.5 text-[10px] leading-5 text-cyan-950">
           <LockKeyhole size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>
-            <strong>Emulator-backed synthetic record:</strong> approved language and tag changes
+            <strong>Persisted synthetic record:</strong> approved language and tag changes
             can be saved with conflict protection. Consent and source suppression remain immutable;
             protected identifiers are never rendered.
           </span>
@@ -237,8 +238,8 @@ export function ContactDetail({
                 Communication preference
               </h3>
               <p className="mt-1 text-[10px] leading-4 text-slate-500">
-                Stage a preferred language, then explicitly save it to the local Firestore
-                emulator. Template approval remains a separate control.
+                Stage a preferred language, then explicitly save it to {DATA_SOURCE}.
+                Template approval remains a separate control.
               </p>
               <fieldset className="mt-3 grid gap-2 sm:grid-cols-3" disabled={isSaving || !canPersistPreferences}>
                 <legend className="sr-only">Preferred language</legend>

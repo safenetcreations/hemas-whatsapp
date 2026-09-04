@@ -369,6 +369,7 @@ export default function LiteInboxPage() {
                     <button
                       type="button"
                       aria-pressed={active}
+                      aria-label={`Open conversation with ${label(conversation)}${conversation.unreadCount > 0 ? `, ${conversation.unreadCount} unread` : ""}`}
                       onClick={() => setSelectedId(conversation.id)}
                       className={liteCx(
                         "group w-full px-4 py-3.5 text-left transition hover:bg-[var(--lite-brand-soft)]/60",

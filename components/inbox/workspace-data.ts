@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase/firestore";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 import {
   buildPatientRecordScopePlan,
   type PatientRecordAuthority,
@@ -34,7 +35,19 @@ export type InboxScopePlan = PatientRecordScopePlan;
 export interface InboxWorkspaceResult {
   readonly records: readonly InboxConversationRecord[];
   readonly scopePlan: InboxScopePlan;
+  /** Records skipped in tolerant mode (another lane's shape or an impossible join). */
+  readonly excluded: number;
 }
+
+export type InboxWorkspaceLoadOptions = Readonly<{
+  /**
+   * Skip records that belong to another lane (schema mismatch or a join that
+   * cannot be made) instead of failing the whole inbox. Used by the governed
+   * cloud demo, where the Lite canary shares these collections. The number of
+   * skipped records is returned so the UI can say so honestly.
+   */
+  readonly tolerant?: boolean;
+}>;
 
 export class InboxWorkspaceDataError extends Error {
   constructor(
@@ -91,7 +104,7 @@ function assertRecordJoin(
   return { contact, team, location };
 }
 
-export function assembleInboxRecords(input: {
+type InboxAssemblyInput = {
   readonly workspaceId: string;
   readonly conversations: readonly ConversationListItemDTO[];
   readonly contacts: readonly ContactListItemDTO[];
@@ -99,14 +112,26 @@ export function assembleInboxRecords(input: {
   readonly locations: readonly LocationDTO[];
   readonly consentByContactId: ReadonlyMap<string, readonly ConsentRecordDTO[]>;
   readonly messagesByConversationId: ReadonlyMap<string, readonly MessageMetadataDTO[]>;
-}): readonly InboxConversationRecord[] {
+};
+
+export function assembleInboxRecords(
+  input: InboxAssemblyInput,
+  options?: InboxWorkspaceLoadOptions,
+): readonly InboxConversationRecord[] {
+  return assembleInboxRecordsWithExclusions(input, options).records;
+}
+
+export function assembleInboxRecordsWithExclusions(
+  input: InboxAssemblyInput,
+  options?: InboxWorkspaceLoadOptions,
+): { readonly records: readonly InboxConversationRecord[]; readonly excluded: number } {
   const conversations = dedupeById(input.conversations);
   const contactMap = byId(dedupeById(input.contacts));
   const teamMap = byId(input.teams);
   const locationMap = byId(input.locations);
+  let excluded = 0;
 
-  return conversations
-    .map((conversation): InboxConversationRecord => {
+  const assembleOne = (conversation: ConversationListItemDTO): InboxConversationRecord => {
       if (conversation.workspaceId !== input.workspaceId) {
         throw new InboxWorkspaceDataError(
           "A conversation was returned outside the verified workspace.",
@@ -160,7 +185,26 @@ export function assembleInboxRecords(input: {
           (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt),
         ),
       };
-    })
+    };
+
+  const records: InboxConversationRecord[] = [];
+  for (const conversation of conversations) {
+    try {
+      records.push(assembleOne(conversation));
+    } catch (error) {
+      if (
+        options?.tolerant &&
+        error instanceof InboxWorkspaceDataError &&
+        error.code === "invalid_join"
+      ) {
+        excluded += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  const sorted = records
     .sort((left, right) => {
       const leftUrgent = left.conversation.purpose === "urgent_escalation" ? 1 : 0;
       const rightUrgent = right.conversation.purpose === "urgent_escalation" ? 1 : 0;
@@ -170,6 +214,7 @@ export function assembleInboxRecords(input: {
       }
       return Date.parse(right.conversation.lastMessageAt) - Date.parse(left.conversation.lastMessageAt);
     });
+  return { records: sorted, excluded };
 }
 
 function normalizedSearch(value: string): string {
@@ -218,14 +263,15 @@ async function loadScopedCollections(
   db: Firestore,
   workspaceId: string,
   plan: Exclude<InboxScopePlan, { readonly kind: "denied" }>,
+  options?: { readonly tolerant: true },
 ): Promise<{
   readonly contacts: readonly ContactListItemDTO[];
   readonly conversations: readonly ConversationListItemDTO[];
 }> {
   if (plan.kind === "workspace_wide") {
     const [contacts, conversations] = await Promise.all([
-      listScopedContacts(db, { workspaceId, pageSize: PAGE_SIZE }),
-      listScopedConversations(db, { workspaceId, pageSize: PAGE_SIZE }),
+      listScopedContacts(db, { workspaceId, pageSize: PAGE_SIZE }, options),
+      listScopedConversations(db, { workspaceId, pageSize: PAGE_SIZE }, options),
     ]);
     return { contacts, conversations };
   }
@@ -233,8 +279,8 @@ async function loadScopedCollections(
   const results = await Promise.all(
     plan.pairs.map(async (pair) => {
       const [contacts, conversations] = await Promise.all([
-        listScopedContacts(db, { workspaceId, ...pair, pageSize: PAGE_SIZE }),
-        listScopedConversations(db, { workspaceId, ...pair, pageSize: PAGE_SIZE }),
+        listScopedContacts(db, { workspaceId, ...pair, pageSize: PAGE_SIZE }, options),
+        listScopedConversations(db, { workspaceId, ...pair, pageSize: PAGE_SIZE }, options),
       ]);
       return { contacts, conversations };
     }),
@@ -248,7 +294,10 @@ async function loadScopedCollections(
 export async function loadInboxWorkspace(
   db: Firestore,
   authority: InboxAuthority,
+  options?: InboxWorkspaceLoadOptions,
 ): Promise<InboxWorkspaceResult> {
+  const readOptions = options?.tolerant ? ({ tolerant: true } as const) : undefined;
+  let excluded = 0;
   try {
     const [teams, locations] = await Promise.all([
       listWorkspaceTeams(db, { workspaceId: authority.workspaceId, pageSize: PAGE_SIZE }),
@@ -256,34 +305,54 @@ export async function loadInboxWorkspace(
     ]);
     const scopePlan = buildInboxScopePlan(authority, teams, locations);
     if (scopePlan.kind === "denied") {
-      return { records: [], scopePlan };
+      return { records: [], scopePlan, excluded: 0 };
     }
 
     const { contacts, conversations } = await loadScopedCollections(
       db,
       authority.workspaceId,
       scopePlan,
+      readOptions,
     );
     const contactMap = byId(contacts);
     const consentEntries = new Map<string, Promise<readonly ConsentRecordDTO[]>>();
+    const joinable: ConversationListItemDTO[] = [];
     for (const conversation of conversations) {
-      const joined = assertRecordJoin(
-        conversation,
-        contactMap.get(conversation.contactId),
-        teams.find((team) => team.id === conversation.teamId),
-        locations.find((location) => location.id === conversation.locationId),
-      );
+      let joined;
+      try {
+        joined = assertRecordJoin(
+          conversation,
+          contactMap.get(conversation.contactId),
+          teams.find((team) => team.id === conversation.teamId),
+          locations.find((location) => location.id === conversation.locationId),
+        );
+      } catch (error) {
+        if (
+          readOptions &&
+          error instanceof InboxWorkspaceDataError &&
+          error.code === "invalid_join"
+        ) {
+          excluded += 1;
+          continue;
+        }
+        throw error;
+      }
+      joinable.push(conversation);
       const { contact } = joined;
       if (!consentEntries.has(contact.id)) {
         consentEntries.set(
           contact.id,
-          listConsentRecordsForContact(db, {
-            workspaceId: authority.workspaceId,
-            contactId: contact.id,
-            teamId: conversation.teamId,
-            locationId: conversation.locationId,
-            pageSize: PAGE_SIZE,
-          }),
+          listConsentRecordsForContact(
+            db,
+            {
+              workspaceId: authority.workspaceId,
+              contactId: contact.id,
+              teamId: conversation.teamId,
+              locationId: conversation.locationId,
+              pageSize: PAGE_SIZE,
+            },
+            readOptions,
+          ),
         );
       }
     }
@@ -293,30 +362,39 @@ export async function loadInboxWorkspace(
         [...consentEntries].map(async ([contactId, promise]) => [contactId, await promise] as const),
       ),
       Promise.all(
-        conversations.map(async (conversation) => [
+        joinable.map(async (conversation) => [
           conversation.id,
-          await listConversationMessageMetadata(db, {
-            workspaceId: authority.workspaceId,
-            conversationId: conversation.id,
-            teamId: conversation.teamId,
-            locationId: conversation.locationId,
-            pageSize: PAGE_SIZE,
-          }),
+          await listConversationMessageMetadata(
+            db,
+            {
+              workspaceId: authority.workspaceId,
+              conversationId: conversation.id,
+              teamId: conversation.teamId,
+              locationId: conversation.locationId,
+              pageSize: PAGE_SIZE,
+            },
+            readOptions,
+          ),
         ] as const),
       ),
     ]);
 
-    return {
-      scopePlan,
-      records: assembleInboxRecords({
+    const assembled = assembleInboxRecordsWithExclusions(
+      {
         workspaceId: authority.workspaceId,
-        conversations,
+        conversations: joinable,
         contacts,
         teams,
         locations,
         consentByContactId: new Map(consentPairs),
         messagesByConversationId: new Map(messagePairs),
-      }),
+      },
+      readOptions,
+    );
+    return {
+      scopePlan,
+      records: assembled.records,
+      excluded: excluded + assembled.excluded,
     };
   } catch (error) {
     if (error instanceof InboxWorkspaceDataError) throw error;
@@ -341,10 +419,10 @@ export function describeInboxWorkspaceError(error: unknown): string {
     return "Inbox access was denied by the workspace or team-and-location scope rules.";
   }
   if (code.includes("failed-precondition")) {
-    return "The local Firestore indexes are not ready for this scoped inbox query.";
+    return "The Firestore indexes are not ready for this scoped inbox query.";
   }
   if (error instanceof InboxWorkspaceDataError && error.code === "invalid_join") {
     return "Persisted inbox records failed tenant-scope validation, so the inbox stayed closed.";
   }
-  return "The local Firestore emulator could not load the persisted inbox. No cloud fallback was attempted.";
+  return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} could not load the persisted inbox. No fallback was attempted.`;
 }

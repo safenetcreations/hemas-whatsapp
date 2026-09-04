@@ -23,6 +23,7 @@ import {
   type AppointmentFunctionsRequest,
 } from "@/lib/firebase/appointment-functions-emulator";
 import type { VerifiedWorkspaceSession } from "@/lib/firebase/workspace-session-model";
+import { DATA_SOURCE } from "@/lib/firebase/boundary-copy";
 
 const PAGE_SIZE = 100;
 const APPOINTMENT_ROLES = ["tenant_admin", "supervisor", "agent"] as const;
@@ -331,5 +332,5 @@ export function describeAppointmentWorkspaceError(error: unknown): string {
   if (error instanceof AppointmentWorkspaceDataError && error.code === "invalid_join") {
     return "Persisted appointment evidence failed tenant-route validation, so this workspace stayed closed.";
   }
-  return "The local Firestore emulator could not load persisted appointments. No cloud or fixture fallback was attempted.";
+  return `${DATA_SOURCE.charAt(0).toUpperCase()}${DATA_SOURCE.slice(1)} could not load persisted appointments. No fixture fallback was attempted.`;
 }
