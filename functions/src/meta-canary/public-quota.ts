@@ -17,13 +17,27 @@ export const META_CANARY_PUBLIC_QUOTA_MAX_CANDIDATES = 40;
 export const META_CANARY_PUBLIC_MAX_MESSAGE_AGE_MS = 5 * 60_000;
 export const META_CANARY_PUBLIC_MAX_MESSAGE_FUTURE_MS = 60_000;
 
+/**
+ * Bounded env override for the two AI budgets. Defaults stay the governed
+ * baseline (3 model calls per sender per day, 100 per day overall). During an
+ * evaluation demo the operator may raise them via
+ * HEMAS_META_PUBLIC_AI_SENDER_DAY / HEMAS_META_PUBLIC_AI_GLOBAL_DAY, still
+ * capped here so a typo can never remove the budget entirely.
+ */
+function boundedEnvLimit(name: string, fallback: number, max: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw || !/^\d{1,5}$/.test(raw)) return fallback;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 1 && value <= max ? value : fallback;
+}
+
 export const META_CANARY_PUBLIC_QUOTA_LIMITS = Object.freeze({
   senderMinute: 6,
   senderDay: 20,
   globalMinute: 60,
   globalDay: 500,
-  aiSenderDay: 3,
-  aiGlobalDay: 100,
+  aiSenderDay: boundedEnvLimit("HEMAS_META_PUBLIC_AI_SENDER_DAY", 3, 50),
+  aiGlobalDay: boundedEnvLimit("HEMAS_META_PUBLIC_AI_GLOBAL_DAY", 100, 2_000),
 });
 
 export const META_CANARY_PUBLIC_QUOTA_WINDOWS_MS = Object.freeze({
