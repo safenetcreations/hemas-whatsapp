@@ -1398,8 +1398,16 @@ export const metaCanaryWebhook = onRequest(
         planMode,
         occurredAtMs: nowMs,
       });
-    } catch {
-      logger.error("meta-canary: durable receipt/outbox creation failed");
+    } catch (error) {
+      // Content-free diagnostics only: the error class and stable code tell an
+      // operator which guard failed closed without exposing any payload.
+      logger.error("meta-canary: durable receipt/outbox creation failed", {
+        reason: error instanceof Error ? error.name : typeof error,
+        code:
+          typeof (error as { code?: unknown })?.code === "string"
+            ? (error as { code: string }).code
+            : null,
+      });
       response.status(503).json({ error: "storage_unavailable" });
       return;
     }

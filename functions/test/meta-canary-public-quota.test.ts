@@ -749,7 +749,10 @@ test("malformed current records and candidate batches fail closed", () => {
   );
   assert.ok(aiSenderRecord);
   for (const malformedAiRecord of [
-    { ...aiSenderRecord, limit: META_CANARY_PUBLIC_QUOTA_LIMITS.aiSenderDay + 1 },
+    { ...aiSenderRecord, limit: 0 },
+    { ...aiSenderRecord, limit: -1 },
+    { ...aiSenderRecord, limit: "3" },
+    { ...aiSenderRecord, count: aiSenderRecord.limit + 1 },
     { ...aiSenderRecord, windowMs: MINUTE_MS },
     { ...aiSenderRecord, expiresAtMs: aiSenderRecord.expiresAtMs + 1 },
   ]) {
@@ -757,4 +760,94 @@ test("malformed current records and candidate batches fail closed", () => {
       parseMetaCanaryPublicQuotaCounterRecord(malformedAiRecord),
     );
   }
+});
+
+test("stored counters written under a different configured limit still parse", () => {
+  // Regression: the AI budgets are operator-configurable. Raising them must
+  // not make every inbound transaction fail closed on counters that were
+  // written under the previous budget.
+  const senderSha256 = sha("+94770000901");
+  const seed = allocateMetaCanaryPublicQuota({
+    candidates: [candidate("receipt-limit-seed", senderSha256, DAY_START_MS, true)],
+    nowMs: DAY_START_MS,
+    currentCounterRecords: {},
+  });
+  const aiSenderRecord = Object.values(seed.updatedCounterRecords).find(
+    (record) => record.counterKind === "ai_sender_day",
+  );
+  assert.ok(aiSenderRecord);
+
+  for (const storedLimit of [1, 3, 15, 50, 300]) {
+    const storedCount = Math.min(aiSenderRecord.count, storedLimit);
+    const stored: MetaCanaryPublicQuotaCounterRecord = {
+      ...aiSenderRecord,
+      limit: storedLimit,
+      count: storedCount,
+    };
+    const parsed = parseMetaCanaryPublicQuotaCounterRecord(stored);
+    assert.equal(parsed.limit, storedLimit);
+    assert.equal(parsed.count, storedCount);
+  }
+});
+
+test("allocation re-bases a stored counter onto the configured limit", () => {
+  const senderSha256 = sha("+94770000902");
+  const configuredLimit = META_CANARY_PUBLIC_QUOTA_LIMITS.aiSenderDay;
+  const state: CounterState = {};
+  allocateAndMerge({
+    state,
+    candidates: numberedCandidates(
+      "receipt-rebase-seed",
+      configuredLimit,
+      () => senderSha256,
+      DAY_START_MS,
+      true,
+    ),
+    nowMs: DAY_START_MS,
+  });
+  const exhausted = currentRecord({
+    state,
+    kind: "ai_sender_day",
+    nowMs: DAY_START_MS,
+    scopeSha256: senderSha256,
+  });
+  assert.equal(exhausted.count, configuredLimit);
+
+  // Simulate a record written while a larger budget was configured. The
+  // configured limit still governs: the sender is exhausted, no AI budget is
+  // reserved, and the inbound receipt is still admitted.
+  const raisedState: CounterState = {
+    ...state,
+    [exhausted.counterId]: { ...exhausted, limit: configuredLimit + 10 },
+  };
+  const underRaised = allocateMetaCanaryPublicQuota({
+    candidates: [candidate("receipt-rebase-raised", senderSha256, DAY_START_MS, true)],
+    nowMs: DAY_START_MS,
+    currentCounterRecords: raisedState,
+  });
+  assert.deepEqual(underRaised.allowedReceiptIds, ["receipt-rebase-raised"]);
+  assert.deepEqual(underRaised.aiBudgetReceiptIds, []);
+  assert.equal(
+    underRaised.updatedCounterRecords[exhausted.counterId],
+    undefined,
+  );
+
+  // Simulate a record written while a smaller budget was configured and
+  // partly used. The configured limit admits the remaining budget and the
+  // rewritten record carries the configured limit.
+  const loweredState: CounterState = {
+    ...state,
+    [exhausted.counterId]: { ...exhausted, limit: 1, count: 1 },
+  };
+  const underLowered = allocateMetaCanaryPublicQuota({
+    candidates: [candidate("receipt-rebase-lowered", senderSha256, DAY_START_MS, true)],
+    nowMs: DAY_START_MS,
+    currentCounterRecords: loweredState,
+  });
+  assert.deepEqual(underLowered.allowedReceiptIds, ["receipt-rebase-lowered"]);
+  assert.deepEqual(underLowered.aiBudgetReceiptIds, ["receipt-rebase-lowered"]);
+  const rewritten = underLowered.updatedCounterRecords[exhausted.counterId];
+  assert.ok(rewritten);
+  assert.equal(rewritten.limit, configuredLimit);
+  assert.equal(rewritten.count, 2);
 });

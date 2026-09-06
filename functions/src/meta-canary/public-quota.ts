@@ -385,19 +385,39 @@ export function parseMetaCanaryPublicQuotaCounterRecord(
     scopeSha256: data.scopeSha256,
     bucketStartMs,
   });
+  // `limit` is the budget that was configured when the record was written. It
+  // is validated for shape only: the AI budgets are operator-configurable
+  // (see boundedEnvLimit), so a stored counter must survive a configuration
+  // change instead of failing the whole inbound transaction closed. The
+  // currently configured limit is applied at allocation time (see
+  // allocateMetaCanaryPublicQuota), which also rewrites the stored value.
   if (
     data.counterId !== expectedCounterId ||
     (definition.global && data.scopeSha256 !== GLOBAL_SCOPE_SHA256) ||
     data.windowMs !== definition.windowMs ||
-    data.limit !== definition.limit ||
+    Number(data.limit) < 1 ||
     Number(data.count) < 0 ||
-    Number(data.count) > definition.limit ||
+    Number(data.count) > Number(data.limit) ||
     data.expiresAtMs !== bucketStartMs + definition.windowMs + definition.graceMs
   ) {
     refuse();
   }
 
   return data as MetaCanaryPublicQuotaCounterRecord;
+}
+
+/**
+ * Re-bases a stored counter onto the currently configured limit. A budget
+ * that was raised admits more; a budget that was lowered below the stored
+ * count simply reads as exhausted for the rest of the bucket.
+ */
+function rebaseCounterLimit(
+  record: MetaCanaryPublicQuotaCounterRecord,
+): MetaCanaryPublicQuotaCounterRecord {
+  const configuredLimit = counterDefinition(record.counterKind).limit;
+  return record.limit === configuredLimit
+    ? record
+    : { ...record, limit: configuredLimit };
 }
 
 function newCounterRecord(
@@ -452,7 +472,9 @@ export function allocateMetaCanaryPublicQuota(
 
   const working = new Map<string, MetaCanaryPublicQuotaCounterRecord>();
   for (const [key, value] of Object.entries(input.currentCounterRecords)) {
-    const record = parseMetaCanaryPublicQuotaCounterRecord(value);
+    const record = rebaseCounterLimit(
+      parseMetaCanaryPublicQuotaCounterRecord(value),
+    );
     if (key !== record.counterId || working.has(key)) refuse();
     working.set(key, record);
   }
