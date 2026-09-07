@@ -48,9 +48,9 @@ const TEMPLATES = [
     label: "hemas_health_check_invite · Health check invitation · English",
   },
   {
-    value: "hemas_health_check_invite:si",
+    value: "hemas_health_check_invite:si_LK",
     templateName: "hemas_health_check_invite",
-    languageCode: "si",
+    languageCode: "si_LK",
     label: "hemas_health_check_invite · සෞඛ්‍ය පරීක්ෂණ ආරාධනය · Sinhala",
   },
   {
@@ -66,9 +66,9 @@ const TEMPLATES = [
     label: "hemas_homecare_visit · IMAGE header · Homecare home-visit · English",
   },
   {
-    value: "hemas_homecare_visit:si",
+    value: "hemas_homecare_visit:si_LK",
     templateName: "hemas_homecare_visit",
-    languageCode: "si",
+    languageCode: "si_LK",
     label: "hemas_homecare_visit · IMAGE header · නිවසේ සත්කාර සේවාව · Sinhala",
   },
   {

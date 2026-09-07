@@ -1173,7 +1173,7 @@ test("campaign contracts: names, templates, ids, status ordering", async () => {
   assert.throws(() => assertTemplateSelection("hemas_welcome_visual", "si_LK"), LiteCampaignError);
 
   // Trilingual health-check invitation: exact (template, language) pairs only.
-  for (const languageCode of ["en", "si", "ta"] as const) {
+  for (const languageCode of ["en", "si_LK", "ta"] as const) {
     assert.deepEqual(assertTemplateSelection("hemas_health_check_invite", languageCode), {
       templateName: "hemas_health_check_invite",
       languageCode,
@@ -1184,18 +1184,20 @@ test("campaign contracts: names, templates, ids, status ordering", async () => {
     languageCode: "en",
   });
   assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "en_US"), LiteCampaignError);
-  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "si_LK"), LiteCampaignError);
+  // Meta's Sinhala code is si_LK; bare "si" must never reach the provider (error 132001).
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "si"), LiteCampaignError);
   assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "ta_IN"), LiteCampaignError);
   assert.throws(() => assertTemplateSelection("hemas_health_check_invite", ""), LiteCampaignError);
   assert.throws(() => assertTemplateSelection("hemas_health_check_invite", 7), LiteCampaignError);
 
-  for (const languageCode of ["en", "si", "ta"] as const) {
+  for (const languageCode of ["en", "si_LK", "ta"] as const) {
     assert.deepEqual(assertTemplateSelection("hemas_homecare_visit", languageCode), {
       templateName: "hemas_homecare_visit",
       languageCode,
     });
   }
   assert.throws(() => assertTemplateSelection("hemas_homecare_visit", "en_US"), LiteCampaignError);
+  assert.throws(() => assertTemplateSelection("hemas_homecare_visit", "si"), LiteCampaignError);
 
   // IMAGE-header media resolution: text-only templates need nothing; image
   // templates fail closed when their media is missing or malformed.

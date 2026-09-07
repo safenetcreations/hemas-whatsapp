@@ -140,7 +140,8 @@ export function assertValidCampaignName(raw: unknown): string {
   return name;
 }
 
-export type LiteCampaignLanguageCode = "en_US" | "en" | "si" | "ta";
+/** Meta template language codes: English "en", Sinhala "si_LK", Tamil "ta". */
+export type LiteCampaignLanguageCode = "en_US" | "en" | "si_LK" | "ta";
 
 export interface TemplateSelection {
   readonly templateName: string;
@@ -158,10 +159,10 @@ export const LITE_CAMPAIGN_TEMPLATE_CATALOGUE = [
   { templateName: "hemas_canary_hello", languageCode: "en_US" },
   { templateName: "hemas_welcome_visual", languageCode: "en_US" },
   { templateName: "hemas_health_check_invite", languageCode: "en" },
-  { templateName: "hemas_health_check_invite", languageCode: "si" },
+  { templateName: "hemas_health_check_invite", languageCode: "si_LK" },
   { templateName: "hemas_health_check_invite", languageCode: "ta" },
   { templateName: "hemas_homecare_visit", languageCode: "en" },
-  { templateName: "hemas_homecare_visit", languageCode: "si" },
+  { templateName: "hemas_homecare_visit", languageCode: "si_LK" },
   { templateName: "hemas_homecare_visit", languageCode: "ta" },
 ] as const satisfies readonly TemplateSelection[];
 
