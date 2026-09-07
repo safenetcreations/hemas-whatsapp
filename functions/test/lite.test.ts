@@ -1139,6 +1139,7 @@ test("campaign contracts: names, templates, ids, status ordering", async () => {
     assertCampaignOperationId,
     assertCampaignReconciliationInput,
     assertTemplateSelection,
+    campaignHeaderComponent,
     assertValidCampaignName,
     campaignId,
     campaignReconciliationDocumentId,
@@ -1170,6 +1171,65 @@ test("campaign contracts: names, templates, ids, status ordering", async () => {
   assert.throws(() => assertTemplateSelection("appointment_reminder", "en_US"), LiteCampaignError);
   assert.throws(() => assertTemplateSelection("hemas_canary_hello", "en"), LiteCampaignError);
   assert.throws(() => assertTemplateSelection("hemas_welcome_visual", "si_LK"), LiteCampaignError);
+
+  // Trilingual health-check invitation: exact (template, language) pairs only.
+  for (const languageCode of ["en", "si", "ta"] as const) {
+    assert.deepEqual(assertTemplateSelection("hemas_health_check_invite", languageCode), {
+      templateName: "hemas_health_check_invite",
+      languageCode,
+    });
+  }
+  assert.deepEqual(assertTemplateSelection(" hemas_health_check_invite ", undefined), {
+    templateName: "hemas_health_check_invite",
+    languageCode: "en",
+  });
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "en_US"), LiteCampaignError);
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "si_LK"), LiteCampaignError);
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", "ta_IN"), LiteCampaignError);
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", ""), LiteCampaignError);
+  assert.throws(() => assertTemplateSelection("hemas_health_check_invite", 7), LiteCampaignError);
+
+  for (const languageCode of ["en", "si", "ta"] as const) {
+    assert.deepEqual(assertTemplateSelection("hemas_homecare_visit", languageCode), {
+      templateName: "hemas_homecare_visit",
+      languageCode,
+    });
+  }
+  assert.throws(() => assertTemplateSelection("hemas_homecare_visit", "en_US"), LiteCampaignError);
+
+  // IMAGE-header media resolution: text-only templates need nothing; image
+  // templates fail closed when their media is missing or malformed.
+  assert.equal(campaignHeaderComponent("hemas_canary_hello", {}), null);
+  assert.equal(campaignHeaderComponent("hemas_health_check_invite", {}), null);
+  assert.deepEqual(
+    campaignHeaderComponent("hemas_welcome_visual", { HEMAS_META_WELCOME_MEDIA_ID: " 123456789012 " }),
+    { type: "header", parameters: [{ type: "image", image: { id: "123456789012" } }] },
+  );
+  assert.deepEqual(
+    campaignHeaderComponent("hemas_homecare_visit", {
+      HEMAS_META_HOMECARE_IMAGE_URL: "https://hemas-connect--hemas-whatsapp.us-central1.hosted.app/campaign/homecare-visit.jpg",
+    }),
+    {
+      type: "header",
+      parameters: [{
+        type: "image",
+        image: { link: "https://hemas-connect--hemas-whatsapp.us-central1.hosted.app/campaign/homecare-visit.jpg" },
+      }],
+    },
+  );
+  for (const env of [
+    {},
+    { HEMAS_META_HOMECARE_IMAGE_URL: "" },
+    { HEMAS_META_HOMECARE_IMAGE_URL: "http://insecure.example/x.jpg" },
+    { HEMAS_META_HOMECARE_IMAGE_URL: "https://example.com" },
+    { HEMAS_META_HOMECARE_IMAGE_URL: "https://example.com/a b.jpg" },
+    { HEMAS_META_HOMECARE_IMAGE_URL: "javascript:alert(1)" },
+  ]) {
+    assert.throws(() => campaignHeaderComponent("hemas_homecare_visit", env), LiteCampaignError);
+  }
+  for (const env of [{}, { HEMAS_META_WELCOME_MEDIA_ID: "abc" }, { HEMAS_META_WELCOME_MEDIA_ID: "12" }]) {
+    assert.throws(() => campaignHeaderComponent("hemas_welcome_visual", env), LiteCampaignError);
+  }
 
   const operationId = "campaign_1234567890abcdef";
   assert.equal(assertCampaignOperationId(operationId), operationId);

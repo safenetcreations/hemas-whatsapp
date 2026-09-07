@@ -63,6 +63,7 @@ import {
   assertCampaignOperationId,
   assertCampaignReconciliationInput,
   assertTemplateSelection,
+  campaignHeaderComponent,
   assertValidCampaignName,
   campaignId,
   campaignReconciliationDocumentId,
@@ -2230,6 +2231,9 @@ export const liteSendCampaign = onCall(
         request.data?.templateName,
         request.data?.languageCode,
       );
+      // Fail closed before any reservation when an IMAGE-header template has no
+      // configured media: one clear error, never a campaign of failed sends.
+      const headerComponent = campaignHeaderComponent(template.templateName);
       const requestedContactIds = assertCampaignContactIds(request.data?.recipients);
       const ws = db.collection("workspaces").doc(LITE_WORKSPACE_ID);
       const requestSha256 = campaignRequestSha256(
@@ -2363,7 +2367,6 @@ export const liteSendCampaign = onCall(
       const token = metaAccessToken.value();
       let sent = 0;
       let failed = 0;
-      const welcomeMediaId = process.env.HEMAS_META_WELCOME_MEDIA_ID?.trim() ?? "";
       for (const [index, recipient] of reservation.audience.entries()) {
         const recipientOperationId = campaignRecipientOperationId(
           id,
@@ -2447,16 +2450,7 @@ export const liteSendCampaign = onCall(
               name: template.templateName,
               language: { code: template.languageCode },
               // IMAGE-header templates need the media parameter at send time.
-              ...(template.templateName === "hemas_welcome_visual" && welcomeMediaId
-                ? {
-                    components: [
-                      {
-                        type: "header",
-                        parameters: [{ type: "image", image: { id: welcomeMediaId } }],
-                      },
-                    ],
-                  }
-                : {}),
+              ...(headerComponent ? { components: [headerComponent] } : {}),
             },
           });
           if (!result.providerMessageId) {

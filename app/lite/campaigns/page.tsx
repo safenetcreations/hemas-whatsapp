@@ -23,10 +23,67 @@ import {
   liteCx,
 } from "@/components/lite/lite-ui";
 
+/**
+ * Approved template catalogue offered by the portal. `value` is what the
+ * operator picks; `templateName` + `languageCode` are sent verbatim to the
+ * governed callable, which re-validates them against its own catalogue.
+ */
 const TEMPLATES = [
-  { value: "hemas_canary_hello", label: "hemas_canary_hello · text (en_US)" },
-  { value: "hemas_welcome_visual", label: "hemas_welcome_visual · IMAGE header (en_US)" },
+  {
+    value: "hemas_canary_hello:en_US",
+    templateName: "hemas_canary_hello",
+    languageCode: "en_US",
+    label: "hemas_canary_hello · text (en_US)",
+  },
+  {
+    value: "hemas_welcome_visual:en_US",
+    templateName: "hemas_welcome_visual",
+    languageCode: "en_US",
+    label: "hemas_welcome_visual · IMAGE header (en_US)",
+  },
+  {
+    value: "hemas_health_check_invite:en",
+    templateName: "hemas_health_check_invite",
+    languageCode: "en",
+    label: "hemas_health_check_invite · Health check invitation · English",
+  },
+  {
+    value: "hemas_health_check_invite:si",
+    templateName: "hemas_health_check_invite",
+    languageCode: "si",
+    label: "hemas_health_check_invite · සෞඛ්‍ය පරීක්ෂණ ආරාධනය · Sinhala",
+  },
+  {
+    value: "hemas_health_check_invite:ta",
+    templateName: "hemas_health_check_invite",
+    languageCode: "ta",
+    label: "hemas_health_check_invite · உடல்நலப் பரிசோதனை அழைப்பு · Tamil",
+  },
+  {
+    value: "hemas_homecare_visit:en",
+    templateName: "hemas_homecare_visit",
+    languageCode: "en",
+    label: "hemas_homecare_visit · IMAGE header · Homecare home-visit · English",
+  },
+  {
+    value: "hemas_homecare_visit:si",
+    templateName: "hemas_homecare_visit",
+    languageCode: "si",
+    label: "hemas_homecare_visit · IMAGE header · නිවසේ සත්කාර සේවාව · Sinhala",
+  },
+  {
+    value: "hemas_homecare_visit:ta",
+    templateName: "hemas_homecare_visit",
+    languageCode: "ta",
+    label: "hemas_homecare_visit · IMAGE header · வீட்டுப் பராமரிப்பு சேவை · Tamil",
+  },
 ] as const;
+
+type TemplateOption = (typeof TEMPLATES)[number];
+
+function templateOption(value: string): TemplateOption {
+  return TEMPLATES.find((option) => option.value === value) ?? TEMPLATES[0];
+}
 
 const STATUS_STYLE: Record<string, string> = {
   sending: "bg-slate-100 text-slate-600",
@@ -92,11 +149,13 @@ export default function LiteCampaignsPage() {
     setPending(true);
     setNotice(null);
     try {
+      const chosen = templateOption(template);
       const result = await liteLaunchCampaign(
         operationId,
         name.trim(),
-        template,
+        chosen.templateName,
         [...picked],
+        chosen.languageCode,
       );
       setNotice(
         result.idempotent
@@ -237,7 +296,7 @@ export default function LiteCampaignsPage() {
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-amber-950">
-              Send <strong>{template}</strong> to <strong>{picked.size}</strong> selected allowlisted test contact{picked.size === 1 ? "" : "s"}. Delivery cannot be undone.
+              Send <strong>{templateOption(template).templateName}</strong> ({templateOption(template).languageCode}) to <strong>{picked.size}</strong> selected allowlisted test contact{picked.size === 1 ? "" : "s"}. Delivery cannot be undone.
             </p>
             <p className="mt-1 text-xs leading-5 text-amber-800">
               This review has one server idempotency key. A timeout retry reuses it; changing the draft creates a new operation.

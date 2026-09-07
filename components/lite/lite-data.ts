@@ -1321,12 +1321,14 @@ export async function liteLaunchCampaign(
   name: string,
   templateName?: string,
   recipients?: readonly string[],
+  languageCode?: string,
 ): Promise<LiteCampaignLaunchResult> {
   const callable = httpsCallable(liteFunctions(), "liteSendCampaign", { timeout: 110_000 });
   const result = await callable({
     operationId,
     name,
     ...(templateName ? { templateName } : {}),
+    ...(templateName && languageCode ? { languageCode } : {}),
     ...(recipients && recipients.length > 0 ? { recipients } : {}),
   });
   return result.data as LiteCampaignLaunchResult;

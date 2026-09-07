@@ -140,36 +140,111 @@ export function assertValidCampaignName(raw: unknown): string {
   return name;
 }
 
+export type LiteCampaignLanguageCode = "en_US" | "en" | "si" | "ta";
+
 export interface TemplateSelection {
   readonly templateName: string;
-  readonly languageCode: "en_US";
+  readonly languageCode: LiteCampaignLanguageCode;
+}
+
+/**
+ * Governed Lite campaign catalogue: exactly the (template, language) pairs the
+ * portal may send. Each pair must exist as an APPROVED template on the canary
+ * WABA under the same name and language code — the send path passes them to
+ * Meta verbatim. The first language listed is the default when a caller omits
+ * the language.
+ */
+export const LITE_CAMPAIGN_TEMPLATE_CATALOGUE = [
+  { templateName: "hemas_canary_hello", languageCode: "en_US" },
+  { templateName: "hemas_welcome_visual", languageCode: "en_US" },
+  { templateName: "hemas_health_check_invite", languageCode: "en" },
+  { templateName: "hemas_health_check_invite", languageCode: "si" },
+  { templateName: "hemas_health_check_invite", languageCode: "ta" },
+  { templateName: "hemas_homecare_visit", languageCode: "en" },
+  { templateName: "hemas_homecare_visit", languageCode: "si" },
+  { templateName: "hemas_homecare_visit", languageCode: "ta" },
+] as const satisfies readonly TemplateSelection[];
+
+/**
+ * IMAGE-header templates need the header media supplied at send time. Each
+ * entry names the environment variable that carries it: either a Meta media
+ * ID (uploaded to the canary phone number) or an HTTPS link Meta fetches.
+ * Templates absent from this map are text-only and need no header component.
+ */
+export const LITE_CAMPAIGN_IMAGE_HEADERS = Object.freeze({
+  hemas_welcome_visual: { env: "HEMAS_META_WELCOME_MEDIA_ID", kind: "id" },
+  hemas_homecare_visit: { env: "HEMAS_META_HOMECARE_IMAGE_URL", kind: "link" },
+} as const satisfies Readonly<
+  Record<string, { readonly env: string; readonly kind: "id" | "link" }>
+>);
+
+export type LiteCampaignHeaderComponent = {
+  readonly type: "header";
+  readonly parameters: readonly [
+    { readonly type: "image"; readonly image: { readonly id: string } | { readonly link: string } },
+  ];
+};
+
+const MEDIA_ID_PATTERN = /^\d{5,40}$/;
+const HTTPS_IMAGE_LINK_PATTERN = /^https:\/\/[A-Za-z0-9.-]+(?::\d{2,5})?\/[^\s"'<>]{1,400}$/;
+
+/**
+ * Resolves the header component for a template, or null for text-only
+ * templates. Throws LiteCampaignError("invalid_template") when an IMAGE-header
+ * template has no usable media configured, so the operator sees one clear
+ * pre-flight error instead of a campaign full of failed recipients.
+ */
+export function campaignHeaderComponent(
+  templateName: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): LiteCampaignHeaderComponent | null {
+  const header = (LITE_CAMPAIGN_IMAGE_HEADERS as Readonly<
+    Record<string, { readonly env: string; readonly kind: "id" | "link" } | undefined>
+  >)[templateName];
+  if (!header) return null;
+  const raw = env[header.env]?.trim() ?? "";
+  if (header.kind === "id") {
+    if (!MEDIA_ID_PATTERN.test(raw)) {
+      throw new LiteCampaignError(
+        "invalid_template",
+        "This template needs its header image configured before it can be sent.",
+      );
+    }
+    return { type: "header", parameters: [{ type: "image", image: { id: raw } }] };
+  }
+  if (!HTTPS_IMAGE_LINK_PATTERN.test(raw)) {
+    throw new LiteCampaignError(
+      "invalid_template",
+      "This template needs its header image configured before it can be sent.",
+    );
+  }
+  return { type: "header", parameters: [{ type: "image", image: { link: raw } }] };
 }
 
 export const LITE_CAMPAIGN_TEMPLATE_NAMES = [
-  "hemas_canary_hello",
-  "hemas_welcome_visual",
-] as const;
-
-type LiteCampaignTemplateName = (typeof LITE_CAMPAIGN_TEMPLATE_NAMES)[number];
-
-function isLiteCampaignTemplateName(value: string): value is LiteCampaignTemplateName {
-  return (LITE_CAMPAIGN_TEMPLATE_NAMES as readonly string[]).includes(value);
-}
+  ...new Set(LITE_CAMPAIGN_TEMPLATE_CATALOGUE.map((entry) => entry.templateName)),
+] as readonly string[];
 
 export function assertTemplateSelection(
   templateName: unknown,
   languageCode: unknown,
 ): TemplateSelection {
   const name = typeof templateName === "string" ? templateName.trim() : "";
+  const candidates = LITE_CAMPAIGN_TEMPLATE_CATALOGUE.filter(
+    (entry) => entry.templateName === name,
+  );
   const language =
-    languageCode === undefined || languageCode === null ? "en_US" : languageCode;
-  if (!isLiteCampaignTemplateName(name) || language !== "en_US") {
+    languageCode === undefined || languageCode === null
+      ? candidates[0]?.languageCode
+      : languageCode;
+  const match = candidates.find((entry) => entry.languageCode === language);
+  if (!match) {
     throw new LiteCampaignError(
       "invalid_template",
       "Template selection is not in the governed Lite campaign catalogue.",
     );
   }
-  return { templateName: name, languageCode: "en_US" };
+  return { templateName: match.templateName, languageCode: match.languageCode };
 }
 
 export function assertCampaignOperationId(raw: unknown): string {
